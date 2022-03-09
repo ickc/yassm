@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import numpy as np
 from numba import jit
-from numpy.linalg import lstsq  # type: ignore[attr-defined]
+from numpy.linalg import solve  # type: ignore[attr-defined]
 
 
 @jit(
@@ -54,8 +54,8 @@ def filter_update(
     QB = BQ.transpose()
     BQB_plus_R = B_t @ QB + R_t
 
-    m_t_given_t = m_t_given_tMinus1 + QB @ lstsq(BQB_plus_R, y_t - B_t @ m_t_given_tMinus1)[0]
-    Q_t_given_t = Q_t_given_tMinus1 - QB @ lstsq(BQB_plus_R, BQ)[0]
+    m_t_given_t = m_t_given_tMinus1 + QB @ solve(BQB_plus_R, y_t - B_t @ m_t_given_tMinus1)
+    Q_t_given_t = Q_t_given_tMinus1 - QB @ solve(BQB_plus_R, BQ)
     return m_t_given_t, Q_t_given_t
 
 
@@ -84,7 +84,7 @@ def smoothing_backward_recursion(
     :param Q_sPlus1_given_s: shape of (d, d).
     :return: (m_t_given_t, Q_t_given_t).
     """
-    Γ_sPlus1_transpose = lstsq(Q_sPlus1_given_s, A_sPlus1 @ Q_s_given_s)[0]
+    Γ_sPlus1_transpose = solve(Q_sPlus1_given_s, A_sPlus1 @ Q_s_given_s)
     Γ_sPlus1 = Γ_sPlus1_transpose.transpose()
 
     m_s_given_t = m_s_given_s + Γ_sPlus1 @ (m_sPlus1_given_t - m_sPlus1_given_s)
