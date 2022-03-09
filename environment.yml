@@ -14,7 +14,9 @@ dependencies:
   # host:
   - pip
   - python >=3.8
-  - poetry >=1,<2
+  - numpy >=1,<2
+  - numba
+  - statsmodels
   # run:
   - defopt >=6,<7
   # run_constrained:
