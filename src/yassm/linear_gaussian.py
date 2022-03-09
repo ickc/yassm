@@ -7,6 +7,8 @@ import numpy as np
 from numba import jit
 from numpy.linalg import solve  # type: ignore[attr-defined]
 
+from .lib.linear_gaussian import filter_update, one_step_ahead, smoothing_backward_recursion
+
 if TYPE_CHECKING:
     from typing import Callable
 
@@ -15,10 +17,10 @@ if TYPE_CHECKING:
 class GeneralLinearGaussianStateSpaceModel:
     """General linear gaussian state space model.
 
-    :param A: function of t returning transition, shape of (d, d).
-    :param B: function of t returning design, shape of (n, d).
-    :param Σ: function of t returning state covariance, shape of (d, d).
-    :param R: function of t returning observation coariance, shape of (n, n).
+    :param A: function of (params, t) returning transition, shape of (d, d).
+    :param B: function of (params, t) returning design, shape of (n, d).
+    :param Σ: function of (params, t) returning state covariance, shape of (d, d).
+    :param R: function of (params, t) returning observation coariance, shape of (n, n).
     :param N: total number of parameters.
 
     Y is of n-dimension,
@@ -62,108 +64,6 @@ class GeneralLinearGaussianStateSpaceModel:
         del A0, B0, Σ0, R0, params
 
         @jit(
-            "Tuple((float64[::1], float64[:, ::1]))(float64[::1], int64, float64[::1], float64[:, ::1])",
-            nopython=True,
-            nogil=True,
-        )
-        def one_step_ahead(
-            params: np.ndarray,
-            s: int,
-            m_sMinus1_given_t: np.ndarray,
-            Q_sMinus1_given_t: np.ndarray,
-        ) -> tuple[np.ndarray, np.ndarray]:
-            """Calculate one step ahead prediction.
-
-            :param params: paramters of the model, θ.
-            :param m_sMinus1_given_t: shape of (d,).
-            :param Q_sMinus1_given_t: shape of (d, d).
-            :return: (m_s_given_t, Q_s_given_t).
-            """
-            A_s = A(params, s)
-            Σ_s = Σ(params, s)
-
-            m_s_given_t = A_s @ m_sMinus1_given_t
-            Q_s_given_t = A_s @ Q_sMinus1_given_t @ A_s.transpose() + Σ_s
-            return m_s_given_t, Q_s_given_t
-
-        self.one_step_ahead = one_step_ahead
-
-        @jit(
-            "Tuple((float64[::1], float64[:, ::1]))(float64[:, ::1], float64[::1], int64, float64[::1], float64[:,"
-            " ::1])",
-            nopython=True,
-            nogil=True,
-        )
-        def filter_update(
-            y: np.ndarray,
-            params: np.ndarray,
-            t: int,
-            m_t_given_tMinus1: np.ndarray,
-            Q_t_given_tMinus1: np.ndarray,
-        ) -> tuple[np.ndarray, np.ndarray]:
-            """Calculate filter update.
-
-            :param params: paramters of the model, θ.
-            :param m_t_given_tMinus1: shape of (d,).
-            :param Q_t_given_tMinus1: shape of (d, d).
-            :return: (m_t_given_t, Q_t_given_t).
-
-            TODO: provide another version using Sherman-Morrison-Woodbury formula
-            and dispatch by comparing n, d
-            """
-            B_t = B(params, t)
-            R_t = R(params, t)
-            y_t = y[t]
-
-            BQ = B_t @ Q_t_given_tMinus1
-            QB = BQ.transpose()
-            BQB_plus_R = B_t @ QB + R_t
-
-            m_t_given_t = m_t_given_tMinus1 + QB @ solve(BQB_plus_R, y_t - B_t @ m_t_given_tMinus1)
-            Q_t_given_t = Q_t_given_tMinus1 - QB @ solve(BQB_plus_R, BQ)
-            return m_t_given_t, Q_t_given_t
-
-        self.filter_update = filter_update
-
-        @jit(
-            "Tuple((float64[::1], float64[:, ::1]))(float64[::1], int64, float64[::1], float64[:, ::1], float64[::1],"
-            " float64[:, ::1], float64[::1], float64[:, ::1])",
-            nopython=True,
-            nogil=True,
-        )
-        def smoothing_backward_recursion(
-            params: np.ndarray,
-            s: int,
-            m_s_given_s: np.ndarray,
-            Q_s_given_s: np.ndarray,
-            m_sPlus1_given_t: np.ndarray,
-            Q_sPlus1_given_t: np.ndarray,
-            m_sPlus1_given_s: np.ndarray,
-            Q_sPlus1_given_s: np.ndarray,
-        ):
-            """Calculate filter update.
-
-            :param params: paramters of the model, θ.
-            :param m_s_given_s: shape of (d,).
-            :param Q_s_given_s: shape of (d, d).
-            :param m_sPlus1_given_t: shape of (d,).
-            :param Q_sPlus1_given_t: shape of (d, d).
-            :param m_sPlus1_given_s: shape of (d,).
-            :param Q_sPlus1_given_s: shape of (d, d).
-            :return: (m_t_given_t, Q_t_given_t).
-            """
-            A_sPlus1 = A(params, s + 1)
-
-            Γ_sPlus1_transpose = solve(Q_sPlus1_given_s, A_sPlus1 @ Q_s_given_s)
-            Γ_sPlus1 = Γ_sPlus1_transpose.transpose()
-
-            m_s_given_t = m_s_given_s + Γ_sPlus1 @ (m_sPlus1_given_t - m_sPlus1_given_s)
-            Q_s_given_t = Q_s_given_s + Γ_sPlus1 @ (Q_sPlus1_given_t - Q_sPlus1_given_s) @ Γ_sPlus1_transpose
-            return m_s_given_t, Q_s_given_t
-
-        self.smoothing_backward_recursion = smoothing_backward_recursion
-
-        @jit(
             "Tuple((float64[:, ::1], float64[:, :, ::1], float64[:, ::1], float64[:, :, ::1]))(float64[:, ::1],"
             " float64[::1], float64[::1], float64[:, ::1])",
             nopython=True,
@@ -193,17 +93,25 @@ class GeneralLinearGaussianStateSpaceModel:
             Q_t_given_tMinus1[0] = Γ_0
 
             t = 0
-            temp = filter_update(y, params, t, m_t_given_tMinus1[t], Q_t_given_tMinus1[t])
+            B_t = B(params, t)
+            R_t = R(params, t)
+            y_t = y[t]
+            temp = filter_update(y_t, B_t, R_t, m_t_given_tMinus1[t], Q_t_given_tMinus1[t])
             m_t_given_t[t] = temp[0]
             Q_t_given_t[t] = temp[1]
             for t in range(1, size):
                 tMinus1 = t - 1
                 # s = t, t = t - 1
-                temp = one_step_ahead(params, t, m_t_given_t[tMinus1], Q_t_given_t[tMinus1])
+                A_s = A(params, t)
+                Σ_s = Σ(params, t)
+                temp = one_step_ahead(A_s, Σ_s, m_t_given_t[tMinus1], Q_t_given_t[tMinus1])
                 m_t_given_tMinus1[t] = temp[0]
                 Q_t_given_tMinus1[t] = temp[1]
 
-                temp = filter_update(y, params, t, m_t_given_tMinus1[t], Q_t_given_tMinus1[t])
+                B_t = B(params, t)
+                R_t = R(params, t)
+                y_t = y[t]
+                temp = filter_update(y_t, B_t, R_t, m_t_given_tMinus1[t], Q_t_given_tMinus1[t])
                 m_t_given_t[t] = temp[0]
                 Q_t_given_t[t] = temp[1]
             return m_t_given_tMinus1, Q_t_given_tMinus1, m_t_given_t, Q_t_given_t
