@@ -128,14 +128,14 @@ class TestLinearGaussian(TestCase):
     def setUp(self):
         rng = np.random.default_rng(12345)
 
-        self.n = 500
+        n = 500
         sig = 1.0
         C = 1e8
-        self.atol = 1e-7
+        self.atol = 1e-5
 
-        self.xx = np.linspace(0.0, 1.0, self.n)
-        self.yy_0 = fn(self.xx)
-        self.yy = self.yy_0 + sig * rng.normal(self.n)
+        xx = np.linspace(0.0, 1.0, n)
+        yy_0 = fn(xx)
+        self.yy = yy_0 + rng.normal(scale=sig, size=n)
         self.y = self.yy.reshape(-1, 1)
 
         self.μ_0 = np.zeros(2)
