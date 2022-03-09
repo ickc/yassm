@@ -11,6 +11,8 @@ from .lib.linear_gaussian import filter_update, one_step_ahead, smoothing_backwa
 if TYPE_CHECKING:
     from typing import Callable
 
+    import numpy.typing as npt
+
 
 @dataclass
 class GeneralLinearGaussianStateSpaceModel:
@@ -34,13 +36,13 @@ class GeneralLinearGaussianStateSpaceModel:
         X_s | Y_0 = y_0, ..., Y_t = y_t, θ ~ N(m_s|t, Q_s|t)
     """
 
-    A: Callable[[np.ndarray, int], np.ndarray]
-    B: Callable[[np.ndarray, int], np.ndarray]
-    Σ: Callable[[np.ndarray, int], np.ndarray]
-    R: Callable[[np.ndarray, int], np.ndarray]
+    A: Callable[[npt.NDArray[np.float64], int], npt.NDArray[np.float64]]
+    B: Callable[[npt.NDArray[np.float64], int], npt.NDArray[np.float64]]
+    Σ: Callable[[npt.NDArray[np.float64], int], npt.NDArray[np.float64]]
+    R: Callable[[npt.NDArray[np.float64], int], npt.NDArray[np.float64]]
     N: int
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         A = self.A
         B = self.B
         Σ = self.Σ
@@ -68,11 +70,11 @@ class GeneralLinearGaussianStateSpaceModel:
             nogil=True,
         )
         def kalman_filtering(
-            y: np.ndarray,
-            params: np.ndarray,
-            μ_0: np.ndarray,
-            Γ_0: np.ndarray,
-        ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+            y: npt.NDArray[np.float64],
+            params: npt.NDArray[np.float64],
+            μ_0: npt.NDArray[np.float64],
+            Γ_0: npt.NDArray[np.float64],
+        ) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64], npt.NDArray[np.float64], npt.NDArray[np.float64]]:
             """Kalman filtering.
 
             :param params: paramters of the model, θ.
@@ -123,13 +125,13 @@ class GeneralLinearGaussianStateSpaceModel:
             nogil=True,
         )
         def kalman_smoothing(
-            y: np.ndarray,
-            params: np.ndarray,
+            y: npt.NDArray[np.float64],
+            params: npt.NDArray[np.float64],
             m_t_given_tMinus1,
             Q_t_given_tMinus1,
             m_t_given_t,
             Q_t_given_t,
-        ) -> tuple[np.ndarray, np.ndarray]:
+        ) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]]:
             size = y.shape[0]
             T = size - 1
 

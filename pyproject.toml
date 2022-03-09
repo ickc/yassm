@@ -148,6 +148,7 @@ experimental-string-processing = true
 target-version = ['py38']
 
 [tool.mypy]
+plugins = 'numpy.typing.mypy_plugin'
 #* Import discovery
 mypy_path = "src"
 # files

@@ -1,3 +1,6 @@
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
 from unittest import TestCase
 
 import numpy as np
@@ -6,9 +9,12 @@ from numba import jit
 
 from yassm.linear_gaussian import GeneralLinearGaussianStateSpaceModel
 
+if TYPE_CHECKING:
+    import numpy.typing as npt
+
 
 @jit("float64[::1](float64[::1])", nogil=True, nopython=True)
-def fn(x: np.ndarray) -> np.ndarray:
+def fn(x: npt.NDArray[np.float64]) -> npt.NDArray[np.float64]:
     return np.sin(15.0 * x) + 3.0 * np.exp(-0.5 * np.square(x)) + 0.5 * np.square(x - 0.5)
 
 
@@ -26,8 +32,8 @@ class LocalLinearModel(tsa.statespace.MLEModel):
     def __init__(
         self,
         endog,
-        m0: np.ndarray | None = None,
-        C0: np.ndarray | None = None,
+        m0: npt.NDArray[np.float64] | None = None,
+        C0: npt.NDArray[np.float64] | None = None,
         exog=None,
         dates=None,
         freq=None,
