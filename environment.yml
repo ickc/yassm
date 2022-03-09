@@ -1,0 +1,43 @@
+# this should be very similar to https://github.com/conda-forge/yassm-feedstock/blob/master/recipe/meta.yaml
+# run the following command to create a conda environment that is suitable for testing yassm
+# conda env create -f environment.yml
+# conda activate yassm
+# python -m ipykernel install --user --name yassm --display-name yassm
+# and then run this to install yassm in editable mode
+# make editable
+# update using
+# conda env update --name yassm --file environment.yml --prune
+name: yassm
+channels:
+  - conda-forge
+dependencies:
+  # host:
+  - pip
+  - python >=3.8
+  - poetry >=1,<2
+  # run:
+  - defopt >=6,<7
+  # run_constrained:
+  - coloredlogs >=14,<16
+  # tests:
+  - coverage>=6.3,<7
+  - coveralls
+  - pytest
+  # docs:
+  - sphinx
+  - sphinx_bootstrap_theme
+  - sphinxcontrib-apidoc
+  - nbsphinx >=0.8
+  - ipykernel
+  # dev:
+  - pandoc
+  - isort
+  - mypy
+  - bandit
+  - black
+  - bump2version
+  - ghp-import >=2,<3
+  - nbconvert >=6,<7
+  - pylint
+  - rstcheck
+  - types-pyyaml
