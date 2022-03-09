@@ -15,14 +15,11 @@ if TYPE_CHECKING:
 class GeneralLinearGaussianStateSpaceModel:
     """General linear gaussian state space model.
 
-    :param y: observed data, shape of (n,).
     :param A: function of t returning transition, shape of (d, d).
     :param B: function of t returning design, shape of (n, d).
     :param Σ: function of t returning state covariance, shape of (d, d).
     :param R: function of t returning observation coariance, shape of (n, n).
-    :param μ_0: mean of initial X, shape of (d,).
-    :param Γ_0: variance of initial X, shape of (d, d).
-    :param params0: initial parameters of the model, shape of (N,).
+    :param N: total number of parameters.
 
     Y is of n-dimension,
     X is of d-dimension.
@@ -36,48 +33,33 @@ class GeneralLinearGaussianStateSpaceModel:
         X_s | Y_0 = y_0, ..., Y_t = y_t, θ ~ N(m_s|t, Q_s|t)
     """
 
-    y: np.ndarray
     A: Callable[[np.ndarray, int], np.ndarray]
     B: Callable[[np.ndarray, int], np.ndarray]
     Σ: Callable[[np.ndarray, int], np.ndarray]
     R: Callable[[np.ndarray, int], np.ndarray]
-    μ_0: np.ndarray
-    Γ_0: np.ndarray
-    params0: np.ndarray
+    N: int
 
     def __post_init__(self):
-        y = self.y
         A = self.A
         B = self.B
         Σ = self.Σ
         R = self.R
-        μ_0 = self.μ_0
-        Γ_0 = self.Γ_0
-        params0 = self.params0
+        N = self.N
 
         # runtime shape check
-        assert y.ndim == 1
-        size = y.size
-        T = size - 1
-
-        assert μ_0.ndim == 1
-        d = μ_0.size
-        assert Γ_0.shape == (d, d)
-
-        assert params0.ndim == 1
-        N = params0.size
-
-        A0 = A(params0, 0)
+        params = np.zeros(N)
+        A0 = A(params, 0)
+        d = A0.shape[0]
         assert A0.shape == (d, d)
-        B0 = B(params0, 0)
+        B0 = B(params, 0)
         assert B0.ndim == 2
         n = B0.shape[0]
         assert B0.shape[1] == d
-        Σ0 = Σ(params0, 0)
+        Σ0 = Σ(params, 0)
         assert Σ0.shape == (d, d)
-        R0 = R(params0, 0)
+        R0 = R(params, 0)
         assert R0.shape == (n, n)
-        del A0, B0, Σ0, R0
+        del A0, B0, Σ0, R0, params
 
         @jit(
             "Tuple((float64[::1], float64[:, ::1]))(float64[::1], int64, float64[::1], float64[:, ::1])",
@@ -107,11 +89,13 @@ class GeneralLinearGaussianStateSpaceModel:
         self.one_step_ahead = one_step_ahead
 
         @jit(
-            "Tuple((float64[::1], float64[:, ::1]))(float64[::1], int64, float64[::1], float64[:, ::1])",
+            "Tuple((float64[::1], float64[:, ::1]))(float64[:, ::1], float64[::1], int64, float64[::1], float64[:,"
+            " ::1])",
             nopython=True,
             nogil=True,
         )
         def filter_update(
+            y: np.ndarray,
             params: np.ndarray,
             t: int,
             m_t_given_tMinus1: np.ndarray,
@@ -180,16 +164,25 @@ class GeneralLinearGaussianStateSpaceModel:
         self.smoothing_backward_recursion = smoothing_backward_recursion
 
         @jit(
-            "Tuple((float64[:, ::1], float64[:, :, ::1], float64[:, ::1], float64[:, :, ::1]))(float64[::1])",
+            "Tuple((float64[:, ::1], float64[:, :, ::1], float64[:, ::1], float64[:, :, ::1]))(float64[:, ::1],"
+            " float64[::1], float64[::1], float64[:, ::1])",
             nopython=True,
             nogil=True,
         )
-        def kalman_filtering(params):
+        def kalman_filtering(
+            y: np.ndarray,
+            params: np.ndarray,
+            μ_0: np.ndarray,
+            Γ_0: np.ndarray,
+        ):
             """Kalman filtering.
 
             :param params: paramters of the model, θ.
             :return: m_t_given_tMinus1, Q_t_given_tMinus1, m_t_given_t, Q_t_given_t
             """
+            size = y.shape[0]
+            T = size - 1
+
             m_t_given_tMinus1 = np.empty((size, d))
             m_t_given_t = np.empty((size, d))
             Q_t_given_tMinus1 = np.empty((size, d, d))
@@ -200,7 +193,7 @@ class GeneralLinearGaussianStateSpaceModel:
             Q_t_given_tMinus1[0] = Γ_0
 
             t = 0
-            temp = filter_update(params, t, m_t_given_tMinus1[t], Q_t_given_tMinus1[t])
+            temp = filter_update(y, params, t, m_t_given_tMinus1[t], Q_t_given_tMinus1[t])
             m_t_given_t[t] = temp[0]
             Q_t_given_t[t] = temp[1]
             for t in range(1, size):
@@ -210,7 +203,7 @@ class GeneralLinearGaussianStateSpaceModel:
                 m_t_given_tMinus1[t] = temp[0]
                 Q_t_given_tMinus1[t] = temp[1]
 
-                temp = filter_update(params, t, m_t_given_tMinus1[t], Q_t_given_tMinus1[t])
+                temp = filter_update(y, params, t, m_t_given_tMinus1[t], Q_t_given_tMinus1[t])
                 m_t_given_t[t] = temp[0]
                 Q_t_given_t[t] = temp[1]
             return m_t_given_tMinus1, Q_t_given_tMinus1, m_t_given_t, Q_t_given_t

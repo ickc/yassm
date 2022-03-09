@@ -139,17 +139,19 @@ def test_linear_gaussian():
         return np.array([[params[0]]])
 
     mod = GeneralLinearGaussianStateSpaceModel(
-        y,
         A,
         B,
         Σ,
         R,
-        μ_0,
-        Γ_0,
-        params0,
+        2,
     )
 
-    m_t_given_tMinus1, Q_t_given_tMinus1, m_t_given_t, Q_t_given_t = mod.kalman_filtering(params0)
+    m_t_given_tMinus1, Q_t_given_tMinus1, m_t_given_t, Q_t_given_t = mod.kalman_filtering(
+        y.reshape(-1, 1),
+        params0,
+        μ_0,
+        Γ_0,
+    )
 
     np.testing.assert_allclose(res.filtered_state.transpose(), m_t_given_t, atol=1e-6)
     np.testing.assert_allclose(res.filtered_state_cov.transpose(2, 0, 1), Q_t_given_t, atol=1e-6)
