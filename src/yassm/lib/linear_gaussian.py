@@ -12,8 +12,7 @@ if TYPE_CHECKING:
 
 
 @jit(
-    "Tuple((f8[::1], f8[:, ::1]))"
-    "(f8[:, ::1], f8[:, ::1], f8[::1], f8[:, ::1])",
+    "Tuple((f8[::1], f8[:, ::1]))(f8[:, ::1], f8[:, ::1], f8[::1], f8[:, ::1])",
     nopython=True,
     nogil=True,
     cache=True,
@@ -36,8 +35,7 @@ def one_step_ahead(
 
 
 @jit(
-    "Tuple((f8[::1], f8[:, ::1]))"
-    "(f8[::1], f8[:, ::1], f8[:, ::1], f8[::1], f8[:, ::1])",
+    "Tuple((f8[::1], f8[:, ::1]))(f8[::1], f8[:, ::1], f8[:, ::1], f8[::1], f8[:, ::1])",
     nopython=True,
     nogil=True,
     cache=True,
@@ -68,8 +66,7 @@ def filter_update(
 
 
 @jit(
-    "Tuple((f8[::1], f8[:, ::1]))"
-    "(f8[:, ::1], f8[::1], f8[:, ::1], f8[::1], f8[:, ::1], f8[::1], f8[:, ::1])",
+    "Tuple((f8[::1], f8[:, ::1]))(f8[:, ::1], f8[::1], f8[:, ::1], f8[::1], f8[:, ::1], f8[::1], f8[:, ::1])",
     nopython=True,
     nogil=True,
     cache=True,
