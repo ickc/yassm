@@ -1,10 +1,10 @@
+from unittest import TestCase
+
 import numpy as np
 import statsmodels.tsa.api as tsa
 from numba import jit
 
 from yassm.linear_gaussian import GeneralLinearGaussianStateSpaceModel
-
-rng = np.random.default_rng(12345)
 
 
 @jit("float64[::1](float64[::1])", nogil=True, nopython=True)
@@ -95,65 +95,101 @@ class LocalLinearModel(tsa.statespace.MLEModel):
         self.ssm["state_cov", 0, 0] = params[1]
 
 
-def test_linear_gaussian():
-    # statsmodels
-    n = 500
-    xx = np.linspace(0.0, 1.0, n)
-    yy_0 = fn(xx)
-    sig = 1.0
-    yy = yy_0 + sig * rng.normal(n)
+@jit("f8[:, ::1](f8[::1], i8)", nopython=True, nogil=True, cache=True)
+def A(params, t):
+    return np.array(
+        [
+            [2.0, -1.0],
+            [1.0, 0.0],
+        ]
+    )
 
-    μ_0 = np.zeros(2)
-    Γ_0 = 1e8 * np.identity(2)
 
-    mod = LocalLinearModel(yy, m0=μ_0, C0=Γ_0)
-    res = mod.fit()
+@jit("f8[:, ::1](f8[::1], i8)", nopython=True, nogil=True, cache=True)
+def B(params, t):
+    return np.array([[1.0, 0.0]])
 
-    # ours
-    y = yy
-    params0 = res.params
 
-    @jit
-    def A(params, t):
-        return np.array(
-            [
-                [2.0, -1.0],
-                [1.0, 0.0],
-            ]
+# state cov.
+@jit("f8[:, ::1](f8[::1], i8)", nopython=True, nogil=True, cache=True)
+def Σ(params, t):
+    res = np.zeros((2, 2))
+    res[0, 0] = params[1]
+    return res
+
+
+# obs. cov.
+@jit("f8[:, ::1](f8[::1], i8)", nopython=True, nogil=True, cache=True)
+def R(params, t):
+    return np.array([[params[0]]])
+
+
+class TestLinearGaussian(TestCase):
+    def setUp(self):
+        rng = np.random.default_rng(12345)
+
+        self.n = 500
+        sig = 1.0
+        C = 1e8
+        self.atol = 1e-7
+
+        self.xx = np.linspace(0.0, 1.0, self.n)
+        self.yy_0 = fn(self.xx)
+        self.yy = self.yy_0 + sig * rng.normal(self.n)
+        self.y = self.yy.reshape(-1, 1)
+
+        self.μ_0 = np.zeros(2)
+        self.Γ_0 = C * np.identity(2)
+
+        self.sm = self.setUpSM()
+        self.params0 = self.sm.params
+        self.mod = self.setUpLocal()
+
+        (
+            self.m_t_given_tMinus1,
+            self.Q_t_given_tMinus1,
+            self.m_t_given_t,
+            self.Q_t_given_t,
+        ) = self.mod.kalman_filtering(
+            self.y,
+            self.params0,
+            self.μ_0,
+            self.Γ_0,
         )
 
-    @jit
-    def B(params, t):
-        return np.array([[1.0, 0.0]])
+    def setUpSM(self):
+        """Reference answer from statsmodels."""
+        mod = LocalLinearModel(self.yy, m0=self.μ_0, C0=self.Γ_0)
+        return mod.fit()
 
-    # state cov.
-    @jit
-    def Σ(params, t):
-        res = np.zeros((2, 2))
-        res[0, 0] = params[1]
-        return res
+    def setUpLocal(self):
+        return GeneralLinearGaussianStateSpaceModel(
+            A,
+            B,
+            Σ,
+            R,
+            2,
+        )
 
-    # obs. cov.
-    @jit
-    def R(params, t):
-        return np.array([[params[0]]])
+    def test_kalman_filtering(self):
+        res = self.sm
 
-    mod = GeneralLinearGaussianStateSpaceModel(
-        A,
-        B,
-        Σ,
-        R,
-        2,
-    )
+        np.testing.assert_allclose(res.filtered_state.transpose(), self.m_t_given_t, atol=self.atol)
+        np.testing.assert_allclose(res.filtered_state_cov.transpose(2, 0, 1), self.Q_t_given_t, atol=self.atol)
+        np.testing.assert_allclose(res.predicted_state.transpose()[:-1], self.m_t_given_tMinus1, atol=self.atol)
+        np.testing.assert_allclose(
+            res.predicted_state_cov.transpose(2, 0, 1)[:-1], self.Q_t_given_tMinus1, atol=self.atol
+        )
 
-    m_t_given_tMinus1, Q_t_given_tMinus1, m_t_given_t, Q_t_given_t = mod.kalman_filtering(
-        y.reshape(-1, 1),
-        params0,
-        μ_0,
-        Γ_0,
-    )
-
-    np.testing.assert_allclose(res.filtered_state.transpose(), m_t_given_t, atol=1e-6)
-    np.testing.assert_allclose(res.filtered_state_cov.transpose(2, 0, 1), Q_t_given_t, atol=1e-6)
-    np.testing.assert_allclose(res.predicted_state.transpose()[:-1], m_t_given_tMinus1, atol=1e-5)
-    np.testing.assert_allclose(res.predicted_state_cov.transpose(2, 0, 1)[:-1], Q_t_given_tMinus1, atol=1e-6)
+    def test_kalman_smoothing(self):
+        res = self.sm
+        m_t_given_T, Q_t_given_T = self.mod.kalman_smoothing(
+            self.y,
+            self.params0,
+            self.m_t_given_tMinus1,
+            self.Q_t_given_tMinus1,
+            self.m_t_given_t,
+            self.Q_t_given_t,
+        )
+        np.testing.assert_allclose(res.smoothed_state.transpose(), m_t_given_T, atol=self.atol)
+        np.testing.assert_allclose(res.smoothed_state_cov.transpose(2, 0, 1), Q_t_given_T, atol=self.atol)

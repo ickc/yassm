@@ -5,7 +5,6 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 from numba import jit
-from numpy.linalg import solve  # type: ignore[attr-defined]
 
 from .lib.linear_gaussian import filter_update, one_step_ahead, smoothing_backward_recursion
 
@@ -64,8 +63,7 @@ class GeneralLinearGaussianStateSpaceModel:
         del A0, B0, Σ0, R0, params
 
         @jit(
-            "Tuple((float64[:, ::1], float64[:, :, ::1], float64[:, ::1], float64[:, :, ::1]))(float64[:, ::1],"
-            " float64[::1], float64[::1], float64[:, ::1])",
+            "Tuple((f8[:, ::1], f8[:, :, ::1], f8[:, ::1], f8[:, :, ::1]))(f8[:, ::1], f8[::1], f8[::1], f8[:, ::1])",
             nopython=True,
             nogil=True,
         )
@@ -74,7 +72,7 @@ class GeneralLinearGaussianStateSpaceModel:
             params: np.ndarray,
             μ_0: np.ndarray,
             Γ_0: np.ndarray,
-        ):
+        ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
             """Kalman filtering.
 
             :param params: paramters of the model, θ.
@@ -117,3 +115,47 @@ class GeneralLinearGaussianStateSpaceModel:
             return m_t_given_tMinus1, Q_t_given_tMinus1, m_t_given_t, Q_t_given_t
 
         self.kalman_filtering = kalman_filtering
+
+        @jit(
+            "Tuple((f8[:, ::1], f8[:, :, ::1]))"
+            "(f8[:, ::1], f8[::1], f8[:, ::1], f8[:, :, ::1], f8[:, ::1], f8[:, :, ::1])",
+            nopython=True,
+            nogil=True,
+        )
+        def kalman_smoothing(
+            y: np.ndarray,
+            params: np.ndarray,
+            m_t_given_tMinus1,
+            Q_t_given_tMinus1,
+            m_t_given_t,
+            Q_t_given_t,
+        ) -> tuple[np.ndarray, np.ndarray]:
+            size = y.shape[0]
+            T = size - 1
+
+            m_t_given_T = np.empty((size, d))
+            Q_t_given_T = np.empty((size, d, d))
+
+            # initialize
+            m_t_given_T[T] = m_t_given_t[T]
+            Q_t_given_T[T] = Q_t_given_t[T]
+
+            # s = t, t = T
+            for s in range(T - 1, -1, -1):
+                sPlus1 = s + 1
+                A_sPlus1 = A(params, sPlus1)
+
+                temp = smoothing_backward_recursion(
+                    A_sPlus1,
+                    m_t_given_t[s],
+                    Q_t_given_t[s],
+                    m_t_given_T[sPlus1],
+                    Q_t_given_T[sPlus1],
+                    m_t_given_tMinus1[sPlus1],
+                    Q_t_given_tMinus1[sPlus1],
+                )
+                m_t_given_T[s] = temp[0]
+                Q_t_given_T[s] = temp[1]
+            return m_t_given_T, Q_t_given_T
+
+        self.kalman_smoothing = kalman_smoothing
