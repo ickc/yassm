@@ -48,7 +48,18 @@ class GeneralLinearGaussianStateSpaceModelFit:
             npt.NDArray[np.float64],
             npt.NDArray[np.float64],
             npt.NDArray[np.float64],
+            int,
             bool,
+        ],
+        tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]],
+    ]
+    forecast: Callable[
+        [
+            npt.NDArray[np.float64],
+            npt.NDArray[np.float64],
+            npt.NDArray[np.float64],
+            npt.NDArray[np.float64],
+            int,
         ],
         tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]],
     ]
@@ -70,6 +81,7 @@ class GeneralLinearGaussianStateSpaceModelFit:
         param_names = self.param_names
 
         size, np = y.shape
+        self.size = size
         assert np == n
         assert params.ndim == 1
         assert N == params.size
@@ -111,6 +123,7 @@ class GeneralLinearGaussianStateSpaceModelFit:
             self.params,
             self.m_t_given_T,
             self.Q_t_given_T,
+            0,
             False,
         )
 
@@ -120,8 +133,26 @@ class GeneralLinearGaussianStateSpaceModelFit:
             self.params,
             self.m_t_given_T,
             self.Q_t_given_T,
+            0,
             True,
         )
+
+    def get_forecast_state(self, T_predict: int) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]]:
+        return self.forecast(
+            self.y,
+            self.params,
+            self.m_t_given_T[-1],
+            self.Q_t_given_T[-1],
+            T_predict,
+        )
+
+    def get_forecast_obs(
+        self,
+        T_predict: int,
+        with_obs_cov: bool = True,
+    ) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]]:
+        forecast_state = self.get_forecast_state(T_predict)
+        return self.smoothed_state_to_obs(self.params, *forecast_state, self.size, with_obs_cov)
 
     @property
     def m_t_given_tMinus1(self) -> npt.NDArray[np.float64]:
@@ -448,18 +479,19 @@ class GeneralLinearGaussianStateSpaceModel:
         self.kalman_smoothing = kalman_smoothing
 
         @jit(
-            "Tuple((f8[:, ::1], f8[:, :, ::1]))(f8[::1], f8[:, ::1], f8[:, :, ::1], b1)",
+            "Tuple((f8[:, ::1], f8[:, :, ::1]))(f8[::1], f8[:, ::1], f8[:, :, ::1], int64, b1)",
             nopython=True,
             nogil=True,
             cache=True,
         )
         def smoothed_state_to_obs(
             params: npt.NDArray[np.float64],
-            m_t_given_T: npt.NDArray[np.float64],
-            Q_t_given_T: npt.NDArray[np.float64],
+            m_t: npt.NDArray[np.float64],
+            Q_t: npt.NDArray[np.float64],
+            t0: int,
             with_obs_cov: bool,
         ) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]]:
-            size = m_t_given_T.shape[0]
+            size = m_t.shape[0]
 
             # memalloc
             B_t = B0(params)
@@ -470,16 +502,62 @@ class GeneralLinearGaussianStateSpaceModel:
 
             for t in range(size):
                 if B is not None:
-                    B(B_t, params, t)
+                    B(B_t, params, t0 + t)
                 if with_obs_cov and R is not None:
-                    R(R_t, params, t)
-                smoothed_obs[t] = B_t @ m_t_given_T[t]
-                smoothed_obs_cov[t] = B_t @ Q_t_given_T[t] @ B_t.transpose()
+                    R(R_t, params, t0 + t)
+                smoothed_obs[t] = B_t @ m_t[t]
+                smoothed_obs_cov[t] = B_t @ Q_t[t] @ B_t.transpose()
                 if with_obs_cov:
                     smoothed_obs_cov[t] += R_t
             return smoothed_obs, smoothed_obs_cov
 
         self.smoothed_state_to_obs = smoothed_state_to_obs
+
+        @jit(
+            "Tuple((f8[:, ::1], f8[:, :, ::1]))(f8[:, ::1], f8[::1], f8[::1], f8[:, ::1], int64)",
+            nopython=True,
+            nogil=True,
+            cache=True,
+        )
+        def forecast(
+            y: npt.NDArray[np.float64],
+            params: npt.NDArray[np.float64],
+            m_T_given_T: npt.NDArray[np.float64],
+            Q_T_given_T: npt.NDArray[np.float64],
+            T_predict: int,
+        ) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]]:
+            size = y.shape[0]
+            T = size - 1
+
+            # memalloc
+            A_s = A0(params)
+            Σ_s = Σ0(params)
+            # these indices are offset by size
+            # i.e. m_s_given_T_predict = m_t_given_T_predict[s - size]
+            m_t_given_T_predict = np.empty((T_predict, d))
+            Q_t_given_T_predict = np.empty((T_predict, d, d))
+
+            # initialize
+            m_sMinus1_given_T = m_T_given_T
+            Q_sMinus1_given_T = Q_T_given_T
+
+            for s in range(size, size + T_predict):
+                # t = T
+                if A is not None:
+                    A(A_s, params, s)
+                if Σ is not None:
+                    Σ(Σ_s, params, s)
+                m_sMinus1_given_T, Q_sMinus1_given_T = one_step_ahead(
+                    A_s,
+                    Σ_s,
+                    m_sMinus1_given_T,
+                    Q_sMinus1_given_T,
+                )
+                m_t_given_T_predict[s - size] = m_sMinus1_given_T
+                Q_t_given_T_predict[s - size] = Q_sMinus1_given_T
+            return m_t_given_T_predict, Q_t_given_T_predict
+
+        self.forecast = forecast
 
     def fit(
         self,
@@ -498,6 +576,7 @@ class GeneralLinearGaussianStateSpaceModel:
             self.kalman_filtering,
             self.kalman_smoothing,
             self.smoothed_state_to_obs,
+            self.forecast,
             self.d,
             self.n,
             self.N,

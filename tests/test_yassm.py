@@ -109,6 +109,7 @@ class TestLinearGaussian(TestCase):
         sig = 1.0
         C = 1e8
         self.atol = 1e-5
+        self.T_predict = 100
 
         xx = np.linspace(0.0, 1.0, n)
         yy_0 = fn(xx)
@@ -148,3 +149,9 @@ class TestLinearGaussian(TestCase):
         res = self.sm
         np.testing.assert_allclose(res.smoothed_state.transpose(), self.fit.m_t_given_T, atol=self.atol)
         np.testing.assert_allclose(res.smoothed_state_cov.transpose(2, 0, 1), self.fit.Q_t_given_T, atol=self.atol)
+
+    def test_forecast(self):
+        forecast_sm = self.sm.get_forecast(self.T_predict)
+        forecast, forecast_cov = self.fit.get_forecast_obs(self.T_predict)
+        np.testing.assert_allclose(forecast[:, 0], forecast_sm.predicted_mean, atol=1e-5)
+        np.testing.assert_allclose(np.sqrt(forecast_cov[:, 0, 0]), forecast_sm.se_mean, atol=1e-5)
