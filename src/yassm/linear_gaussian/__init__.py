@@ -235,13 +235,14 @@ class GeneralLinearGaussianStateSpaceModelFit:
 
     def plot(
         self,
+        T_forecast: int = 0,
         α: float = 0.05,
         axes: list[mpl.axes._subplots.AxesSubplot] | None = None,
         alpha: float = 0.2,
         plot_obs: bool = True,
         plot_smoothed: bool = True,
         plot_smoothed_CI: bool = True,
-        plot_smoothed_with_obs_cov: bool = True,
+        plot_smoothed_CI_with_obs_cov: bool = True,
     ) -> tuple[mpl.figure.Figure, list[mpl.axes._subplots.AxesSubplot]]:
         """Plotting.
 
@@ -253,8 +254,18 @@ class GeneralLinearGaussianStateSpaceModelFit:
 
         y = self.y
         smoothed_obs = self.smoothed_obs
+        size = self.size
+        n = self.n
 
-        size, n = y.shape
+        if T_forecast > 0:
+            if self.t is None:
+                t_forecast = range(size, size + T_forecast)
+            else:
+                dt = self.t[1] - self.t[0]
+                t_forecast = np.linspace(self.t[-1] + dt, self.t[-1] + T_forecast * dt, T_forecast)
+                del dt
+
+            forecast_obs, forecast_obs_cov = self.get_forecast_obs(T_forecast)
         t = range(size) if self.t is None else self.t
 
         ns_std = stats.norm.ppf([0.5 * α, 1.0 - 0.5 * α])
@@ -274,7 +285,7 @@ class GeneralLinearGaussianStateSpaceModelFit:
             if plot_smoothed:
                 ax.plot(t, s, label="Smoothed obseration")
 
-            if plot_smoothed_with_obs_cov:
+            if plot_smoothed_CI_with_obs_cov:
                 smoothed_obs_std = np.sqrt(self.smoothed_obs_cov_with_obs_cov[:, i, i])
                 smoothed_obs_lower = s + ns_std[0] * smoothed_obs_std
                 smoothed_obs_upper = s + ns_std[1] * smoothed_obs_std
@@ -285,7 +296,7 @@ class GeneralLinearGaussianStateSpaceModelFit:
                     alpha=alpha,
                 )
 
-            if plot_smoothed:
+            if plot_smoothed_CI:
                 smoothed_obs_std = np.sqrt(self.smoothed_obs_cov[:, i, i])
                 smoothed_obs_lower = s + ns_std[0] * smoothed_obs_std
                 smoothed_obs_upper = s + ns_std[1] * smoothed_obs_std
@@ -295,6 +306,21 @@ class GeneralLinearGaussianStateSpaceModelFit:
                     smoothed_obs_upper,
                     alpha=alpha,
                 )
+
+            if T_forecast:
+                fc = forecast_obs[:, i]
+                ax.plot(t_forecast, fc, label="Forecast")
+
+                forecast_obs_std = np.sqrt(forecast_obs_cov[:, i, i])
+                forecast_obs_lower = fc + ns_std[0] * forecast_obs_std
+                forecast_obs_upper = fc + ns_std[1] * forecast_obs_std
+                ax.fill_between(
+                    t_forecast,
+                    forecast_obs_lower,
+                    forecast_obs_upper,
+                    alpha=alpha,
+                )
+
             ax.legend()
         return fig, axes
 
