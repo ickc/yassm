@@ -4,7 +4,6 @@ from dataclasses import dataclass
 from logging import getLogger
 from typing import TYPE_CHECKING
 
-import matplotlib.pyplot as plt
 import numpy as np
 from numba import jit
 from scipy import stats
@@ -12,7 +11,7 @@ from scipy import stats
 from ..lib.linear_gaussian import filter_update, one_step_ahead, smoothing_backward_recursion
 
 if TYPE_CHECKING:
-    from typing import Any, Callable
+    from typing import Any, Callable, Iterable
 
     import matplotlib as mpl
     import numpy.typing as npt
@@ -257,6 +256,7 @@ class GeneralLinearGaussianStateSpaceModelFit:
         size = self.size
         n = self.n
 
+        t_forecast: Iterable[Any]
         if T_forecast > 0:
             if self.t is None:
                 t_forecast = range(size, size + T_forecast)
