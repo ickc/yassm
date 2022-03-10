@@ -137,21 +137,21 @@ class GeneralLinearGaussianStateSpaceModelFit:
             True,
         )
 
-    def get_forecast_state(self, T_predict: int) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]]:
+    def get_forecast_state(self, T_forecast: int) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]]:
         return self.forecast(
             self.y,
             self.params,
             self.m_t_given_T[-1],
             self.Q_t_given_T[-1],
-            T_predict,
+            T_forecast,
         )
 
     def get_forecast_obs(
         self,
-        T_predict: int,
+        T_forecast: int,
         with_obs_cov: bool = True,
     ) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]]:
-        forecast_state = self.get_forecast_state(T_predict)
+        forecast_state = self.get_forecast_state(T_forecast)
         return self.smoothed_state_to_obs(self.params, *forecast_state, self.size, with_obs_cov)
 
     @property
@@ -524,7 +524,7 @@ class GeneralLinearGaussianStateSpaceModel:
             params: npt.NDArray[np.float64],
             m_T_given_T: npt.NDArray[np.float64],
             Q_T_given_T: npt.NDArray[np.float64],
-            T_predict: int,
+            T_forecast: int,
         ) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]]:
             size = y.shape[0]
             T = size - 1
@@ -534,14 +534,14 @@ class GeneralLinearGaussianStateSpaceModel:
             Σ_s = Σ0(params)
             # these indices are offset by size
             # i.e. m_s_given_T_predict = m_t_given_T_predict[s - size]
-            m_t_given_T_predict = np.empty((T_predict, d))
-            Q_t_given_T_predict = np.empty((T_predict, d, d))
+            m_t_given_T_predict = np.empty((T_forecast, d))
+            Q_t_given_T_predict = np.empty((T_forecast, d, d))
 
             # initialize
             m_sMinus1_given_T = m_T_given_T
             Q_sMinus1_given_T = Q_T_given_T
 
-            for s in range(size, size + T_predict):
+            for s in range(size, size + T_forecast):
                 # t = T
                 if A is not None:
                     A(A_s, params, s)
