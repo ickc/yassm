@@ -141,6 +141,7 @@ class GeneralLinearGaussianStateSpaceModel:
     :param B: If None, Numba-jit should optimized this away to have no cost, else, a Numba0-jitted function of (out, params, t) updating out as design, shape of (n, d).
     :param Σ: If None, Numba-jit should optimized this away to have no cost, else, a Numba0-jitted function of (out, params, t) updating out as state covariance, shape of (d, d).
     :param R: If None, Numba-jit should optimized this away to have no cost, else, a Numba0-jitted function of (out, params, t) updating out as observation coariance, shape of (n, n).
+    :param param_names: list of names of the parameters.
 
     Y is of n-dimension,
     X is of d-dimension.
@@ -162,6 +163,7 @@ class GeneralLinearGaussianStateSpaceModel:
     B: Callable[[npt.NDArray[np.float64], npt.NDArray[np.float64], int]] | None
     Σ: Callable[[npt.NDArray[np.float64], npt.NDArray[np.float64], int]] | None
     R: Callable[[npt.NDArray[np.float64], npt.NDArray[np.float64], int]] | None
+    param_names: list[str] | None = None
 
     def __post_init__(self) -> None:
         A0 = self.A0
@@ -317,5 +319,5 @@ class GeneralLinearGaussianStateSpaceModel:
             self.d,
             self.n,
             t=t,
-            param_names=param_names,
+            param_names=param_names or self.param_names,
         )
