@@ -16,6 +16,61 @@ if TYPE_CHECKING:
     import matplotlib as mpl
     import numpy.typing as npt
 
+    KalmanFiltering = Callable[
+        [
+            npt.NDArray[np.float64],
+            npt.NDArray[np.float64],
+            npt.NDArray[np.float64],
+            npt.NDArray[np.float64],
+        ],
+        tuple[
+            npt.NDArray[np.float64],
+            npt.NDArray[np.float64],
+            npt.NDArray[np.float64],
+            npt.NDArray[np.float64],
+        ],
+    ]
+    KalmanSmoothing = Callable[
+        [
+            npt.NDArray[np.float64],
+            npt.NDArray[np.float64],
+            npt.NDArray[np.float64],
+            npt.NDArray[np.float64],
+            npt.NDArray[np.float64],
+            npt.NDArray[np.float64],
+        ],
+        tuple[
+            npt.NDArray[np.float64],
+            npt.NDArray[np.float64],
+        ],
+    ]
+    SmoothedStateToObs = Callable[
+        [
+            npt.NDArray[np.float64],
+            npt.NDArray[np.float64],
+            npt.NDArray[np.float64],
+            int,
+            bool,
+        ],
+        tuple[
+            npt.NDArray[np.float64],
+            npt.NDArray[np.float64],
+        ],
+    ]
+    Forecast = Callable[
+        [
+            npt.NDArray[np.float64],
+            npt.NDArray[np.float64],
+            npt.NDArray[np.float64],
+            npt.NDArray[np.float64],
+            int,
+        ],
+        tuple[
+            npt.NDArray[np.float64],
+            npt.NDArray[np.float64],
+        ],
+    ]
+
 logger = getLogger(__name__)
 
 
@@ -27,41 +82,10 @@ class GeneralLinearGaussianStateSpaceModelFit:
     params: npt.NDArray[np.float64]
     μ_0: npt.NDArray[np.float64]
     Γ_0: npt.NDArray[np.float64]
-    kalman_filtering: Callable[
-        [npt.NDArray[np.float64], npt.NDArray[np.float64], npt.NDArray[np.float64], npt.NDArray[np.float64]],
-        tuple[npt.NDArray[np.float64], npt.NDArray[np.float64], npt.NDArray[np.float64], npt.NDArray[np.float64]],
-    ]
-    kalman_smoothing: Callable[
-        [
-            npt.NDArray[np.float64],
-            npt.NDArray[np.float64],
-            npt.NDArray[np.float64],
-            npt.NDArray[np.float64],
-            npt.NDArray[np.float64],
-            npt.NDArray[np.float64],
-        ],
-        tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]],
-    ]
-    smoothed_state_to_obs: Callable[
-        [
-            npt.NDArray[np.float64],
-            npt.NDArray[np.float64],
-            npt.NDArray[np.float64],
-            int,
-            bool,
-        ],
-        tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]],
-    ]
-    forecast: Callable[
-        [
-            npt.NDArray[np.float64],
-            npt.NDArray[np.float64],
-            npt.NDArray[np.float64],
-            npt.NDArray[np.float64],
-            int,
-        ],
-        tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]],
-    ]
+    kalman_filtering: KalmanFiltering
+    kalman_smoothing: KalmanSmoothing
+    smoothed_state_to_obs: SmoothedStateToObs
+    forecast: Forecast
     d: int
     n: int
     N: int
@@ -369,10 +393,6 @@ class GeneralLinearGaussianStateSpaceModel:
         B0 = self.B0
         Σ0 = self.Σ0
         R0 = self.R0
-        A = self.A
-        B = self.B
-        Σ = self.Σ
-        R = self.R
 
         # runtime shape check
         params = np.zeros(N)
@@ -390,6 +410,18 @@ class GeneralLinearGaussianStateSpaceModel:
         assert Σ0(params).shape == (d, d)
         assert R0(params).shape == (n, n)
         del params
+
+    @property
+    def kalman_filtering(self) -> KalmanFiltering:
+        A0 = self.A0
+        B0 = self.B0
+        Σ0 = self.Σ0
+        R0 = self.R0
+        A = self.A
+        B = self.B
+        Σ = self.Σ
+        R = self.R
+        d = self.d
 
         @jit(
             "Tuple((f8[:, ::1], f8[:, :, ::1], f8[:, ::1], f8[:, :, ::1]))(f8[:, ::1], f8[::1], f8[::1], f8[:, ::1])",
@@ -454,7 +486,13 @@ class GeneralLinearGaussianStateSpaceModel:
                 Q_t_given_t[t] = temp[1]
             return m_t_given_tMinus1, Q_t_given_tMinus1, m_t_given_t, Q_t_given_t
 
-        self.kalman_filtering = kalman_filtering
+        return kalman_filtering
+
+    @property
+    def kalman_smoothing(self) -> KalmanSmoothing:
+        A0 = self.A0
+        A = self.A
+        d = self.d
 
         @jit(
             "Tuple((f8[:, ::1], f8[:, :, ::1]))"
@@ -502,7 +540,15 @@ class GeneralLinearGaussianStateSpaceModel:
                 Q_t_given_T[s] = temp[1]
             return m_t_given_T, Q_t_given_T
 
-        self.kalman_smoothing = kalman_smoothing
+        return kalman_smoothing
+
+    @property
+    def smoothed_state_to_obs(self) -> SmoothedStateToObs:
+        B0 = self.B0
+        R0 = self.R0
+        B = self.B
+        R = self.R
+        n = self.n
 
         @jit(
             "Tuple((f8[:, ::1], f8[:, :, ::1]))(f8[::1], f8[:, ::1], f8[:, :, ::1], int64, b1)",
@@ -537,7 +583,15 @@ class GeneralLinearGaussianStateSpaceModel:
                     smoothed_obs_cov[t] += R_t
             return smoothed_obs, smoothed_obs_cov
 
-        self.smoothed_state_to_obs = smoothed_state_to_obs
+        return smoothed_state_to_obs
+
+    @property
+    def forecast(self) -> Forecast:
+        A0 = self.A0
+        Σ0 = self.Σ0
+        A = self.A
+        Σ = self.Σ
+        d = self.d
 
         @jit(
             "Tuple((f8[:, ::1], f8[:, :, ::1]))(f8[:, ::1], f8[::1], f8[::1], f8[:, ::1], int64)",
@@ -583,7 +637,7 @@ class GeneralLinearGaussianStateSpaceModel:
                 Q_t_given_T_predict[s - size] = Q_sMinus1_given_T
             return m_t_given_T_predict, Q_t_given_T_predict
 
-        self.forecast = forecast
+        return forecast
 
     def fit(
         self,
