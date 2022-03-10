@@ -40,6 +40,31 @@ class GeneralLinearGaussianStateSpaceModelFit:
         ],
         tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]],
     ]
+    d: int
+    n: int
+    t: npt.NDArray | None = None
+    param_names: list[str] | None = None
+
+    def __post_init__(self) -> None:
+        y = self.y
+        params = self.params
+        μ_0 = self.μ_0
+        Γ_0 = self.Γ_0
+        d = self.d
+        n = self.n
+        t = self.t
+        param_names = self.param_names
+
+        size, np = y.shape
+        assert np == n
+        assert params.ndim == 1
+        N = params.size
+        assert μ_0.shape == (d,)
+        assert Γ_0.shape == (d, d)
+        if t is not None:
+            assert t.shape == (size,)
+        if param_names is None:
+            param_names = [f"param_{i}" for i in range(N)]
 
     def _run_kalman_filtering(self):
         logger.info("Running kalman filtering...")
@@ -150,9 +175,11 @@ class GeneralLinearGaussianStateSpaceModel:
 
         # runtime shape check
         d = A0.shape[0]
+        self.d = d
         assert A0.shape == (d, d)
         assert B0.ndim == 2
         n = B0.shape[0]
+        self.n = n
         assert B0.shape[1] == d
         assert Σ0.shape == (d, d)
         assert R0.shape == (n, n)
@@ -277,6 +304,8 @@ class GeneralLinearGaussianStateSpaceModel:
         params: npt.NDArray[np.float64],
         μ_0: npt.NDArray[np.float64],
         Γ_0: npt.NDArray[np.float64],
+        t: npt.NDArray | None = None,
+        param_names: list[str] | None = None,
     ) -> GeneralLinearGaussianStateSpaceModelFit:
         return GeneralLinearGaussianStateSpaceModelFit(
             y,
@@ -285,4 +314,8 @@ class GeneralLinearGaussianStateSpaceModel:
             Γ_0,
             self.kalman_filtering,
             self.kalman_smoothing,
+            self.d,
+            self.n,
+            t=t,
+            param_names=param_names,
         )
