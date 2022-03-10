@@ -120,14 +120,7 @@ class TestLinearGaussian(TestCase):
 
         self.sm = self.setUpSM()
         self.params0 = self.sm.params
-        self.mod = local_linear_model
-
-        (
-            self.m_t_given_tMinus1,
-            self.Q_t_given_tMinus1,
-            self.m_t_given_t,
-            self.Q_t_given_t,
-        ) = self.mod.kalman_filtering(
+        self.fit = local_linear_model.fit(
             self.y,
             self.params0,
             self.μ_0,
@@ -142,22 +135,16 @@ class TestLinearGaussian(TestCase):
     def test_kalman_filtering(self):
         res = self.sm
 
-        np.testing.assert_allclose(res.filtered_state.transpose(), self.m_t_given_t, atol=self.atol)
-        np.testing.assert_allclose(res.filtered_state_cov.transpose(2, 0, 1), self.Q_t_given_t, atol=self.atol)
-        np.testing.assert_allclose(res.predicted_state.transpose()[:-1], self.m_t_given_tMinus1, atol=self.atol)
+        np.testing.assert_allclose(res.filtered_state.transpose(), self.fit.m_t_given_t, atol=self.atol)
+        np.testing.assert_allclose(res.filtered_state_cov.transpose(2, 0, 1), self.fit.Q_t_given_t, atol=self.atol)
+        np.testing.assert_allclose(res.predicted_state.transpose()[:-1], self.fit.m_t_given_tMinus1, atol=self.atol)
         np.testing.assert_allclose(
-            res.predicted_state_cov.transpose(2, 0, 1)[:-1], self.Q_t_given_tMinus1, atol=self.atol
+            res.predicted_state_cov.transpose(2, 0, 1)[:-1],
+            self.fit.Q_t_given_tMinus1,
+            atol=self.atol,
         )
 
     def test_kalman_smoothing(self):
         res = self.sm
-        m_t_given_T, Q_t_given_T = self.mod.kalman_smoothing(
-            self.y,
-            self.params0,
-            self.m_t_given_tMinus1,
-            self.Q_t_given_tMinus1,
-            self.m_t_given_t,
-            self.Q_t_given_t,
-        )
-        np.testing.assert_allclose(res.smoothed_state.transpose(), m_t_given_T, atol=self.atol)
-        np.testing.assert_allclose(res.smoothed_state_cov.transpose(2, 0, 1), Q_t_given_T, atol=self.atol)
+        np.testing.assert_allclose(res.smoothed_state.transpose(), self.fit.m_t_given_T, atol=self.atol)
+        np.testing.assert_allclose(res.smoothed_state_cov.transpose(2, 0, 1), self.fit.Q_t_given_T, atol=self.atol)

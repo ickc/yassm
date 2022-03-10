@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from logging import getLogger
 from typing import TYPE_CHECKING
 
 import numpy as np
@@ -12,6 +13,94 @@ if TYPE_CHECKING:
     from typing import Callable
 
     import numpy.typing as npt
+
+logger = getLogger(__name__)
+
+
+@dataclass
+class GeneralLinearGaussianStateSpaceModelFit:
+    """A class performing the General linear gaussian state space model pipelines."""
+
+    y: npt.NDArray[np.float64]
+    params: npt.NDArray[np.float64]
+    μ_0: npt.NDArray[np.float64]
+    Γ_0: npt.NDArray[np.float64]
+    kalman_filtering: Callable[
+        [npt.NDArray[np.float64], npt.NDArray[np.float64], npt.NDArray[np.float64], npt.NDArray[np.float64]],
+        tuple[npt.NDArray[np.float64], npt.NDArray[np.float64], npt.NDArray[np.float64], npt.NDArray[np.float64]],
+    ]
+    kalman_smoothing: Callable[
+        [
+            npt.NDArray[np.float64],
+            npt.NDArray[np.float64],
+            npt.NDArray[np.float64],
+            npt.NDArray[np.float64],
+            npt.NDArray[np.float64],
+            npt.NDArray[np.float64],
+        ],
+        tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]],
+    ]
+
+    def _run_kalman_filtering(self):
+        logger.info("Running kalman filtering...")
+        (
+            self._m_t_given_tMinus1,
+            self._Q_t_given_tMinus1,
+            self._m_t_given_t,
+            self._Q_t_given_t,
+        ) = self.kalman_filtering(
+            self.y,
+            self.params,
+            self.μ_0,
+            self.Γ_0,
+        )
+
+    def _run_kalman_smoothing(self):
+        logger.info("Running kalman smoothing...")
+        (self._m_t_given_T, self._Q_t_given_T,) = self.kalman_smoothing(
+            self.y,
+            self.params,
+            self.m_t_given_tMinus1,
+            self.Q_t_given_tMinus1,
+            self.m_t_given_t,
+            self.Q_t_given_t,
+        )
+
+    @property
+    def m_t_given_tMinus1(self):
+        if not hasattr(self, "_m_t_given_tMinus1"):
+            self._run_kalman_filtering()
+        return self._m_t_given_tMinus1
+
+    @property
+    def Q_t_given_tMinus1(self):
+        if not hasattr(self, "_Q_t_given_tMinus1"):
+            self._run_kalman_filtering()
+        return self._Q_t_given_tMinus1
+
+    @property
+    def m_t_given_t(self):
+        if not hasattr(self, "_m_t_given_t"):
+            self._run_kalman_filtering()
+        return self._m_t_given_t
+
+    @property
+    def Q_t_given_t(self):
+        if not hasattr(self, "_Q_t_given_t"):
+            self._run_kalman_filtering()
+        return self._Q_t_given_t
+
+    @property
+    def m_t_given_T(self):
+        if not hasattr(self, "_m_t_given_T"):
+            self._run_kalman_smoothing()
+        return self._m_t_given_T
+
+    @property
+    def Q_t_given_T(self):
+        if not hasattr(self, "_Q_t_given_T"):
+            self._run_kalman_smoothing()
+        return self._Q_t_given_T
 
 
 @dataclass
@@ -144,10 +233,10 @@ class GeneralLinearGaussianStateSpaceModel:
         def kalman_smoothing(
             y: npt.NDArray[np.float64],
             params: npt.NDArray[np.float64],
-            m_t_given_tMinus1,
-            Q_t_given_tMinus1,
-            m_t_given_t,
-            Q_t_given_t,
+            m_t_given_tMinus1: npt.NDArray[np.float64],
+            Q_t_given_tMinus1: npt.NDArray[np.float64],
+            m_t_given_t: npt.NDArray[np.float64],
+            Q_t_given_t: npt.NDArray[np.float64],
         ) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]]:
             size = y.shape[0]
             T = size - 1
@@ -181,3 +270,19 @@ class GeneralLinearGaussianStateSpaceModel:
             return m_t_given_T, Q_t_given_T
 
         self.kalman_smoothing = kalman_smoothing
+
+    def fit(
+        self,
+        y: npt.NDArray[np.float64],
+        params: npt.NDArray[np.float64],
+        μ_0: npt.NDArray[np.float64],
+        Γ_0: npt.NDArray[np.float64],
+    ) -> GeneralLinearGaussianStateSpaceModelFit:
+        return GeneralLinearGaussianStateSpaceModelFit(
+            y,
+            params,
+            μ_0,
+            Γ_0,
+            self.kalman_filtering,
+            self.kalman_smoothing,
+        )
