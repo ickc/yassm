@@ -9,24 +9,32 @@ if TYPE_CHECKING:
     import numpy.typing as npt
 
 
-A0 = np.array(
-    [
-        [2.0, -1.0],
-        [1.0, 0.0],
-    ]
-)
-B0 = np.array([[1.0, 0.0]])
-Σ0 = np.zeros((2, 2))
-R0 = np.empty((1, 1))
+@jit("f8[:, ::1](f8[::1])", nopython=True, nogil=True, cache=True)
+def A0(params: npt.NDArray[np.float64]) -> npt.NDArray[np.float64]:
+    return np.array(
+        [
+            [2.0, -1.0],
+            [1.0, 0.0],
+        ]
+    )
+
+
+@jit("f8[:, ::1](f8[::1])", nopython=True, nogil=True, cache=True)
+def B0(params: npt.NDArray[np.float64]) -> npt.NDArray[np.float64]:
+    return np.array([[1.0, 0.0]])
 
 
 # state cov.
-@jit("(f8[:, ::1], f8[::1], i8)", nopython=True, nogil=True, cache=True)
-def Σ(out: npt.NDArray[np.float64], params: npt.NDArray[np.float64], t: npt.NDArray[np.float64]) -> None:
+@jit("f8[:, ::1](f8[::1])", nopython=True, nogil=True, cache=True)
+def Σ0(params: npt.NDArray[np.float64]) -> npt.NDArray[np.float64]:
+    out = np.zeros((2, 2))
     out[0, 0] = params[1]
+    return out
 
 
 # obs. cov.
-@jit("(f8[:, ::1], f8[::1], i8)", nopython=True, nogil=True, cache=True)
-def R(out: npt.NDArray[np.float64], params: npt.NDArray[np.float64], t: npt.NDArray[np.float64]) -> None:
+@jit("f8[:, ::1](f8[::1])", nopython=True, nogil=True, cache=True)
+def R0(params: npt.NDArray[np.float64]) -> npt.NDArray[np.float64]:
+    out = np.empty((1, 1))
     out[0, 0] = params[0]
+    return out

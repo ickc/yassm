@@ -54,6 +54,7 @@ class GeneralLinearGaussianStateSpaceModelFit:
     ]
     d: int
     n: int
+    N: int
     t: npt.NDArray | None = None
     param_names: list[str] | None = None
 
@@ -64,27 +65,20 @@ class GeneralLinearGaussianStateSpaceModelFit:
         Γ_0 = self.Γ_0
         d = self.d
         n = self.n
+        N = self.N
         t = self.t
         param_names = self.param_names
 
         size, np = y.shape
         assert np == n
         assert params.ndim == 1
-        N = params.size
+        assert N == params.size
         assert μ_0.shape == (d,)
         assert Γ_0.shape == (d, d)
         if t is not None:
             assert t.shape == (size,)
         if param_names is None:
             param_names = [f"param_{i}" for i in range(N)]
-
-        # alias of statsmodels terminology
-        self.filtered_state = self.m_t_given_t
-        self.filtered_state_cov = self.Q_t_given_t
-        self.predicted_state = self.m_t_given_tMinus1
-        self.predicted_state_cov = self.Q_t_given_tMinus1
-        self.smoothed_state = self.m_t_given_T
-        self.smoothed_state_cov = self.Q_t_given_T
 
     def _run_kalman_filtering(self):
         logger.info("Running kalman filtering...")
@@ -164,6 +158,31 @@ class GeneralLinearGaussianStateSpaceModelFit:
         if not hasattr(self, "_Q_t_given_T"):
             self._run_kalman_smoothing()
         return self._Q_t_given_T
+
+    # alias of statsmodels terminology
+    @property
+    def filtered_state(self):
+        return self.m_t_given_t
+
+    @property
+    def filtered_state_cov(self):
+        return self.Q_t_given_t
+
+    @property
+    def predicted_state(self):
+        return self.m_t_given_tMinus1
+
+    @property
+    def predicted_state_cov(self):
+        return self.Q_t_given_tMinus1
+
+    @property
+    def smoothed_state(self):
+        return self.m_t_given_T
+
+    @property
+    def smoothed_state_cov(self):
+        return self.Q_t_given_T
 
     @property
     def smoothed_obs(self):
@@ -252,11 +271,11 @@ class GeneralLinearGaussianStateSpaceModelFit:
 class GeneralLinearGaussianStateSpaceModel:
     """General linear gaussian state space model.
 
-
-    :param A0: initial transition, shape of (d, d).
-    :param B0: initial design, shape of (n, d).
-    :param Σ0: initial state covariance, shape of (d, d).
-    :param R0: initial observation coariance, shape of (n, n).
+    :param N: no. of params.
+    :param A0: a Numba0-jitted function of (params) initializing transition, shape of (d, d).
+    :param B0: a Numba0-jitted function of (params) initializing design, shape of (n, d).
+    :param Σ0: a Numba0-jitted function of (params) initializing state covariance, shape of (d, d).
+    :param R0: a Numba0-jitted function of (params) initializing observation coariance, shape of (n, n).
     :param A: If None, Numba-jit should optimized this away to have no cost, else, a Numba0-jitted function of (out, params, t) updating out as transition, shape of (d, d).
     :param B: If None, Numba-jit should optimized this away to have no cost, else, a Numba0-jitted function of (out, params, t) updating out as design, shape of (n, d).
     :param Σ: If None, Numba-jit should optimized this away to have no cost, else, a Numba0-jitted function of (out, params, t) updating out as state covariance, shape of (d, d).
@@ -275,17 +294,19 @@ class GeneralLinearGaussianStateSpaceModel:
         X_s | Y_0 = y_0, ..., Y_t = y_t, θ ~ N(m_s|t, Q_s|t)
     """
 
-    A0: npt.NDArray[np.float64]
-    B0: npt.NDArray[np.float64]
-    Σ0: npt.NDArray[np.float64]
-    R0: npt.NDArray[np.float64]
-    A: Callable[[npt.NDArray[np.float64], npt.NDArray[np.float64], int]] | None
-    B: Callable[[npt.NDArray[np.float64], npt.NDArray[np.float64], int]] | None
-    Σ: Callable[[npt.NDArray[np.float64], npt.NDArray[np.float64], int]] | None
-    R: Callable[[npt.NDArray[np.float64], npt.NDArray[np.float64], int]] | None
+    N: int
+    A0: Callable[[npt.NDArray[np.float64]], npt.NDArray[np.float64]]
+    B0: Callable[[npt.NDArray[np.float64]], npt.NDArray[np.float64]]
+    Σ0: Callable[[npt.NDArray[np.float64]], npt.NDArray[np.float64]]
+    R0: Callable[[npt.NDArray[np.float64]], npt.NDArray[np.float64]]
+    A: Callable[[npt.NDArray[np.float64], npt.NDArray[np.float64], int]] | None = None
+    B: Callable[[npt.NDArray[np.float64], npt.NDArray[np.float64], int]] | None = None
+    Σ: Callable[[npt.NDArray[np.float64], npt.NDArray[np.float64], int]] | None = None
+    R: Callable[[npt.NDArray[np.float64], npt.NDArray[np.float64], int]] | None = None
     param_names: list[str] | None = None
 
     def __post_init__(self) -> None:
+        N = self.N
         A0 = self.A0
         B0 = self.B0
         Σ0 = self.Σ0
@@ -296,15 +317,21 @@ class GeneralLinearGaussianStateSpaceModel:
         R = self.R
 
         # runtime shape check
-        d = A0.shape[0]
+        params = np.zeros(N)
+        shape = A0(params).shape
+        d = shape[0]
+        assert shape == (d, d)
         self.d = d
-        assert A0.shape == (d, d)
-        assert B0.ndim == 2
-        n = B0.shape[0]
+
+        shape = B0(params).shape
+        assert len(shape) == 2
+        assert shape[1] == d
+        n = shape[0]
         self.n = n
-        assert B0.shape[1] == d
-        assert Σ0.shape == (d, d)
-        assert R0.shape == (n, n)
+
+        assert Σ0(params).shape == (d, d)
+        assert R0(params).shape == (n, n)
+        del params
 
         @jit(
             "Tuple((f8[:, ::1], f8[:, :, ::1], f8[:, ::1], f8[:, :, ::1]))(f8[:, ::1], f8[::1], f8[::1], f8[:, ::1])",
@@ -331,10 +358,10 @@ class GeneralLinearGaussianStateSpaceModel:
             m_t_given_t = np.empty((size, d))
             Q_t_given_tMinus1 = np.empty((size, d, d))
             Q_t_given_t = np.empty((size, d, d))
-            A_t = A0.copy()
-            B_t = B0.copy()
-            Σ_t = Σ0.copy()
-            R_t = R0.copy()
+            A_t = A0(params)
+            B_t = B0(params)
+            Σ_t = Σ0(params)
+            R_t = R0(params)
 
             # initialize
             m_t_given_tMinus1[0] = μ_0
@@ -393,7 +420,7 @@ class GeneralLinearGaussianStateSpaceModel:
             # memalloc
             m_t_given_T = np.empty((size, d))
             Q_t_given_T = np.empty((size, d, d))
-            A_sPlus1 = A0.copy()
+            A_sPlus1 = A0(params)
 
             # initialize
             m_t_given_T[T] = m_t_given_t[T]
@@ -436,11 +463,11 @@ class GeneralLinearGaussianStateSpaceModel:
             T = size - 1
 
             # memalloc
-            B_t = B0.copy()
+            B_t = B0(params)
             smoothed_obs = np.empty((size, n))
             smoothed_obs_cov = np.empty((size, n, n))
             if with_obs_cov:
-                R_t = R0.copy()
+                R_t = R0(params)
 
             for t in range(size):
                 if B is not None:
@@ -474,6 +501,7 @@ class GeneralLinearGaussianStateSpaceModel:
             self.smoothed_state_to_obs,
             self.d,
             self.n,
+            self.N,
             t=t,
             param_names=param_names or self.param_names,
         )
