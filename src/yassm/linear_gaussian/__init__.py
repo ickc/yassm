@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING
 import numpy as np
 from numba import jit
 
-from .lib.linear_gaussian import filter_update, one_step_ahead, smoothing_backward_recursion
+from ..lib.linear_gaussian import filter_update, one_step_ahead, smoothing_backward_recursion
 
 if TYPE_CHECKING:
     from typing import Callable
