@@ -10,6 +10,8 @@ from numba import jit
 from yassm.linear_gaussian.model.local_linear import local_linear_model
 
 if TYPE_CHECKING:
+    from typing import Any
+
     import numpy.typing as npt
 
 
@@ -31,15 +33,15 @@ class LocalLinearModel(tsa.statespace.MLEModel):
 
     def __init__(
         self,
-        endog,
+        endog: npt.NDArray[np.float64],
         m0: npt.NDArray[np.float64] | None = None,
         C0: npt.NDArray[np.float64] | None = None,
-        exog=None,
-        dates=None,
-        freq=None,
-        initialization="approximate_diffuse",
-        **kwargs,
-    ):
+        exog: npt.NDArray[np.float64] | None = None,
+        dates: npt.NDArray[Any] | None = None,
+        freq: Any = None,
+        initialization: str = "approximate_diffuse",
+        **kwargs: dict[Any, Any],
+    ) -> None:
         k_states = 2
         k_posdef = 2
 
@@ -67,26 +69,26 @@ class LocalLinearModel(tsa.statespace.MLEModel):
         # self.ssm["state_cov"]
 
     @property
-    def param_names(self):
+    def param_names(self) -> list[str]:
         return ["obs_cov", "state_cov"]
 
     @property
-    def start_params(self):
+    def start_params(self) -> npt.NDArray[np.float64]:
         return np.full(2, np.std(self.endog), dtype=self.endog.dtype)
 
-    def transform_params(self, unconstrained):
+    def transform_params(self, unconstrained: npt.NDArray[np.float64]) -> npt.NDArray[np.float64]:
         return np.square(unconstrained)
 
-    def untransform_params(self, constrained):
+    def untransform_params(self, constrained: npt.NDArray[np.float64]) -> npt.NDArray[np.float64]:
         return np.sqrt(constrained)
 
     def update(
         self,
-        params,
-        transformed=True,
-        includes_fixed=False,
-        complex_step=False,
-    ):
+        params: npt.NDArray[np.float64],
+        transformed: bool = True,
+        includes_fixed: bool = False,
+        complex_step: bool = False,
+    ) -> None:
         params = super().update(
             params,
             transformed=True,
@@ -102,7 +104,7 @@ class LocalLinearModel(tsa.statespace.MLEModel):
 
 
 class TestLinearGaussian(TestCase):
-    def setUp(self):
+    def setUp(self) -> None:
         rng = np.random.default_rng(12345)
 
         n = 500
@@ -128,12 +130,12 @@ class TestLinearGaussian(TestCase):
             self.Γ_0,
         )
 
-    def setUpSM(self):
+    def setUpSM(self) -> tsa.statespace.mlemodel.MLEResultsWrapper:
         """Reference answer from statsmodels."""
         mod = LocalLinearModel(self.yy, m0=self.μ_0, C0=self.Γ_0)
         return mod.fit()
 
-    def test_kalman_filtering(self):
+    def test_kalman_filtering(self) -> None:
         res = self.sm
 
         np.testing.assert_allclose(
@@ -157,7 +159,7 @@ class TestLinearGaussian(TestCase):
             atol=self.atol,
         )
 
-    def test_kalman_smoothing(self):
+    def test_kalman_smoothing(self) -> None:
         res = self.sm
         np.testing.assert_allclose(
             self.fit.m_t_given_T,
@@ -170,7 +172,7 @@ class TestLinearGaussian(TestCase):
             atol=self.atol,
         )
 
-    def test_forecast(self):
+    def test_forecast(self) -> None:
         forecast_sm = self.sm.get_forecast(self.T_predict)
         forecast, forecast_cov = self.fit.get_forecast_obs(self.T_predict)
         np.testing.assert_allclose(
