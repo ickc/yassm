@@ -17,6 +17,8 @@ dependencies:
   - numpy >=1,<2
   - numba
   - statsmodels
+  - matplotlib-base
+  - scipy
   # run:
   - defopt >=6,<7
   # run_constrained:

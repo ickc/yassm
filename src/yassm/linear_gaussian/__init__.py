@@ -4,14 +4,17 @@ from dataclasses import dataclass
 from logging import getLogger
 from typing import TYPE_CHECKING
 
+import matplotlib.pyplot as plt
 import numpy as np
 from numba import jit
+from scipy import stats
 
 from ..lib.linear_gaussian import filter_update, one_step_ahead, smoothing_backward_recursion
 
 if TYPE_CHECKING:
     from typing import Callable
 
+    import matplotlib as mpl
     import numpy.typing as npt
 
 logger = getLogger(__name__)
@@ -37,6 +40,15 @@ class GeneralLinearGaussianStateSpaceModelFit:
             npt.NDArray[np.float64],
             npt.NDArray[np.float64],
             npt.NDArray[np.float64],
+        ],
+        tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]],
+    ]
+    smoothed_state_to_obs: Callable[
+        [
+            npt.NDArray[np.float64],
+            npt.NDArray[np.float64],
+            npt.NDArray[np.float64],
+            bool,
         ],
         tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]],
     ]
@@ -99,6 +111,24 @@ class GeneralLinearGaussianStateSpaceModelFit:
             self.Q_t_given_t,
         )
 
+    def _run_smoothed_state_to_obs(self):
+        logger.info("Running smoothed_state_to_obs...")
+        (self._smoothed_obs, self._smoothed_obs_cov,) = self.smoothed_state_to_obs(
+            self.params,
+            self.m_t_given_T,
+            self.Q_t_given_T,
+            False,
+        )
+
+    def _run_smoothed_state_to_obs_with_obs_cov(self):
+        logger.info("Running smoothed_state_to_obs with obs_cov...")
+        (self._smoothed_obs, self._smoothed_obs_cov_with_obs_cov,) = self.smoothed_state_to_obs(
+            self.params,
+            self.m_t_given_T,
+            self.Q_t_given_T,
+            True,
+        )
+
     @property
     def m_t_given_tMinus1(self):
         if not hasattr(self, "_m_t_given_tMinus1"):
@@ -134,6 +164,88 @@ class GeneralLinearGaussianStateSpaceModelFit:
         if not hasattr(self, "_Q_t_given_T"):
             self._run_kalman_smoothing()
         return self._Q_t_given_T
+
+    @property
+    def smoothed_obs(self):
+        if not hasattr(self, "_smoothed_obs"):
+            self._run_smoothed_state_to_obs()
+        return self._smoothed_obs
+
+    @property
+    def smoothed_obs_cov(self):
+        if not hasattr(self, "_smoothed_obs_cov"):
+            self._run_smoothed_state_to_obs()
+        return self._smoothed_obs_cov
+
+    @property
+    def smoothed_obs_cov_with_obs_cov(self):
+        if not hasattr(self, "_smoothed_obs_cov_with_obs_cov"):
+            self._run_smoothed_state_to_obs_with_obs_cov()
+        return self._smoothed_obs_cov_with_obs_cov
+
+    def plot(
+        self,
+        α: float = 0.05,
+        axes: list[mpl.axes._subplots.AxesSubplot] | None = None,
+        alpha: float = 0.2,
+        plot_obs: bool = True,
+        plot_smoothed: bool = True,
+        plot_smoothed_CI: bool = True,
+        plot_smoothed_with_obs_cov: bool = True,
+    ):
+        """Plotting.
+
+        :param α: α-value for C.I.
+        :param axes: matplotlib axis, no. of rows should match the dimension of observations.
+        :param alpha: transparency level of `ax.fill_between`.
+        """
+        import matplotlib.pyplot as plt
+
+        y = self.y
+        smoothed_obs = self.smoothed_obs
+
+        size, n = y.shape
+        t = range(size) if self.t is None else self.t
+
+        ns_std = stats.norm.ppf([0.5 * α, 1.0 - 0.5 * α])
+
+        if axes is None:
+            fig, axes = plt.subplots(n)
+            if n == 1:
+                axes = [axes]
+        else:
+            fig = plt.gcf()
+
+        for i, ax in enumerate(axes):
+            s = smoothed_obs[:, i]
+
+            if plot_obs:
+                ax.plot(t, y[:, i], label="Observation")
+            if plot_smoothed:
+                ax.plot(t, s, label="Smoothed obseration")
+
+            if plot_smoothed_with_obs_cov:
+                smoothed_obs_std = np.sqrt(self.smoothed_obs_cov_with_obs_cov[:, i, i])
+                smoothed_obs_lower = s + ns_std[0] * smoothed_obs_std
+                smoothed_obs_upper = s + ns_std[1] * smoothed_obs_std
+                ax.fill_between(
+                    t,
+                    smoothed_obs_lower,
+                    smoothed_obs_upper,
+                    alpha=alpha,
+                )
+
+            if plot_smoothed:
+                smoothed_obs_std = np.sqrt(self.smoothed_obs_cov[:, i, i])
+                smoothed_obs_lower = s + ns_std[0] * smoothed_obs_std
+                smoothed_obs_upper = s + ns_std[1] * smoothed_obs_std
+                ax.fill_between(
+                    t,
+                    smoothed_obs_lower,
+                    smoothed_obs_upper,
+                    alpha=alpha,
+                )
+            ax.legend()
 
 
 @dataclass
@@ -308,6 +420,41 @@ class GeneralLinearGaussianStateSpaceModel:
 
         self.kalman_smoothing = kalman_smoothing
 
+        @jit(
+            "Tuple((f8[:, ::1], f8[:, :, ::1]))(f8[::1], f8[:, ::1], f8[:, :, ::1], b1)",
+            nopython=True,
+            nogil=True,
+            cache=True,
+        )
+        def smoothed_state_to_obs(
+            params: npt.NDArray[np.float64],
+            m_t_given_T: npt.NDArray[np.float64],
+            Q_t_given_T: npt.NDArray[np.float64],
+            with_obs_cov,
+        ) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]]:
+            size = m_t_given_T.shape[0]
+            T = size - 1
+
+            # memalloc
+            B_t = B0.copy()
+            smoothed_obs = np.empty((size, n))
+            smoothed_obs_cov = np.empty((size, n, n))
+            if with_obs_cov:
+                R_t = R0.copy()
+
+            for t in range(size):
+                if B is not None:
+                    B(B_t, params, t)
+                if with_obs_cov and R is not None:
+                    R(R_t, params, t)
+                smoothed_obs[t] = B_t @ m_t_given_T[t]
+                smoothed_obs_cov[t] = B_t @ Q_t_given_T[t] @ B_t.transpose()
+                if with_obs_cov:
+                    smoothed_obs_cov[t] += R_t
+            return smoothed_obs, smoothed_obs_cov
+
+        self.smoothed_state_to_obs = smoothed_state_to_obs
+
     def fit(
         self,
         y: npt.NDArray[np.float64],
@@ -324,6 +471,7 @@ class GeneralLinearGaussianStateSpaceModel:
             Γ_0,
             self.kalman_filtering,
             self.kalman_smoothing,
+            self.smoothed_state_to_obs,
             self.d,
             self.n,
             t=t,
