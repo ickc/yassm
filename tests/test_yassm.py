@@ -7,7 +7,7 @@ import numpy as np
 import statsmodels.tsa.api as tsa
 from numba import jit
 
-from yassm.linear_gaussian import GeneralLinearGaussianStateSpaceModel
+from yassm.linear_gaussian.model.local_linear import local_linear_model
 
 if TYPE_CHECKING:
     import numpy.typing as npt
@@ -101,35 +101,6 @@ class LocalLinearModel(tsa.statespace.MLEModel):
         self.ssm["state_cov", 0, 0] = params[1]
 
 
-@jit("f8[:, ::1](f8[::1], i8)", nopython=True, nogil=True, cache=True)
-def A(params, t):
-    return np.array(
-        [
-            [2.0, -1.0],
-            [1.0, 0.0],
-        ]
-    )
-
-
-@jit("f8[:, ::1](f8[::1], i8)", nopython=True, nogil=True, cache=True)
-def B(params, t):
-    return np.array([[1.0, 0.0]])
-
-
-# state cov.
-@jit("f8[:, ::1](f8[::1], i8)", nopython=True, nogil=True, cache=True)
-def Σ(params, t):
-    res = np.zeros((2, 2))
-    res[0, 0] = params[1]
-    return res
-
-
-# obs. cov.
-@jit("f8[:, ::1](f8[::1], i8)", nopython=True, nogil=True, cache=True)
-def R(params, t):
-    return np.array([[params[0]]])
-
-
 class TestLinearGaussian(TestCase):
     def setUp(self):
         rng = np.random.default_rng(12345)
@@ -149,7 +120,7 @@ class TestLinearGaussian(TestCase):
 
         self.sm = self.setUpSM()
         self.params0 = self.sm.params
-        self.mod = self.setUpLocal()
+        self.mod = local_linear_model
 
         (
             self.m_t_given_tMinus1,
@@ -167,15 +138,6 @@ class TestLinearGaussian(TestCase):
         """Reference answer from statsmodels."""
         mod = LocalLinearModel(self.yy, m0=self.μ_0, C0=self.Γ_0)
         return mod.fit()
-
-    def setUpLocal(self):
-        return GeneralLinearGaussianStateSpaceModel(
-            A,
-            B,
-            Σ,
-            R,
-            2,
-        )
 
     def test_kalman_filtering(self):
         res = self.sm

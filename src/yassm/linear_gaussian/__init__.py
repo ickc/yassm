@@ -68,6 +68,7 @@ class GeneralLinearGaussianStateSpaceModel:
             "Tuple((f8[:, ::1], f8[:, :, ::1], f8[:, ::1], f8[:, :, ::1]))(f8[:, ::1], f8[::1], f8[::1], f8[:, ::1])",
             nopython=True,
             nogil=True,
+            cache=True,
         )
         def kalman_filtering(
             y: npt.NDArray[np.float64],
@@ -123,6 +124,7 @@ class GeneralLinearGaussianStateSpaceModel:
             "(f8[:, ::1], f8[::1], f8[:, ::1], f8[:, :, ::1], f8[:, ::1], f8[:, :, ::1])",
             nopython=True,
             nogil=True,
+            cache=True,
         )
         def kalman_smoothing(
             y: npt.NDArray[np.float64],
