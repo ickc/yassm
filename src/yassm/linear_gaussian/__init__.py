@@ -76,7 +76,22 @@ logger = getLogger(__name__)
 
 @dataclass
 class GeneralLinearGaussianStateSpaceModelFit:
-    """A class performing the General linear gaussian state space model pipelines."""
+    """A class performing the General linear gaussian state space model pipelines.
+
+    :param y: observed data (Y)
+    :param params: parameters of the model
+    :param μ_0: mean of X0
+    :param Γ_0: covariance of X0
+    :param kalman_filtering: function to run Kalman filtering
+    :param kalman_smoothing: function to run Kalman smoothing
+    :param smoothed_state_to_obs: function to turn smoothed state (X) into smoothed observation (Y)
+    :param forecast: function to forecast future state (X)
+    :param d: dimension of state (X)
+    :param n: dimension of observation (Y)
+    :param N: total number of parameters
+    :param t: optional time axis
+    :param param_names: optional names of parameters
+    """
 
     y: npt.NDArray[np.float64]
     params: npt.NDArray[np.float64]
@@ -648,6 +663,15 @@ class GeneralLinearGaussianStateSpaceModel:
         t: npt.NDArray[Any] | None = None,
         param_names: list[str] | None = None,
     ) -> GeneralLinearGaussianStateSpaceModelFit:
+        """Compile the model and return a GeneralLinearGaussianStateSpaceModelFit instance.
+
+        :param y: observed data (Y)
+        :param params: parameters of the model
+        :param μ_0: mean of X0
+        :param Γ_0: covariance of X0
+        :param t: optional time axis
+        :param param_names: optional names of parameters
+        """
         return GeneralLinearGaussianStateSpaceModelFit(
             y,
             params,
