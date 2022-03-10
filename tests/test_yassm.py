@@ -136,22 +136,50 @@ class TestLinearGaussian(TestCase):
     def test_kalman_filtering(self):
         res = self.sm
 
-        np.testing.assert_allclose(res.filtered_state.transpose(), self.fit.m_t_given_t, atol=self.atol)
-        np.testing.assert_allclose(res.filtered_state_cov.transpose(2, 0, 1), self.fit.Q_t_given_t, atol=self.atol)
-        np.testing.assert_allclose(res.predicted_state.transpose()[:-1], self.fit.m_t_given_tMinus1, atol=self.atol)
         np.testing.assert_allclose(
-            res.predicted_state_cov.transpose(2, 0, 1)[:-1],
+            self.fit.m_t_given_t,
+            res.filtered_state.transpose(),
+            atol=self.atol,
+        )
+        np.testing.assert_allclose(
+            self.fit.Q_t_given_t,
+            res.filtered_state_cov.transpose(2, 0, 1),
+            atol=self.atol,
+        )
+        np.testing.assert_allclose(
+            self.fit.m_t_given_tMinus1,
+            res.predicted_state.transpose()[:-1],
+            atol=self.atol,
+        )
+        np.testing.assert_allclose(
             self.fit.Q_t_given_tMinus1,
+            res.predicted_state_cov.transpose(2, 0, 1)[:-1],
             atol=self.atol,
         )
 
     def test_kalman_smoothing(self):
         res = self.sm
-        np.testing.assert_allclose(res.smoothed_state.transpose(), self.fit.m_t_given_T, atol=self.atol)
-        np.testing.assert_allclose(res.smoothed_state_cov.transpose(2, 0, 1), self.fit.Q_t_given_T, atol=self.atol)
+        np.testing.assert_allclose(
+            self.fit.m_t_given_T,
+            res.smoothed_state.transpose(),
+            atol=self.atol,
+        )
+        np.testing.assert_allclose(
+            self.fit.Q_t_given_T,
+            res.smoothed_state_cov.transpose(2, 0, 1),
+            atol=self.atol,
+        )
 
     def test_forecast(self):
         forecast_sm = self.sm.get_forecast(self.T_predict)
         forecast, forecast_cov = self.fit.get_forecast_obs(self.T_predict)
-        np.testing.assert_allclose(forecast[:, 0], forecast_sm.predicted_mean, atol=1e-5)
-        np.testing.assert_allclose(np.sqrt(forecast_cov[:, 0, 0]), forecast_sm.se_mean, atol=1e-5)
+        np.testing.assert_allclose(
+            forecast[:, 0],
+            forecast_sm.predicted_mean,
+            atol=self.atol,
+        )
+        np.testing.assert_allclose(
+            np.sqrt(forecast_cov[:, 0, 0]),
+            forecast_sm.se_mean,
+            atol=self.atol,
+        )
