@@ -66,6 +66,14 @@ class GeneralLinearGaussianStateSpaceModelFit:
         if param_names is None:
             param_names = [f"param_{i}" for i in range(N)]
 
+        # alias of statsmodels terminology
+        self.filtered_state = self.m_t_given_t
+        self.filtered_state_cov = self.Q_t_given_t
+        self.predicted_state = self.m_t_given_tMinus1
+        self.predicted_state_cov = self.Q_t_given_tMinus1
+        self.smoothed_state = self.m_t_given_T
+        self.smoothed_state_cov = self.Q_t_given_T
+
     def _run_kalman_filtering(self):
         logger.info("Running kalman filtering...")
         (
