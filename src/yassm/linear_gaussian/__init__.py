@@ -12,7 +12,7 @@ from scipy import stats
 from ..lib.linear_gaussian import filter_update, one_step_ahead, smoothing_backward_recursion
 
 if TYPE_CHECKING:
-    from typing import Callable
+    from typing import Any, Callable
 
     import matplotlib as mpl
     import numpy.typing as npt
@@ -55,7 +55,7 @@ class GeneralLinearGaussianStateSpaceModelFit:
     d: int
     n: int
     N: int
-    t: npt.NDArray | None = None
+    t: npt.NDArray[Any] | None = None
     param_names: list[str] | None = None
 
     def __post_init__(self) -> None:
@@ -80,7 +80,7 @@ class GeneralLinearGaussianStateSpaceModelFit:
         if param_names is None:
             param_names = [f"param_{i}" for i in range(N)]
 
-    def _run_kalman_filtering(self):
+    def _run_kalman_filtering(self) -> None:
         logger.info("Running kalman filtering...")
         (
             self._m_t_given_tMinus1,
@@ -94,7 +94,7 @@ class GeneralLinearGaussianStateSpaceModelFit:
             self.Γ_0,
         )
 
-    def _run_kalman_smoothing(self):
+    def _run_kalman_smoothing(self) -> None:
         logger.info("Running kalman smoothing...")
         (self._m_t_given_T, self._Q_t_given_T,) = self.kalman_smoothing(
             self.y,
@@ -105,7 +105,7 @@ class GeneralLinearGaussianStateSpaceModelFit:
             self.Q_t_given_t,
         )
 
-    def _run_smoothed_state_to_obs(self):
+    def _run_smoothed_state_to_obs(self) -> None:
         logger.info("Running smoothed_state_to_obs...")
         (self._smoothed_obs, self._smoothed_obs_cov,) = self.smoothed_state_to_obs(
             self.params,
@@ -114,7 +114,7 @@ class GeneralLinearGaussianStateSpaceModelFit:
             False,
         )
 
-    def _run_smoothed_state_to_obs_with_obs_cov(self):
+    def _run_smoothed_state_to_obs_with_obs_cov(self) -> None:
         logger.info("Running smoothed_state_to_obs with obs_cov...")
         (self._smoothed_obs, self._smoothed_obs_cov_with_obs_cov,) = self.smoothed_state_to_obs(
             self.params,
@@ -124,80 +124,80 @@ class GeneralLinearGaussianStateSpaceModelFit:
         )
 
     @property
-    def m_t_given_tMinus1(self):
+    def m_t_given_tMinus1(self) -> npt.NDArray[np.float64]:
         if not hasattr(self, "_m_t_given_tMinus1"):
             self._run_kalman_filtering()
         return self._m_t_given_tMinus1
 
     @property
-    def Q_t_given_tMinus1(self):
+    def Q_t_given_tMinus1(self) -> npt.NDArray[np.float64]:
         if not hasattr(self, "_Q_t_given_tMinus1"):
             self._run_kalman_filtering()
         return self._Q_t_given_tMinus1
 
     @property
-    def m_t_given_t(self):
+    def m_t_given_t(self) -> npt.NDArray[np.float64]:
         if not hasattr(self, "_m_t_given_t"):
             self._run_kalman_filtering()
         return self._m_t_given_t
 
     @property
-    def Q_t_given_t(self):
+    def Q_t_given_t(self) -> npt.NDArray[np.float64]:
         if not hasattr(self, "_Q_t_given_t"):
             self._run_kalman_filtering()
         return self._Q_t_given_t
 
     @property
-    def m_t_given_T(self):
+    def m_t_given_T(self) -> npt.NDArray[np.float64]:
         if not hasattr(self, "_m_t_given_T"):
             self._run_kalman_smoothing()
         return self._m_t_given_T
 
     @property
-    def Q_t_given_T(self):
+    def Q_t_given_T(self) -> npt.NDArray[np.float64]:
         if not hasattr(self, "_Q_t_given_T"):
             self._run_kalman_smoothing()
         return self._Q_t_given_T
 
     # alias of statsmodels terminology
     @property
-    def filtered_state(self):
+    def filtered_state(self) -> npt.NDArray[np.float64]:
         return self.m_t_given_t
 
     @property
-    def filtered_state_cov(self):
+    def filtered_state_cov(self) -> npt.NDArray[np.float64]:
         return self.Q_t_given_t
 
     @property
-    def predicted_state(self):
+    def predicted_state(self) -> npt.NDArray[np.float64]:
         return self.m_t_given_tMinus1
 
     @property
-    def predicted_state_cov(self):
+    def predicted_state_cov(self) -> npt.NDArray[np.float64]:
         return self.Q_t_given_tMinus1
 
     @property
-    def smoothed_state(self):
+    def smoothed_state(self) -> npt.NDArray[np.float64]:
         return self.m_t_given_T
 
     @property
-    def smoothed_state_cov(self):
+    def smoothed_state_cov(self) -> npt.NDArray[np.float64]:
         return self.Q_t_given_T
 
     @property
-    def smoothed_obs(self):
+    def smoothed_obs(self) -> npt.NDArray[np.float64]:
         if not hasattr(self, "_smoothed_obs"):
             self._run_smoothed_state_to_obs()
         return self._smoothed_obs
 
     @property
-    def smoothed_obs_cov(self):
+    def smoothed_obs_cov(self) -> npt.NDArray[np.float64]:
         if not hasattr(self, "_smoothed_obs_cov"):
             self._run_smoothed_state_to_obs()
         return self._smoothed_obs_cov
 
     @property
-    def smoothed_obs_cov_with_obs_cov(self):
+    def smoothed_obs_cov_with_obs_cov(self) -> npt.NDArray[np.float64]:
         if not hasattr(self, "_smoothed_obs_cov_with_obs_cov"):
             self._run_smoothed_state_to_obs_with_obs_cov()
         return self._smoothed_obs_cov_with_obs_cov
@@ -211,7 +211,7 @@ class GeneralLinearGaussianStateSpaceModelFit:
         plot_smoothed: bool = True,
         plot_smoothed_CI: bool = True,
         plot_smoothed_with_obs_cov: bool = True,
-    ):
+    ) -> tuple[mpl.figure.Figure, list[mpl.axes._subplots.AxesSubplot]]:
         """Plotting.
 
         :param α: α-value for C.I.
@@ -265,6 +265,7 @@ class GeneralLinearGaussianStateSpaceModelFit:
                     alpha=alpha,
                 )
             ax.legend()
+        return fig, axes
 
 
 @dataclass
@@ -299,10 +300,10 @@ class GeneralLinearGaussianStateSpaceModel:
     B0: Callable[[npt.NDArray[np.float64]], npt.NDArray[np.float64]]
     Σ0: Callable[[npt.NDArray[np.float64]], npt.NDArray[np.float64]]
     R0: Callable[[npt.NDArray[np.float64]], npt.NDArray[np.float64]]
-    A: Callable[[npt.NDArray[np.float64], npt.NDArray[np.float64], int]] | None = None
-    B: Callable[[npt.NDArray[np.float64], npt.NDArray[np.float64], int]] | None = None
-    Σ: Callable[[npt.NDArray[np.float64], npt.NDArray[np.float64], int]] | None = None
-    R: Callable[[npt.NDArray[np.float64], npt.NDArray[np.float64], int]] | None = None
+    A: Callable[[npt.NDArray[np.float64], npt.NDArray[np.float64], int], npt.NDArray[np.float64]] | None = None
+    B: Callable[[npt.NDArray[np.float64], npt.NDArray[np.float64], int], npt.NDArray[np.float64]] | None = None
+    Σ: Callable[[npt.NDArray[np.float64], npt.NDArray[np.float64], int], npt.NDArray[np.float64]] | None = None
+    R: Callable[[npt.NDArray[np.float64], npt.NDArray[np.float64], int], npt.NDArray[np.float64]] | None = None
     param_names: list[str] | None = None
 
     def __post_init__(self) -> None:
@@ -351,7 +352,6 @@ class GeneralLinearGaussianStateSpaceModel:
             :return: m_t_given_tMinus1, Q_t_given_tMinus1, m_t_given_t, Q_t_given_t
             """
             size = y.shape[0]
-            T = size - 1
 
             # memalloc
             m_t_given_tMinus1 = np.empty((size, d))
@@ -457,10 +457,9 @@ class GeneralLinearGaussianStateSpaceModel:
             params: npt.NDArray[np.float64],
             m_t_given_T: npt.NDArray[np.float64],
             Q_t_given_T: npt.NDArray[np.float64],
-            with_obs_cov,
+            with_obs_cov: bool,
         ) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]]:
             size = m_t_given_T.shape[0]
-            T = size - 1
 
             # memalloc
             B_t = B0(params)
@@ -488,7 +487,7 @@ class GeneralLinearGaussianStateSpaceModel:
         params: npt.NDArray[np.float64],
         μ_0: npt.NDArray[np.float64],
         Γ_0: npt.NDArray[np.float64],
-        t: npt.NDArray | None = None,
+        t: npt.NDArray[Any] | None = None,
         param_names: list[str] | None = None,
     ) -> GeneralLinearGaussianStateSpaceModelFit:
         return GeneralLinearGaussianStateSpaceModelFit(
