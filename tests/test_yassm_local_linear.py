@@ -5,19 +5,15 @@ from unittest import TestCase
 
 import numpy as np
 import statsmodels.tsa.api as tsa
-from numba import jit
 
 from yassm.linear_gaussian.model.local_linear import local_linear_model
+
+from tests import y
 
 if TYPE_CHECKING:
     from typing import Any
 
     import numpy.typing as npt
-
-
-@jit("float64[::1](float64[::1])", nogil=True, nopython=True)
-def fn(x: npt.NDArray[np.float64]) -> npt.NDArray[np.float64]:
-    return np.sin(15.0 * x) + 3.0 * np.exp(-0.5 * np.square(x)) + 0.5 * np.square(x - 0.5)
 
 
 class LocalLinearModel(tsa.statespace.MLEModel):
@@ -105,18 +101,9 @@ class LocalLinearModel(tsa.statespace.MLEModel):
 
 class TestLinearGaussian(TestCase):
     def setUp(self) -> None:
-        rng = np.random.default_rng(12345)
-
-        n = 500
-        sig = 1.0
         C = 1e8
         self.atol = 1e-5
         self.T_predict = 100
-
-        xx = np.linspace(0.0, 1.0, n)
-        yy_0 = fn(xx)
-        self.yy = yy_0 + rng.normal(scale=sig, size=n)
-        self.y = self.yy.reshape(-1, 1)
 
         self.μ_0 = np.zeros(2)
         self.Γ_0 = C * np.identity(2)
@@ -124,7 +111,7 @@ class TestLinearGaussian(TestCase):
         self.sm = self.setUpSM()
         self.params0 = self.sm.params
         self.fit = local_linear_model.fit(
-            self.y,
+            y,
             self.params0,
             self.μ_0,
             self.Γ_0,
@@ -132,7 +119,7 @@ class TestLinearGaussian(TestCase):
 
     def setUpSM(self) -> tsa.statespace.mlemodel.MLEResultsWrapper:
         """Reference answer from statsmodels."""
-        mod = LocalLinearModel(self.yy, m0=self.μ_0, C0=self.Γ_0)
+        mod = LocalLinearModel(y, m0=self.μ_0, C0=self.Γ_0)
         return mod.fit()
 
     def test_kalman_filtering(self) -> None:

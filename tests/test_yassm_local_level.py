@@ -9,13 +9,10 @@ from numba import jit
 from yassm.linear_gaussian import GeneralLinearGaussianStateSpaceModel
 from yassm.linear_gaussian.model.local_level import local_level_model
 
+from tests import y
+
 if TYPE_CHECKING:
     import numpy.typing as npt
-
-
-@jit("float64[::1](float64[::1])", nogil=True, nopython=True)
-def fn(x: npt.NDArray[np.float64]) -> npt.NDArray[np.float64]:
-    return np.sin(15.0 * x) + 3.0 * np.exp(-0.5 * np.square(x)) + 0.5 * np.square(x - 0.5)
 
 
 @jit("f8[:, ::1](f8[::1])", nopython=True, nogil=True, cache=True)
@@ -56,18 +53,9 @@ local_level_model_general = GeneralLinearGaussianStateSpaceModel(
 
 class TestLinearGaussian(TestCase):
     def setUp(self) -> None:
-        rng = np.random.default_rng(54321)
-
-        n = 500
-        sig = 1.0
         C = 1e8
         self.atol = 1e-5
         self.T_predict = 100
-
-        xx = np.linspace(0.0, 1.0, n)
-        yy_0 = fn(xx)
-        self.yy = yy_0 + rng.normal(scale=sig, size=n)
-        self.y = self.yy.reshape(-1, 1)
 
         self.μ_0 = np.zeros(1)
         self.Γ_0 = np.array([[C]])
@@ -75,13 +63,13 @@ class TestLinearGaussian(TestCase):
         # we don't care if it is MLE
         self.params0 = np.ones(2)
         self.fit = local_level_model.fit(
-            self.y,
+            y,
             self.params0,
             self.μ_0,
             self.Γ_0,
         )
         self.fit_ref = local_level_model_general.fit(
-            self.y,
+            y,
             self.params0,
             self.μ_0,
             self.Γ_0,
