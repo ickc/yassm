@@ -408,6 +408,14 @@ class GenericLinearGaussianStateSpaceModel:
 
     N: int
 
+    def __post_init__(self) -> None:
+        # or define this in __init__
+        self.param_names: list[str] | None = None
+
+        self.d: int = 0
+        self.n: int = 0
+        raise NotImplementedError
+
     @property
     def kalman_filtering(self) -> KalmanFiltering:
         raise NotImplementedError
@@ -426,10 +434,10 @@ class GenericLinearGaussianStateSpaceModel:
 
     def fit(
         self,
-        y: npt.NDArray[np.float64],
-        params: npt.NDArray[np.float64],
-        μ_0: npt.NDArray[np.float64],
-        Γ_0: npt.NDArray[np.float64],
+        y: npt.ArrayLike,
+        params: npt.ArrayLike,
+        μ_0: npt.ArrayLike,
+        Γ_0: npt.ArrayLike,
         t: npt.NDArray[Any] | None = None,
         param_names: list[str] | None = None,
     ) -> GeneralLinearGaussianStateSpaceModelFit:
@@ -442,7 +450,21 @@ class GenericLinearGaussianStateSpaceModel:
         :param t: optional time axis
         :param param_names: optional names of parameters
         """
-        raise NotImplementedError
+        return GeneralLinearGaussianStateSpaceModelFit(
+            y,
+            params,
+            μ_0,
+            Γ_0,
+            self.kalman_filtering,
+            self.kalman_smoothing,
+            self.smoothed_state_to_obs,
+            self.forecast,
+            self.d,
+            self.n,
+            self.N,
+            t=t,
+            param_names=param_names or self.param_names,
+        )
 
 
 @dataclass
@@ -733,37 +755,3 @@ class GeneralLinearGaussianStateSpaceModel(GenericLinearGaussianStateSpaceModel)
             return m_t_given_T_predict, Q_t_given_T_predict
 
         return forecast
-
-    def fit(
-        self,
-        y: npt.ArrayLike,
-        params: npt.ArrayLike,
-        μ_0: npt.ArrayLike,
-        Γ_0: npt.ArrayLike,
-        t: npt.NDArray[Any] | None = None,
-        param_names: list[str] | None = None,
-    ) -> GeneralLinearGaussianStateSpaceModelFit:
-        """Compile the model and return a GeneralLinearGaussianStateSpaceModelFit instance.
-
-        :param y: observed data (Y)
-        :param params: parameters of the model
-        :param μ_0: mean of X0
-        :param Γ_0: covariance of X0
-        :param t: optional time axis
-        :param param_names: optional names of parameters
-        """
-        return GeneralLinearGaussianStateSpaceModelFit(
-            y,
-            params,
-            μ_0,
-            Γ_0,
-            self.kalman_filtering,
-            self.kalman_smoothing,
-            self.smoothed_state_to_obs,
-            self.forecast,
-            self.d,
-            self.n,
-            self.N,
-            t=t,
-            param_names=param_names or self.param_names,
-        )

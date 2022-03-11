@@ -25,6 +25,12 @@ class LocalLevelModel(GenericLinearGaussianStateSpaceModel):
 
     N: int = 2
 
+    def __post_init__(self) -> None:
+        self.param_names: list[str] | None = ["obs_cov", "state_cov"]
+
+        self.d: int = 1
+        self.n: int = 1
+
     @property
     def kalman_filtering(self) -> KalmanFiltering:
         return _kalman_filtering
@@ -40,40 +46,6 @@ class LocalLevelModel(GenericLinearGaussianStateSpaceModel):
     @property
     def forecast(self) -> Forecast:
         return _forecast
-
-    def fit(
-        self,
-        y: npt.ArrayLike,
-        params: npt.ArrayLike,
-        μ_0: npt.ArrayLike,
-        Γ_0: npt.ArrayLike,
-        t: npt.NDArray[Any] | None = None,
-        param_names: list[str] | None = ["obs_cov", "state_cov"],
-    ) -> GeneralLinearGaussianStateSpaceModelFit:
-        """Compile the model and return a GeneralLinearGaussianStateSpaceModelFit instance.
-
-        :param y: observed data (Y)
-        :param params: parameters of the model
-        :param μ_0: mean of X0
-        :param Γ_0: covariance of X0
-        :param t: optional time axis
-        :param param_names: optional names of parameters
-        """
-        return GeneralLinearGaussianStateSpaceModelFit(
-            y,
-            params,
-            μ_0,
-            Γ_0,
-            self.kalman_filtering,
-            self.kalman_smoothing,
-            self.smoothed_state_to_obs,
-            self.forecast,
-            1,
-            1,
-            self.N,
-            t=t,
-            param_names=param_names,
-        )
 
 
 local_level_model = LocalLevelModel()
