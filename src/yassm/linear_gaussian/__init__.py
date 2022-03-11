@@ -365,7 +365,53 @@ class GeneralLinearGaussianStateSpaceModelFit:
 
 
 @dataclass
-class GeneralLinearGaussianStateSpaceModel:
+class GenericLinearGaussianStateSpaceModel:
+    """Abstract class for any linear gaussian state space model.
+
+    :param N: no. of params.
+    """
+
+    N: int
+
+    @property
+    def kalman_filtering(self) -> KalmanFiltering:
+        raise NotImplementedError
+
+    @property
+    def kalman_smoothing(self) -> KalmanSmoothing:
+        raise NotImplementedError
+
+    @property
+    def smoothed_state_to_obs(self) -> SmoothedStateToObs:
+        raise NotImplementedError
+
+    @property
+    def forecast(self) -> Forecast:
+        raise NotImplementedError
+
+    def fit(
+        self,
+        y: npt.NDArray[np.float64],
+        params: npt.NDArray[np.float64],
+        μ_0: npt.NDArray[np.float64],
+        Γ_0: npt.NDArray[np.float64],
+        t: npt.NDArray[Any] | None = None,
+        param_names: list[str] | None = None,
+    ) -> GeneralLinearGaussianStateSpaceModelFit:
+        """Compile the model and return a GeneralLinearGaussianStateSpaceModelFit instance.
+
+        :param y: observed data (Y)
+        :param params: parameters of the model
+        :param μ_0: mean of X0
+        :param Γ_0: covariance of X0
+        :param t: optional time axis
+        :param param_names: optional names of parameters
+        """
+        raise NotImplementedError
+
+
+@dataclass
+class GeneralLinearGaussianStateSpaceModel(GenericLinearGaussianStateSpaceModel):
     """General linear gaussian state space model.
 
     :param N: no. of params.
@@ -391,7 +437,6 @@ class GeneralLinearGaussianStateSpaceModel:
         X_s | Y_0 = y_0, ..., Y_t = y_t, θ ~ N(m_s|t, Q_s|t)
     """
 
-    N: int
     A0: Callable[[npt.NDArray[np.float64]], npt.NDArray[np.float64]]
     B0: Callable[[npt.NDArray[np.float64]], npt.NDArray[np.float64]]
     Σ0: Callable[[npt.NDArray[np.float64]], npt.NDArray[np.float64]]
