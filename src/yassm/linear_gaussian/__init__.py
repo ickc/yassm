@@ -306,6 +306,7 @@ class GeneralLinearGaussianStateSpaceModelFit:
         :param alpha: transparency level of `ax.fill_between`.
         """
         import matplotlib.pyplot as plt
+        import seaborn as sns
 
         y = self.y
         smoothed_obs = self.smoothed_obs
@@ -339,13 +340,21 @@ class GeneralLinearGaussianStateSpaceModelFit:
         else:
             fig = plt.gcf()
 
+        color = sns.color_palette("Paired")
+        color_obs = color[1]
+        color_obs_alt = color[0]
+        color_smooth = color[7]
+        color_smooth_alt = color[6]
+        color_forecast = color[3]
+        color_forecast_alt = color[2]
+
         for i, ax in enumerate(axes):
             s = smoothed_obs[:, i]
 
             if plot_obs:
-                ax.plot(t, y[:, i], label="Observation")
+                ax.plot(t, y[:, i], label="Observation", color=color_obs)
             if plot_smoothed:
-                ax.plot(t, s, label="Smoothed obseration")
+                ax.plot(t, s, label="Smoothed obseration", color=color_smooth)
 
             if plot_smoothed_CI_with_obs_cov:
                 smoothed_obs_std = np.sqrt(self.smoothed_obs_cov_with_obs_cov[:, i, i])
@@ -356,6 +365,7 @@ class GeneralLinearGaussianStateSpaceModelFit:
                     smoothed_obs_lower,
                     smoothed_obs_upper,
                     alpha=alpha,
+                    color=color_obs_alt,
                 )
 
             if plot_smoothed_CI:
@@ -367,11 +377,12 @@ class GeneralLinearGaussianStateSpaceModelFit:
                     smoothed_obs_lower,
                     smoothed_obs_upper,
                     alpha=alpha,
+                    color=color_smooth_alt,
                 )
 
             if T_forecast:
                 fc = forecast_obs[:, i]
-                ax.plot(t_forecast, fc, label="Forecast")
+                ax.plot(t_forecast, fc, label="Forecast", color=color_forecast)
 
                 forecast_obs_std = np.sqrt(forecast_obs_cov[:, i, i])
                 forecast_obs_lower = fc + ns_std[0] * forecast_obs_std
@@ -381,6 +392,7 @@ class GeneralLinearGaussianStateSpaceModelFit:
                     forecast_obs_lower,
                     forecast_obs_upper,
                     alpha=alpha,
+                    color=color_forecast_alt,
                 )
 
             ax.legend()
