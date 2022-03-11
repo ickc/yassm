@@ -71,6 +71,20 @@ if TYPE_CHECKING:
             npt.NDArray[np.float64],
         ],
     ]
+    Mle = Callable[
+        [
+            npt.NDArray[np.float64],  # y
+            npt.NDArray[np.float64],  # params0
+            npt.NDArray[np.float64],  # μ_0
+            npt.NDArray[np.float64],  # Γ_0
+            int,  # n_iter
+            bool,  # return_chain
+        ],
+        tuple[
+            npt.NDArray[np.float64],  # params_mle
+            ...,  # other custom results such as params_chain
+        ],
+    ]
 
 logger = getLogger(__name__)
 
@@ -84,6 +98,8 @@ class GeneralLinearGaussianStateSpaceModelFit:
     :param params: parameters of the model
     :param μ_0: mean of X0
     :param Γ_0: covariance of X0
+    :param mle_n_iter: number of iteration run with MLE
+    :param mle_return_chain: if True, return the chain of parameters during MLE
     :param t: optional time axis
     :param param_names: optional names of parameters
     """
@@ -93,6 +109,8 @@ class GeneralLinearGaussianStateSpaceModelFit:
     _params: npt.ArrayLike
     _μ_0: npt.ArrayLike
     _Γ_0: npt.ArrayLike
+    mle_n_iter: int = 0
+    mle_return_chain: bool = False
     t: npt.NDArray[Any] | None = None
     param_names: list[str] | None = None
 
@@ -110,6 +128,8 @@ class GeneralLinearGaussianStateSpaceModelFit:
         n = self.n
         N = self.N
         t = self.t
+        mle_n_iter = self.mle_n_iter
+        mle_return_chain = self.mle_return_chain
         param_names = self.param_names
 
         y = np.ascontiguousarray(self._y, dtype=np.float64)
@@ -138,6 +158,9 @@ class GeneralLinearGaussianStateSpaceModelFit:
             assert t.shape == (size,)
         if param_names is None:
             param_names = [f"param_{i}" for i in range(N)]
+
+        if mle_n_iter:
+            self.params, self.mle_params_chain = self.parent.mle(y, params, μ_0, Γ_0, mle_n_iter, mle_return_chain)
 
     def _run_kalman_filtering(self) -> None:
         logger.info("Running kalman filtering...")
@@ -280,6 +303,14 @@ class GeneralLinearGaussianStateSpaceModelFit:
             self._run_smoothed_state_to_obs_with_obs_cov()
         return self._smoothed_obs_cov_with_obs_cov
 
+    @property
+    def mle_params_chain_to_frame(self) -> pd.DataFrame:
+        return pd.DataFrame(self.mle_params_chain, columns=self.param_names)
+
+    @property
+    def params_to_series(self) -> pd.Series:
+        return pd.Series(self.params, index=self.param_names)
+
     def plot(
         self,
         T_forecast: int = 0,
@@ -296,6 +327,8 @@ class GeneralLinearGaussianStateSpaceModelFit:
         :param α: α-value for C.I.
         :param axes: matplotlib axis, no. of rows should match the dimension of observations.
         :param alpha: transparency level of `ax.fill_between`.
+
+        TODO: refactor to a DataFrame first and plot from its data.
         """
         import matplotlib.pyplot as plt
         import seaborn as sns
@@ -339,14 +372,22 @@ class GeneralLinearGaussianStateSpaceModelFit:
         color_smooth_alt = color[6]
         color_forecast = color[3]
         color_forecast_alt = color[2]
+        str_CI = f" w/ ${(1. - α) * 100.:.3g} \\%%$ C.I."
 
         for i, ax in enumerate(axes):
             s = smoothed_obs[:, i]
 
             if plot_obs:
-                ax.plot(t, y[:, i], label="Observation", color=color_obs)
+                label = "Observation"
+                if plot_smoothed_CI_with_obs_cov:
+                    label += str_CI
+                ax.plot(t, y[:, i], label=label, color=color_obs)
             if plot_smoothed:
-                ax.plot(t, s, label="Smoothed obseration", color=color_smooth)
+                label = "Smoothed obseration"
+                if plot_smoothed_CI:
+                    label += str_CI
+
+                ax.plot(t, s, label=label, color=color_smooth)
 
             if plot_smoothed_CI_with_obs_cov:
                 smoothed_obs_std = np.sqrt(self.smoothed_obs_cov_with_obs_cov[:, i, i])
@@ -374,7 +415,8 @@ class GeneralLinearGaussianStateSpaceModelFit:
 
             if T_forecast:
                 fc = forecast_obs[:, i]
-                ax.plot(t_forecast, fc, label="Forecast", color=color_forecast)
+                label = "Forecast" + str_CI
+                ax.plot(t_forecast, fc, label=label, color=color_forecast)
 
                 forecast_obs_std = np.sqrt(forecast_obs_cov[:, i, i])
                 forecast_obs_lower = fc + ns_std[0] * forecast_obs_std
@@ -424,12 +466,18 @@ class GenericLinearGaussianStateSpaceModel:
     def forecast(self) -> Forecast:
         raise NotImplementedError
 
+    @property
+    def mle(self) -> Mle:
+        raise NotImplementedError
+
     def fit(
         self,
         y: npt.ArrayLike,
         params: npt.ArrayLike,
         μ_0: npt.ArrayLike,
         Γ_0: npt.ArrayLike,
+        mle_n_iter: int = 0,
+        mle_return_chain: bool = False,
         t: npt.NDArray[Any] | None = None,
         param_names: list[str] | None = None,
     ) -> GeneralLinearGaussianStateSpaceModelFit:
@@ -439,6 +487,8 @@ class GenericLinearGaussianStateSpaceModel:
         :param params: parameters of the model
         :param μ_0: mean of X0
         :param Γ_0: covariance of X0
+        :param mle_n_iter: number of iteration run with MLE
+        :param mle_return_chain: if True, return the chain of parameters during MLE
         :param t: optional time axis
         :param param_names: optional names of parameters
         """
@@ -448,6 +498,8 @@ class GenericLinearGaussianStateSpaceModel:
             params,
             μ_0,
             Γ_0,
+            mle_n_iter=mle_n_iter,
+            mle_return_chain=mle_return_chain,
             t=t,
             param_names=param_names or self.param_names,
         )

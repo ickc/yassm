@@ -8,6 +8,7 @@ import numpy as np
 from ...lib.linear_gaussian.model.local_level import forecast as _forecast
 from ...lib.linear_gaussian.model.local_level import kalman_filtering as _kalman_filtering
 from ...lib.linear_gaussian.model.local_level import kalman_smoothing as _kalman_smoothing
+from ...lib.linear_gaussian.model.local_level import mle as _mle
 from ...lib.linear_gaussian.model.local_level import smoothed_state_to_obs as _smoothed_state_to_obs
 from .. import GeneralLinearGaussianStateSpaceModelFit, GenericLinearGaussianStateSpaceModel
 
@@ -16,7 +17,7 @@ if TYPE_CHECKING:
 
     import numpy.typing as npt
 
-    from .. import Forecast, KalmanFiltering, KalmanSmoothing, SmoothedStateToObs
+    from .. import Forecast, KalmanFiltering, KalmanSmoothing, Mle, SmoothedStateToObs
 
 
 @dataclass
@@ -46,6 +47,10 @@ class LocalLevelModel(GenericLinearGaussianStateSpaceModel):
     @property
     def forecast(self) -> Forecast:
         return _forecast
+
+    @property
+    def mle(self) -> Mle:
+        return _mle
 
 
 local_level_model = LocalLevelModel()

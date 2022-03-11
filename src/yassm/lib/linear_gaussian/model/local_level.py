@@ -8,6 +8,8 @@ from numba import jit
 if TYPE_CHECKING:
     import numpy.typing as npt
 
+# R, Σ = σ_ε_sq, σ_Z_sq = params
+
 
 @jit(
     "Tuple((f8, f8))(f8, f8, f8)",
@@ -92,27 +94,23 @@ def smoothing_backward_recursion(
 
 
 @jit(
-    "Tuple((f8[:, ::1], f8[:, :, ::1], f8[:, ::1], f8[:, :, ::1]))(f8[:, ::1], f8[::1], f8[::1], f8[:, ::1])",
+    "Tuple((f8[::1], f8[::1], f8[::1], f8[::1]))(f8[::1], f8[::1], f8, f8)",
     nopython=True,
     nogil=True,
     cache=True,
 )
-def kalman_filtering(
-    y_2d: npt.NDArray[np.float64],
+def _kalman_filtering_1d(
+    y: npt.NDArray[np.float64],
     params: npt.NDArray[np.float64],
-    μ_0_1d: npt.NDArray[np.float64],
-    Γ_0_2d: npt.NDArray[np.float64],
+    μ_0: float,
+    Γ_0: float,
 ) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64], npt.NDArray[np.float64], npt.NDArray[np.float64]]:
     """Kalman filtering.
 
     :param params: paramters of the model, θ.
     :return: m_t_given_tMinus1, Q_t_given_tMinus1, m_t_given_t, Q_t_given_t
     """
-    size = y_2d.shape[0]
-    # to 1d
-    y = y_2d.flatten()
-    μ_0 = μ_0_1d[0]
-    Γ_0 = Γ_0_2d[0, 0]
+    size = y.shape[0]
 
     # param_names=["obs_cov", "state_cov"]
     # obs_cov
@@ -145,6 +143,43 @@ def kalman_filtering(
         m_t_given_t[t] = temp[0]
         Q_t_given_t[t] = temp[1]
     return (
+        Q_t_given_tMinus1,
+        m_t_given_tMinus1,
+        m_t_given_t,
+        Q_t_given_t,
+    )
+
+
+@jit(
+    "Tuple((f8[:, ::1], f8[:, :, ::1], f8[:, ::1], f8[:, :, ::1]))(f8[:, ::1], f8[::1], f8[::1], f8[:, ::1])",
+    nopython=True,
+    nogil=True,
+    cache=True,
+)
+def kalman_filtering(
+    y_2d: npt.NDArray[np.float64],
+    params: npt.NDArray[np.float64],
+    μ_0_1d: npt.NDArray[np.float64],
+    Γ_0_2d: npt.NDArray[np.float64],
+) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64], npt.NDArray[np.float64], npt.NDArray[np.float64]]:
+    """Kalman filtering.
+
+    :param params: paramters of the model, θ.
+    :return: m_t_given_tMinus1, Q_t_given_tMinus1, m_t_given_t, Q_t_given_t
+    """
+    size = y_2d.shape[0]
+    # to 1d
+    y = y_2d.flatten()
+    μ_0 = μ_0_1d[0]
+    Γ_0 = Γ_0_2d[0, 0]
+
+    (Q_t_given_tMinus1, m_t_given_tMinus1, m_t_given_t, Q_t_given_t,) = _kalman_filtering_1d(
+        y,
+        params,
+        μ_0,
+        Γ_0,
+    )
+    return (
         m_t_given_tMinus1.reshape((size, 1)),
         Q_t_given_tMinus1.reshape((size, 1, 1)),
         m_t_given_t.reshape((size, 1)),
@@ -153,27 +188,19 @@ def kalman_filtering(
 
 
 @jit(
-    "Tuple((f8[:, ::1], f8[:, :, ::1]))(f8[:, ::1], f8[::1], f8[:, ::1], f8[:, :, ::1], f8[:, ::1], f8[:, :, ::1])",
+    "Tuple((f8[::1], f8[::1]))(f8[::1], f8[::1], f8[::1], f8[::1])",
     nopython=True,
     nogil=True,
     cache=True,
 )
-def kalman_smoothing(
-    y_2d: npt.NDArray[np.float64],
+def _kalman_smoothing_1d(
+    y: npt.NDArray[np.float64],
     params: npt.NDArray[np.float64],
-    m_t_given_tMinus1_2d: npt.NDArray[np.float64],
-    Q_t_given_tMinus1_3d: npt.NDArray[np.float64],
-    m_t_given_t_2d: npt.NDArray[np.float64],
-    Q_t_given_t_3d: npt.NDArray[np.float64],
+    m_t_given_t: npt.NDArray[np.float64],
+    Q_t_given_t: npt.NDArray[np.float64],
 ) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]]:
-    size = y_2d.shape[0]
+    size = y.shape[0]
     T = size - 1
-    # to 1d
-    y = y_2d.flatten()
-    m_t_given_tMinus1 = m_t_given_tMinus1_2d.flatten()
-    Q_t_given_tMinus1 = Q_t_given_tMinus1_3d.flatten()
-    m_t_given_t = m_t_given_t_2d.flatten()
-    Q_t_given_t = Q_t_given_t_3d.flatten()
 
     Σ = params[1]
 
@@ -198,6 +225,38 @@ def kalman_smoothing(
         )
         m_t_given_T[s] = temp[0]
         Q_t_given_T[s] = temp[1]
+    return (
+        m_t_given_T,
+        Q_t_given_T,
+    )
+
+
+@jit(
+    "Tuple((f8[:, ::1], f8[:, :, ::1]))(f8[:, ::1], f8[::1], f8[:, ::1], f8[:, :, ::1], f8[:, ::1], f8[:, :, ::1])",
+    nopython=True,
+    nogil=True,
+    cache=True,
+)
+def kalman_smoothing(
+    y_2d: npt.NDArray[np.float64],
+    params: npt.NDArray[np.float64],
+    m_t_given_tMinus1_2d: npt.NDArray[np.float64],
+    Q_t_given_tMinus1_3d: npt.NDArray[np.float64],
+    m_t_given_t_2d: npt.NDArray[np.float64],
+    Q_t_given_t_3d: npt.NDArray[np.float64],
+) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]]:
+    size = y_2d.shape[0]
+    T = size - 1
+    # to 1d
+    y = y_2d.flatten()
+    m_t_given_t = m_t_given_t_2d.flatten()
+    Q_t_given_t = Q_t_given_t_3d.flatten()
+    (m_t_given_T, Q_t_given_T,) = _kalman_smoothing_1d(
+        y,
+        params,
+        m_t_given_t,
+        Q_t_given_t,
+    )
     return (
         m_t_given_T.reshape((size, 1)),
         Q_t_given_T.reshape((size, 1, 1)),
@@ -264,3 +323,53 @@ def forecast(
         m_t_given_T_predict[s - size] = m_sMinus1_given_T
         Q_t_given_T_predict[s - size] = Q_sMinus1_given_T
     return m_t_given_T_predict.reshape((T_forecast, 1)), Q_t_given_T_predict.reshape((T_forecast, 1, 1))
+
+
+@jit(
+    "Tuple((f8[::1], f8[:, ::1]))(f8[:, ::1], f8[::1], f8[::1], f8[:, ::1], i8, b1)",
+    nopython=True,
+    nogil=True,
+    cache=True,
+)
+def mle(
+    y_2d: npt.NDArray[np.float64],
+    params0: npt.NDArray[np.float64],
+    μ_0_1d: npt.NDArray[np.float64],
+    Γ_0_2d: npt.NDArray[np.float64],
+    n_iter: int,
+    return_chain: bool,
+) -> tuple[npt.NDArray[np.float64], ...]:
+    # to 1d
+    y = y_2d.flatten()
+    μ_0 = μ_0_1d[0]
+    Γ_0 = Γ_0_2d[0, 0]
+
+    chain = np.empty((n_iter + 1 if return_chain else 0, 2))
+
+    # initialize & memalloc
+    params = params0.copy()
+    if return_chain:
+        chain[0] = params0
+
+    for i in range(1, n_iter + 1):
+        (
+            Q_t_given_tMinus1,
+            m_t_given_tMinus1,
+            m_t_given_t,
+            Q_t_given_t,
+        ) = _kalman_filtering_1d(y, params, μ_0, Γ_0)
+        (m_t_given_T, Q_t_given_T,) = _kalman_smoothing_1d(
+            y,
+            params,
+            m_t_given_t,
+            Q_t_given_t,
+        )
+        params[0] = (Q_t_given_T + np.square(y - m_t_given_T)).mean()
+        params[1] = (
+            Q_t_given_T[:-1]
+            + Q_t_given_T[1:] * (1.0 - 2.0 * (Q_t_given_t[:-1] / Q_t_given_tMinus1[1:]))
+            + np.square(m_t_given_T[1:] - m_t_given_T[:-1])
+        ).mean()
+        if return_chain:
+            chain[i] = params
+    return params, chain
