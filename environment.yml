@@ -19,6 +19,7 @@ dependencies:
   - statsmodels
   - matplotlib-base
   - scipy
+  - pandas
   # run:
   - defopt >=6,<7
   # run_constrained:

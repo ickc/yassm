@@ -45,6 +45,7 @@ numba = "*"
 statsmodels = "*"
 matplotlib = "*"
 scipy = "*"
+pandas = "*"
 
 # extras
 coloredlogs = { optional = true, version = ">=14,<16" }

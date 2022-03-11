@@ -5,6 +5,7 @@ from logging import getLogger
 from typing import TYPE_CHECKING
 
 import numpy as np
+import pandas as pd
 from numba import jit
 from scipy import stats
 
@@ -317,8 +318,14 @@ class GeneralLinearGaussianStateSpaceModelFit:
                 t_forecast = range(size, size + T_forecast)
             else:
                 dt = self.t[1] - self.t[0]
-                t_forecast = np.linspace(self.t[-1] + dt, self.t[-1] + T_forecast * dt, T_forecast)
-                del dt
+                start = self.t[-1] + dt
+                stop = self.t[-1] + T_forecast * dt
+                t_forecast = (
+                    pd.date_range(start, stop, T_forecast)
+                    if np.issubdtype(self.t.dtype, np.datetime64)
+                    else np.linspace(start, stop, T_forecast)
+                )
+                del dt, start, stop
 
             forecast_obs, forecast_obs_cov = self.get_forecast_obs(T_forecast)
         t = range(size) if self.t is None else self.t
