@@ -79,32 +79,20 @@ logger = getLogger(__name__)
 class GeneralLinearGaussianStateSpaceModelFit:
     """A class performing the General linear gaussian state space model pipelines.
 
+    :param parent: a GenericLinearGaussianStateSpaceModel instance.
     :param y: observed data (Y)
     :param params: parameters of the model
     :param μ_0: mean of X0
     :param Γ_0: covariance of X0
-    :param kalman_filtering: function to run Kalman filtering
-    :param kalman_smoothing: function to run Kalman smoothing
-    :param smoothed_state_to_obs: function to turn smoothed state (X) into smoothed observation (Y)
-    :param forecast: function to forecast future state (X)
-    :param d: dimension of state (X)
-    :param n: dimension of observation (Y)
-    :param N: total number of parameters
     :param t: optional time axis
     :param param_names: optional names of parameters
     """
 
+    parent: GenericLinearGaussianStateSpaceModel
     _y: npt.ArrayLike
     _params: npt.ArrayLike
     _μ_0: npt.ArrayLike
     _Γ_0: npt.ArrayLike
-    kalman_filtering: KalmanFiltering
-    kalman_smoothing: KalmanSmoothing
-    smoothed_state_to_obs: SmoothedStateToObs
-    forecast: Forecast
-    d: int
-    n: int
-    N: int
     t: npt.NDArray[Any] | None = None
     param_names: list[str] | None = None
 
@@ -113,6 +101,10 @@ class GeneralLinearGaussianStateSpaceModelFit:
         self.params: npt.NDArray[np.float64]
         self.μ_0: npt.NDArray[np.float64]
         self.Γ_0: npt.NDArray[np.float64]
+
+        self.d: int = self.parent.d
+        self.n: int = self.parent.n
+        self.N: int = self.parent.N
 
         d = self.d
         n = self.n
@@ -154,7 +146,7 @@ class GeneralLinearGaussianStateSpaceModelFit:
             self._Q_t_given_tMinus1,
             self._m_t_given_t,
             self._Q_t_given_t,
-        ) = self.kalman_filtering(
+        ) = self.parent.kalman_filtering(
             self.y,
             self.params,
             self.μ_0,
@@ -163,7 +155,7 @@ class GeneralLinearGaussianStateSpaceModelFit:
 
     def _run_kalman_smoothing(self) -> None:
         logger.info("Running kalman smoothing...")
-        (self._m_t_given_T, self._Q_t_given_T,) = self.kalman_smoothing(
+        (self._m_t_given_T, self._Q_t_given_T,) = self.parent.kalman_smoothing(
             self.y,
             self.params,
             self.m_t_given_tMinus1,
@@ -174,7 +166,7 @@ class GeneralLinearGaussianStateSpaceModelFit:
 
     def _run_smoothed_state_to_obs(self) -> None:
         logger.info("Running smoothed_state_to_obs...")
-        (self._smoothed_obs, self._smoothed_obs_cov,) = self.smoothed_state_to_obs(
+        (self._smoothed_obs, self._smoothed_obs_cov,) = self.parent.smoothed_state_to_obs(
             self.params,
             self.m_t_given_T,
             self.Q_t_given_T,
@@ -184,7 +176,7 @@ class GeneralLinearGaussianStateSpaceModelFit:
 
     def _run_smoothed_state_to_obs_with_obs_cov(self) -> None:
         logger.info("Running smoothed_state_to_obs with obs_cov...")
-        (self._smoothed_obs, self._smoothed_obs_cov_with_obs_cov,) = self.smoothed_state_to_obs(
+        (self._smoothed_obs, self._smoothed_obs_cov_with_obs_cov,) = self.parent.smoothed_state_to_obs(
             self.params,
             self.m_t_given_T,
             self.Q_t_given_T,
@@ -193,7 +185,7 @@ class GeneralLinearGaussianStateSpaceModelFit:
         )
 
     def get_forecast_state(self, T_forecast: int) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]]:
-        return self.forecast(
+        return self.parent.forecast(
             self.y,
             self.params,
             self.m_t_given_T[-1],
@@ -207,7 +199,7 @@ class GeneralLinearGaussianStateSpaceModelFit:
         with_obs_cov: bool = True,
     ) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]]:
         forecast_state = self.get_forecast_state(T_forecast)
-        return self.smoothed_state_to_obs(self.params, *forecast_state, self.size, with_obs_cov)
+        return self.parent.smoothed_state_to_obs(self.params, *forecast_state, self.size, with_obs_cov)
 
     @property
     def m_t_given_tMinus1(self) -> npt.NDArray[np.float64]:
@@ -441,7 +433,7 @@ class GenericLinearGaussianStateSpaceModel:
         t: npt.NDArray[Any] | None = None,
         param_names: list[str] | None = None,
     ) -> GeneralLinearGaussianStateSpaceModelFit:
-        """Compile the model and return a GeneralLinearGaussianStateSpaceModelFit instance.
+        """Return a GeneralLinearGaussianStateSpaceModelFit instance.
 
         :param y: observed data (Y)
         :param params: parameters of the model
@@ -451,17 +443,11 @@ class GenericLinearGaussianStateSpaceModel:
         :param param_names: optional names of parameters
         """
         return GeneralLinearGaussianStateSpaceModelFit(
+            self,
             y,
             params,
             μ_0,
             Γ_0,
-            self.kalman_filtering,
-            self.kalman_smoothing,
-            self.smoothed_state_to_obs,
-            self.forecast,
-            self.d,
-            self.n,
-            self.N,
             t=t,
             param_names=param_names or self.param_names,
         )
