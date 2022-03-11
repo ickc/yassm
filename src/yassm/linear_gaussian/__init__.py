@@ -93,10 +93,10 @@ class GeneralLinearGaussianStateSpaceModelFit:
     :param param_names: optional names of parameters
     """
 
-    y: npt.NDArray[np.float64]
-    params: npt.NDArray[np.float64]
-    μ_0: npt.NDArray[np.float64]
-    Γ_0: npt.NDArray[np.float64]
+    _y: npt.ArrayLike
+    _params: npt.ArrayLike
+    _μ_0: npt.ArrayLike
+    _Γ_0: npt.ArrayLike
     kalman_filtering: KalmanFiltering
     kalman_smoothing: KalmanSmoothing
     smoothed_state_to_obs: SmoothedStateToObs
@@ -108,19 +108,35 @@ class GeneralLinearGaussianStateSpaceModelFit:
     param_names: list[str] | None = None
 
     def __post_init__(self) -> None:
-        y = self.y
-        params = self.params
-        μ_0 = self.μ_0
-        Γ_0 = self.Γ_0
+        self.y: npt.NDArray[np.float64]
+        self.params: npt.NDArray[np.float64]
+        self.μ_0: npt.NDArray[np.float64]
+        self.Γ_0: npt.NDArray[np.float64]
+
         d = self.d
         n = self.n
         N = self.N
         t = self.t
         param_names = self.param_names
 
-        size, np = y.shape
+        y = np.ascontiguousarray(self._y, dtype=np.float64)
+        params = np.ascontiguousarray(self._params, dtype=np.float64)
+        μ_0 = np.ascontiguousarray(self._μ_0, dtype=np.float64)
+        Γ_0 = np.ascontiguousarray(self._Γ_0, dtype=np.float64)
+        if n == 1 and y.ndim == 1:
+            y = y.reshape((-1, 1))
+        if d == 1 and Γ_0.ndim == 1:
+            Γ_0 = Γ_0.reshape((1, 1))
+
+        self.y = y
+        self.params = params
+        self.μ_0 = μ_0
+        self.Γ_0 = Γ_0
+
+        size, n_p = y.shape
         self.size = size
-        assert np == n
+        assert n_p == n
+        del n_p
         assert params.ndim == 1
         assert N == params.size
         assert μ_0.shape == (d,)
@@ -701,10 +717,10 @@ class GeneralLinearGaussianStateSpaceModel(GenericLinearGaussianStateSpaceModel)
 
     def fit(
         self,
-        y: npt.NDArray[np.float64],
-        params: npt.NDArray[np.float64],
-        μ_0: npt.NDArray[np.float64],
-        Γ_0: npt.NDArray[np.float64],
+        y: npt.ArrayLike,
+        params: npt.ArrayLike,
+        μ_0: npt.ArrayLike,
+        Γ_0: npt.ArrayLike,
         t: npt.NDArray[Any] | None = None,
         param_names: list[str] | None = None,
     ) -> GeneralLinearGaussianStateSpaceModelFit:

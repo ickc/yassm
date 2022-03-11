@@ -43,10 +43,10 @@ class LocalLevelModel(GenericLinearGaussianStateSpaceModel):
 
     def fit(
         self,
-        y: npt.NDArray[np.float64],
-        params: npt.NDArray[np.float64],
-        μ_0: npt.NDArray[np.float64],
-        Γ_0: npt.NDArray[np.float64],
+        y: npt.ArrayLike,
+        params: npt.ArrayLike,
+        μ_0: npt.ArrayLike,
+        Γ_0: npt.ArrayLike,
         t: npt.NDArray[Any] | None = None,
         param_names: list[str] | None = ["obs_cov", "state_cov"],
     ) -> GeneralLinearGaussianStateSpaceModelFit:
