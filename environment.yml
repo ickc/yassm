@@ -28,6 +28,7 @@ dependencies:
   - coverage>=6.3,<7
   - coveralls
   - pytest
+  - pytest-parallel
   # docs:
   - sphinx
   - sphinx_bootstrap_theme
