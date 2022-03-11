@@ -87,7 +87,7 @@ def smoothing_backward_recursion(
     :param Q_sPlus1_given_t: shape of (d, d).
     :param m_sPlus1_given_s: shape of (d,).
     :param Q_sPlus1_given_s: shape of (d, d).
-    :return: (m_t_given_t, Q_t_given_t).
+    :return: (m_s_given_t, Q_s_given_t).
     """
     Γ_sPlus1_transpose = solve(Q_sPlus1_given_s, A_sPlus1 @ Q_s_given_s)
     Γ_sPlus1 = Γ_sPlus1_transpose.transpose()
