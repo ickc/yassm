@@ -16,6 +16,8 @@ if TYPE_CHECKING:
 
 class TestLinearGaussian(TestCase):
     def setUp(self) -> None:
+        self.y = y
+
         C = 1e8
         self.mle_n_iter = 100
         # the MLE can differs quite a lot unfortunately
@@ -29,13 +31,13 @@ class TestLinearGaussian(TestCase):
 
     def setUpSM(self) -> tsa.statespace.mlemodel.MLEResultsWrapper:
         """Reference answer from statsmodels."""
-        mod = tsa.UnobservedComponents(y, "local level")
+        mod = tsa.UnobservedComponents(self.y, "local level")
         return mod.fit()
 
     def setUpYassm(self) -> GeneralLinearGaussianStateSpaceModelFit:
         return local_level_model.fit(
-            y,
-            np.full(2, y.var()),
+            self.y,
+            np.full(2, self.y.var()),
             self.μ_0,
             self.Γ_0,
             mle_n_iter=self.mle_n_iter,

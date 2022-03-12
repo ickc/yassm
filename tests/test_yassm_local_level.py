@@ -53,6 +53,8 @@ local_level_model_general = GeneralLinearGaussianStateSpaceModel(
 
 class TestLinearGaussian(TestCase):
     def setUp(self) -> None:
+        self.y = y
+
         C = 1e8
         self.atol = 1e-5
         self.T_predict = 100
@@ -63,13 +65,13 @@ class TestLinearGaussian(TestCase):
         # we don't care if it is MLE
         self.params0 = np.ones(2)
         self.fit = local_level_model.fit(
-            y,
+            self.y,
             self.params0,
             self.μ_0,
             self.Γ_0,
         )
         self.fit_ref = local_level_model_general.fit(
-            y,
+            self.y,
             self.params0,
             self.μ_0,
             self.Γ_0,

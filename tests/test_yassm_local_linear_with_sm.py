@@ -101,6 +101,8 @@ class LocalLinearModel(tsa.statespace.MLEModel):
 
 class TestLinearGaussian(TestCase):
     def setUp(self) -> None:
+        self.y = y
+
         C = 1e8
         self.atol = 1e-5
         self.T_predict = 100
@@ -111,7 +113,7 @@ class TestLinearGaussian(TestCase):
         self.sm = self.setUpSM()
         self.params0 = self.sm.params
         self.fit = local_linear_model.fit(
-            y,
+            self.y,
             self.params0,
             self.μ_0,
             self.Γ_0,
@@ -119,7 +121,7 @@ class TestLinearGaussian(TestCase):
 
     def setUpSM(self) -> tsa.statespace.mlemodel.MLEResultsWrapper:
         """Reference answer from statsmodels."""
-        mod = LocalLinearModel(y, m0=self.μ_0, C0=self.Γ_0)
+        mod = LocalLinearModel(self.y, m0=self.μ_0, C0=self.Γ_0)
         return mod.fit()
 
     def test_kalman_filtering(self) -> None:
