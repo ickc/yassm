@@ -160,6 +160,26 @@ class GeneralLinearGaussianStateSpaceModelFit:
         if mle_n_iter:
             self.params, self.mle_params_chain = self.parent.mle(y, params, μ_0, Γ_0, mle_n_iter, mle_return_chain)
 
+    # running functions depending on parameters: get_*
+
+    def get_forecast_state(self, T_forecast: int) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]]:
+        return self.parent.forecast(
+            self.params,
+            self.m_t_given_T[-1],
+            self.Q_t_given_T[-1],
+            T_forecast,
+        )
+
+    def get_forecast_obs(
+        self,
+        T_forecast: int,
+        with_obs_cov: bool = True,
+    ) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]]:
+        forecast_state = self.get_forecast_state(T_forecast)
+        return self.parent.smoothed_state_to_obs(self.params, *forecast_state, self.size, with_obs_cov)
+
+    # running functions and cache: _run_*
+
     def _run_kalman_filtering(self) -> None:
         logger.info("Running kalman filtering...")
         (
@@ -204,21 +224,7 @@ class GeneralLinearGaussianStateSpaceModelFit:
             True,
         )
 
-    def get_forecast_state(self, T_forecast: int) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]]:
-        return self.parent.forecast(
-            self.params,
-            self.m_t_given_T[-1],
-            self.Q_t_given_T[-1],
-            T_forecast,
-        )
-
-    def get_forecast_obs(
-        self,
-        T_forecast: int,
-        with_obs_cov: bool = True,
-    ) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]]:
-        forecast_state = self.get_forecast_state(T_forecast)
-        return self.parent.smoothed_state_to_obs(self.params, *forecast_state, self.size, with_obs_cov)
+    # cached parameters from _run_*
 
     @property
     def m_t_given_tMinus1(self) -> npt.NDArray[np.float64]:
@@ -256,7 +262,26 @@ class GeneralLinearGaussianStateSpaceModelFit:
             self._run_kalman_smoothing()
         return self._Q_t_given_T
 
+    @property
+    def smoothed_obs(self) -> npt.NDArray[np.float64]:
+        if not hasattr(self, "_smoothed_obs"):
+            self._run_smoothed_state_to_obs()
+        return self._smoothed_obs
+
+    @property
+    def smoothed_obs_cov(self) -> npt.NDArray[np.float64]:
+        if not hasattr(self, "_smoothed_obs_cov"):
+            self._run_smoothed_state_to_obs()
+        return self._smoothed_obs_cov
+
+    @property
+    def smoothed_obs_cov_with_obs_cov(self) -> npt.NDArray[np.float64]:
+        if not hasattr(self, "_smoothed_obs_cov_with_obs_cov"):
+            self._run_smoothed_state_to_obs_with_obs_cov()
+        return self._smoothed_obs_cov_with_obs_cov
+
     # alias of statsmodels terminology
+
     @property
     def filtered_state(self) -> npt.NDArray[np.float64]:
         return self.m_t_given_t
@@ -281,23 +306,7 @@ class GeneralLinearGaussianStateSpaceModelFit:
     def smoothed_state_cov(self) -> npt.NDArray[np.float64]:
         return self.Q_t_given_T
 
-    @property
-    def smoothed_obs(self) -> npt.NDArray[np.float64]:
-        if not hasattr(self, "_smoothed_obs"):
-            self._run_smoothed_state_to_obs()
-        return self._smoothed_obs
-
-    @property
-    def smoothed_obs_cov(self) -> npt.NDArray[np.float64]:
-        if not hasattr(self, "_smoothed_obs_cov"):
-            self._run_smoothed_state_to_obs()
-        return self._smoothed_obs_cov
-
-    @property
-    def smoothed_obs_cov_with_obs_cov(self) -> npt.NDArray[np.float64]:
-        if not hasattr(self, "_smoothed_obs_cov_with_obs_cov"):
-            self._run_smoothed_state_to_obs_with_obs_cov()
-        return self._smoothed_obs_cov_with_obs_cov
+    # pandas
 
     @property
     def mle_params_chain_to_frame(self) -> pd.DataFrame:
@@ -306,6 +315,8 @@ class GeneralLinearGaussianStateSpaceModelFit:
     @property
     def params_to_series(self) -> pd.Series:
         return pd.Series(self.params, index=self.param_names)
+
+    # plot
 
     def plot(
         self,
