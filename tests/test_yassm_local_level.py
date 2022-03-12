@@ -9,7 +9,7 @@ from numba import jit
 from yassm.linear_gaussian import GeneralLinearGaussianStateSpaceModel
 from yassm.linear_gaussian.model.local_level import local_level_model
 
-from tests import y
+from tests import y, y_nan
 
 if TYPE_CHECKING:
     import numpy.typing as npt
@@ -51,10 +51,10 @@ local_level_model_general = GeneralLinearGaussianStateSpaceModel(
 )
 
 
-class TestLinearGaussian(TestCase):
-    def setUp(self) -> None:
-        self.y = y
+class TestLocalLevelGaussian(TestCase):
+    y = y_nan
 
+    def setUp(self) -> None:
         C = 1e8
         self.atol = 1e-5
         self.T_predict = 100
@@ -125,3 +125,7 @@ class TestLinearGaussian(TestCase):
             forecast_cov_ref,
             atol=self.atol,
         )
+
+
+class TestLocalLevelGaussianNan(TestLocalLevelGaussian):
+    y = y_nan

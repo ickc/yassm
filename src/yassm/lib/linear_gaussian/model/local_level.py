@@ -48,6 +48,9 @@ def filter_update(
 
     :return: (m_t_given_t, Q_t_given_t).
     """
+    if np.isnan(y_t):
+        return m_t_given_tMinus1, Q_t_given_tMinus1
+
     # this algorithm uses 3 divisions instead of 1 written in a more straight forward way
     # written this way so that Q = ∞ works
     # but Q or R = 0 wouldn't work now, make sure this wouldn't happen
@@ -188,18 +191,17 @@ def kalman_filtering(
 
 
 @jit(
-    "Tuple((f8[::1], f8[::1]))(f8[::1], f8[::1], f8[::1], f8[::1])",
+    "Tuple((f8[::1], f8[::1]))(f8[::1], f8[::1], f8[::1])",
     nopython=True,
     nogil=True,
     cache=True,
 )
 def _kalman_smoothing_1d(
-    y: npt.NDArray[np.float64],
     params: npt.NDArray[np.float64],
     m_t_given_t: npt.NDArray[np.float64],
     Q_t_given_t: npt.NDArray[np.float64],
 ) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]]:
-    size = y.shape[0]
+    size = m_t_given_t.shape[0]
     T = size - 1
 
     Σ = params[1]
@@ -232,27 +234,24 @@ def _kalman_smoothing_1d(
 
 
 @jit(
-    "Tuple((f8[:, ::1], f8[:, :, ::1]))(f8[:, ::1], f8[::1], f8[:, ::1], f8[:, :, ::1], f8[:, ::1], f8[:, :, ::1])",
+    "Tuple((f8[:, ::1], f8[:, :, ::1]))(f8[::1], f8[:, ::1], f8[:, :, ::1], f8[:, ::1], f8[:, :, ::1])",
     nopython=True,
     nogil=True,
     cache=True,
 )
 def kalman_smoothing(
-    y_2d: npt.NDArray[np.float64],
     params: npt.NDArray[np.float64],
     m_t_given_tMinus1_2d: npt.NDArray[np.float64],
     Q_t_given_tMinus1_3d: npt.NDArray[np.float64],
     m_t_given_t_2d: npt.NDArray[np.float64],
     Q_t_given_t_3d: npt.NDArray[np.float64],
 ) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]]:
-    size = y_2d.shape[0]
+    size = m_t_given_t_2d.shape[0]
     T = size - 1
     # to 1d
-    y = y_2d.flatten()
     m_t_given_t = m_t_given_t_2d.flatten()
     Q_t_given_t = Q_t_given_t_3d.flatten()
     (m_t_given_T, Q_t_given_T,) = _kalman_smoothing_1d(
-        y,
         params,
         m_t_given_t,
         Q_t_given_t,
@@ -281,23 +280,20 @@ def smoothed_state_to_obs(
 
 
 @jit(
-    "Tuple((f8[:, ::1], f8[:, :, ::1]))(f8[:, ::1], f8[::1], f8[::1], f8[:, ::1], int64)",
+    "Tuple((f8[:, ::1], f8[:, :, ::1]))(f8[::1], f8[::1], f8[:, ::1], int64)",
     nopython=True,
     nogil=True,
     cache=True,
 )
 def forecast(
-    y_2d: npt.NDArray[np.float64],
     params: npt.NDArray[np.float64],
     m_T_given_T_1d: npt.NDArray[np.float64],
     Q_T_given_T_2d: npt.NDArray[np.float64],
     T_forecast: int,
 ) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]]:
-    size = y_2d.shape[0]
-    T = size - 1
+    size = m_T_given_T_1d.shape[0]
 
     # to 1d
-    y = y_2d.flatten()
     m_T_given_T = m_T_given_T_1d[0]
     Q_T_given_T = Q_T_given_T_2d[0, 0]
 
@@ -359,7 +355,6 @@ def mle(
             Q_t_given_t,
         ) = _kalman_filtering_1d(y, params, μ_0, Γ_0)
         (m_t_given_T, Q_t_given_T,) = _kalman_smoothing_1d(
-            y,
             params,
             m_t_given_t,
             Q_t_given_t,

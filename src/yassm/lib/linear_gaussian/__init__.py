@@ -55,6 +55,14 @@ def filter_update(
     TODO: provide another version using Sherman-Morrison-Woodbury formula
     and dispatch by comparing n, d
     """
+    has_nan = False
+    for y_ti in y_t:
+        if np.isnan(y_ti):
+            has_nan = True
+            break
+    if has_nan:
+        return m_t_given_tMinus1, Q_t_given_tMinus1
+
     BQ = B_t @ Q_t_given_tMinus1
     QB = BQ.transpose()
     BQB_plus_R = B_t @ QB + R_t

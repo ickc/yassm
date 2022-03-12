@@ -38,7 +38,6 @@ if TYPE_CHECKING:
             npt.NDArray[np.float64],
             npt.NDArray[np.float64],
             npt.NDArray[np.float64],
-            npt.NDArray[np.float64],
         ],
         tuple[
             npt.NDArray[np.float64],
@@ -60,7 +59,6 @@ if TYPE_CHECKING:
     ]
     Forecast = Callable[
         [
-            npt.NDArray[np.float64],
             npt.NDArray[np.float64],
             npt.NDArray[np.float64],
             npt.NDArray[np.float64],
@@ -179,7 +177,6 @@ class GeneralLinearGaussianStateSpaceModelFit:
     def _run_kalman_smoothing(self) -> None:
         logger.info("Running kalman smoothing...")
         (self._m_t_given_T, self._Q_t_given_T,) = self.parent.kalman_smoothing(
-            self.y,
             self.params,
             self.m_t_given_tMinus1,
             self.Q_t_given_tMinus1,
@@ -209,7 +206,6 @@ class GeneralLinearGaussianStateSpaceModelFit:
 
     def get_forecast_state(self, T_forecast: int) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]]:
         return self.parent.forecast(
-            self.y,
             self.params,
             self.m_t_given_T[-1],
             self.Q_t_given_T[-1],
@@ -452,6 +448,9 @@ class GenericLinearGaussianStateSpaceModel:
 
     @property
     def kalman_filtering(self) -> KalmanFiltering:
+        """
+        Remember to write your `filter_update` to handle nan indicating missing at random.
+        """
         raise NotImplementedError
 
     @property
@@ -650,21 +649,19 @@ class GeneralLinearGaussianStateSpaceModel(GenericLinearGaussianStateSpaceModel)
         d = self.d
 
         @jit(
-            "Tuple((f8[:, ::1], f8[:, :, ::1]))"
-            "(f8[:, ::1], f8[::1], f8[:, ::1], f8[:, :, ::1], f8[:, ::1], f8[:, :, ::1])",
+            "Tuple((f8[:, ::1], f8[:, :, ::1]))(f8[::1], f8[:, ::1], f8[:, :, ::1], f8[:, ::1], f8[:, :, ::1])",
             nopython=True,
             nogil=True,
             cache=True,
         )
         def kalman_smoothing(
-            y: npt.NDArray[np.float64],
             params: npt.NDArray[np.float64],
             m_t_given_tMinus1: npt.NDArray[np.float64],
             Q_t_given_tMinus1: npt.NDArray[np.float64],
             m_t_given_t: npt.NDArray[np.float64],
             Q_t_given_t: npt.NDArray[np.float64],
         ) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]]:
-            size = y.shape[0]
+            size = m_t_given_t.shape[0]
             T = size - 1
 
             # memalloc
@@ -749,19 +746,18 @@ class GeneralLinearGaussianStateSpaceModel(GenericLinearGaussianStateSpaceModel)
         d = self.d
 
         @jit(
-            "Tuple((f8[:, ::1], f8[:, :, ::1]))(f8[:, ::1], f8[::1], f8[::1], f8[:, ::1], int64)",
+            "Tuple((f8[:, ::1], f8[:, :, ::1]))(f8[::1], f8[::1], f8[:, ::1], int64)",
             nopython=True,
             nogil=True,
             cache=True,
         )
         def forecast(
-            y: npt.NDArray[np.float64],
             params: npt.NDArray[np.float64],
             m_T_given_T: npt.NDArray[np.float64],
             Q_T_given_T: npt.NDArray[np.float64],
             T_forecast: int,
         ) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]]:
-            size = y.shape[0]
+            size = m_T_given_T.shape[0]
             T = size - 1
 
             # memalloc

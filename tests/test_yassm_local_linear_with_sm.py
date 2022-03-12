@@ -99,10 +99,10 @@ class LocalLinearModel(tsa.statespace.MLEModel):
         self.ssm["state_cov", 0, 0] = params[1]
 
 
-class TestLinearGaussian(TestCase):
-    def setUp(self) -> None:
-        self.y = y
+class TestLocalLinearGaussian(TestCase):
+    y = y
 
+    def setUp(self) -> None:
         C = 1e8
         self.atol = 1e-5
         self.T_predict = 100

@@ -16,3 +16,5 @@ def fn(x: npt.NDArray[np.float64]) -> npt.NDArray[np.float64]:
 
 rng = np.random.default_rng(314)
 y = fn(np.linspace(0.0, 1.0, 500)) + rng.normal(scale=1.0, size=500)
+y_nan = y.copy()
+y_nan[::10] = np.nan
