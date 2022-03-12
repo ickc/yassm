@@ -340,6 +340,9 @@ def mle(
     μ_0 = μ_0_1d[0]
     Γ_0 = Γ_0_2d[0, 0]
 
+    size = y.size
+    size_inv = 1.0 / size
+
     chain = np.empty((n_iter + 1 if return_chain else 0, 2))
 
     # initialize & memalloc
@@ -359,7 +362,22 @@ def mle(
             m_t_given_t,
             Q_t_given_t,
         )
-        params[0] = (Q_t_given_T + np.square(y - m_t_given_T)).mean()
+
+        σ_ε_sq = params[0]
+        _sum = 0.0
+        for s in range(size):
+            y_s = y[s]
+            Q_s_given_T = Q_t_given_T[s]
+            m_s_given_T = m_t_given_T[s]
+
+            # missing at random
+            if np.isnan(y_s):
+                _sum += σ_ε_sq
+            else:
+                temp = y_s - m_s_given_T
+                _sum += Q_s_given_T + temp * temp
+        params[0] = _sum * size_inv
+
         params[1] = (
             Q_t_given_T[:-1]
             + Q_t_given_T[1:] * (1.0 - 2.0 * (Q_t_given_t[:-1] / Q_t_given_tMinus1[1:]))
