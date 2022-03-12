@@ -9,6 +9,7 @@ import pandas as pd
 from numba import jit
 from scipy import stats
 
+from ..lib import sqrt_diag
 from ..lib.linear_gaussian import filter_update, one_step_ahead, smoothing_backward_recursion
 
 if TYPE_CHECKING:
@@ -160,6 +161,26 @@ class GeneralLinearGaussianStateSpaceModelFit:
         if mle_n_iter:
             self.params, self.mle_params_chain = self.parent.mle(y, params, μ_0, Γ_0, mle_n_iter, mle_return_chain)
 
+    # defaults
+
+    @property
+    def t_array(self) -> npt.ArrayLike:
+        return range(self.size) if self.t is None else self.t
+
+    def t_forecast(self, T_forecast: int) -> npt.ArrayLike:
+        size = self.size
+        if self.t is None:
+            return range(size, size + T_forecast)
+        else:
+            dt = self.t[1] - self.t[0]
+            start = self.t[-1] + dt
+            stop = self.t[-1] + T_forecast * dt
+            return (
+                pd.date_range(start, stop, T_forecast)
+                if np.issubdtype(self.t.dtype, np.datetime64)
+                else np.linspace(start, stop, T_forecast)
+            )
+
     # running functions depending on parameters: get_*
 
     def get_forecast_state(self, T_forecast: int) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]]:
@@ -306,6 +327,41 @@ class GeneralLinearGaussianStateSpaceModelFit:
     def smoothed_state_cov(self) -> npt.NDArray[np.float64]:
         return self.Q_t_given_T
 
+    # CI
+
+    def smoothed_obs_CI(
+        self,
+        α: float,
+        with_obs_cov: bool = True,
+    ) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64], npt.NDArray[np.float64]]:
+        smoothed_obs = self.smoothed_obs
+        smoothed_obs_cov = self.smoothed_obs_cov_with_obs_cov if with_obs_cov else self.smoothed_obs_cov
+
+        ns_std = stats.norm.ppf([0.5 * α, 1.0 - 0.5 * α])
+
+        smoothed_obs_std = sqrt_diag(smoothed_obs_cov)
+        return (
+            smoothed_obs + ns_std[0] * smoothed_obs_std,
+            smoothed_obs,
+            smoothed_obs + ns_std[1] * smoothed_obs_std,
+        )
+
+    def forecast_obs_CI(
+        self,
+        T_forecast: int,
+        α: float,
+    ) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64], npt.NDArray[np.float64]]:
+        forecast_obs, forecast_obs_cov = self.get_forecast_obs(T_forecast)
+
+        ns_std = stats.norm.ppf([0.5 * α, 1.0 - 0.5 * α])
+
+        forecast_obs_std = sqrt_diag(forecast_obs_cov)
+        return (
+            forecast_obs + ns_std[0] * forecast_obs_std,
+            forecast_obs,
+            forecast_obs + ns_std[1] * forecast_obs_std,
+        )
+
     # pandas
 
     @property
@@ -341,29 +397,9 @@ class GeneralLinearGaussianStateSpaceModelFit:
         import seaborn as sns
 
         y = self.y
-        smoothed_obs = self.smoothed_obs
-        size = self.size
         n = self.n
 
-        t_forecast: Iterable[Any]
-        if T_forecast > 0:
-            if self.t is None:
-                t_forecast = range(size, size + T_forecast)
-            else:
-                dt = self.t[1] - self.t[0]
-                start = self.t[-1] + dt
-                stop = self.t[-1] + T_forecast * dt
-                t_forecast = (
-                    pd.date_range(start, stop, T_forecast)
-                    if np.issubdtype(self.t.dtype, np.datetime64)
-                    else np.linspace(start, stop, T_forecast)
-                )
-                del dt, start, stop
-
-            forecast_obs, forecast_obs_cov = self.get_forecast_obs(T_forecast)
-        t = range(size) if self.t is None else self.t
-
-        ns_std = stats.norm.ppf([0.5 * α, 1.0 - 0.5 * α])
+        t = self.t_array
 
         if axes is None:
             fig, axes = plt.subplots(n)
@@ -379,63 +415,64 @@ class GeneralLinearGaussianStateSpaceModelFit:
         color_smooth_alt = color[6]
         color_forecast = color[3]
         color_forecast_alt = color[2]
+
         str_CI = f" w/ ${(1. - α) * 100.:.3g} \\%%$ C.I."
 
-        for i, ax in enumerate(axes):
-            s = smoothed_obs[:, i]
-
-            if plot_obs:
-                label = "Observation"
-                if plot_smoothed_CI_with_obs_cov:
-                    label += str_CI
-                ax.plot(t, y[:, i], label=label, color=color_obs)
-            if plot_smoothed:
-                label = "Smoothed obseration"
-                if plot_smoothed_CI:
-                    label += str_CI
-
-                ax.plot(t, s, label=label, color=color_smooth)
-
+        if plot_obs:
+            label = "Observation"
             if plot_smoothed_CI_with_obs_cov:
-                smoothed_obs_std = np.sqrt(self.smoothed_obs_cov_with_obs_cov[:, i, i])
-                smoothed_obs_lower = s + ns_std[0] * smoothed_obs_std
-                smoothed_obs_upper = s + ns_std[1] * smoothed_obs_std
+                label += str_CI
+            for i, ax in enumerate(axes):
+                ax.plot(t, y[:, i], label=label, color=color_obs)
+
+        if plot_smoothed_CI_with_obs_cov:
+            smoothed_obs_lower_with_obs_cov, _, smoothed_obs_upper_with_obs_cov = self.smoothed_obs_CI(
+                α,
+                with_obs_cov=True,
+            )
+            for i, ax in enumerate(axes):
                 ax.fill_between(
                     t,
-                    smoothed_obs_lower,
-                    smoothed_obs_upper,
+                    smoothed_obs_lower_with_obs_cov[:, i],
+                    smoothed_obs_upper_with_obs_cov[:, i],
                     alpha=alpha,
                     color=color_obs_alt,
                 )
 
+        if plot_smoothed:
+            smoothed_obs = self.smoothed_obs
+            label = "Smoothed obseration"
             if plot_smoothed_CI:
-                smoothed_obs_std = np.sqrt(self.smoothed_obs_cov[:, i, i])
-                smoothed_obs_lower = s + ns_std[0] * smoothed_obs_std
-                smoothed_obs_upper = s + ns_std[1] * smoothed_obs_std
+                label += str_CI
+            for i, ax in enumerate(axes):
+                ax.plot(t, smoothed_obs[:, i], label=label, color=color_smooth)
+
+        if plot_smoothed_CI:
+            smoothed_obs_lower, _, smoothed_obs_upper = self.smoothed_obs_CI(α, with_obs_cov=False)
+            for i, ax in enumerate(axes):
                 ax.fill_between(
                     t,
-                    smoothed_obs_lower,
-                    smoothed_obs_upper,
+                    smoothed_obs_lower[:, i],
+                    smoothed_obs_upper[:, i],
                     alpha=alpha,
                     color=color_smooth_alt,
                 )
 
-            if T_forecast:
-                fc = forecast_obs[:, i]
-                label = "Forecast" + str_CI
-                ax.plot(t_forecast, fc, label=label, color=color_forecast)
-
-                forecast_obs_std = np.sqrt(forecast_obs_cov[:, i, i])
-                forecast_obs_lower = fc + ns_std[0] * forecast_obs_std
-                forecast_obs_upper = fc + ns_std[1] * forecast_obs_std
+        if T_forecast > 0:
+            t_forecast = self.t_forecast(T_forecast)
+            forecast_obs_lower, forecast_obs, forecast_obs_upper = self.forecast_obs_CI(T_forecast, α)
+            label = "Forecast" + str_CI
+            for i, ax in enumerate(axes):
+                ax.plot(t_forecast, forecast_obs[:, i], label=label, color=color_forecast)
                 ax.fill_between(
                     t_forecast,
-                    forecast_obs_lower,
-                    forecast_obs_upper,
+                    forecast_obs_lower[:, i],
+                    forecast_obs_upper[:, i],
                     alpha=alpha,
                     color=color_forecast_alt,
                 )
 
+        for i, ax in enumerate(axes):
             ax.legend()
         return fig, axes
 
