@@ -378,11 +378,15 @@ def mle(
                 _sum += Q_s_given_T + temp * temp
         params[0] = _sum * size_inv
 
-        params[1] = (
+        # if nan is at the beginning of y, and Γ_0 = ∞,
+        # then Q_t_given_t[:-1], Q_t_given_tMinus1[1:] can have infinities in the beginning,
+        # as the missing at random assumption will propagate the infinity there.
+        # in that case there will be a nan and we simply discard it as no information there.
+        params[1] = np.nanmean(
             Q_t_given_T[:-1]
             + Q_t_given_T[1:] * (1.0 - 2.0 * (Q_t_given_t[:-1] / Q_t_given_tMinus1[1:]))
             + np.square(m_t_given_T[1:] - m_t_given_T[:-1])
-        ).mean()
+        )
         if return_chain:
             chain[i] = params
     return params, chain
