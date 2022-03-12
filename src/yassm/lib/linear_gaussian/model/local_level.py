@@ -334,7 +334,7 @@ def mle(
     Γ_0_2d: npt.NDArray[np.float64],
     n_iter: int,
     return_chain: bool,
-) -> tuple[npt.NDArray[np.float64], ...]:
+) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]]:
     # to 1d
     y = y_2d.flatten()
     μ_0 = μ_0_1d[0]
