@@ -1,3 +1,12 @@
+"""General linear Gaussian state space model.
+
+a few functions are jitted here as we want them to be
+jitted with the given A, B, Σ, R in order to inline them
+or optimized them away.
+
+These cannot be cached as they are compiled using closure.
+"""
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -629,7 +638,7 @@ class GeneralLinearGaussianStateSpaceModel(GenericLinearGaussianStateSpaceModel)
             "Tuple((f8[:, ::1], f8[:, :, ::1], f8[:, ::1], f8[:, :, ::1]))(f8[:, ::1], f8[::1], f8[::1], f8[:, ::1])",
             nopython=True,
             nogil=True,
-            cache=True,
+            cache=False,
         )
         def kalman_filtering(
             y: npt.NDArray[np.float64],
@@ -700,7 +709,7 @@ class GeneralLinearGaussianStateSpaceModel(GenericLinearGaussianStateSpaceModel)
             "Tuple((f8[:, ::1], f8[:, :, ::1]))(f8[::1], f8[:, ::1], f8[:, :, ::1], f8[:, ::1], f8[:, :, ::1])",
             nopython=True,
             nogil=True,
-            cache=True,
+            cache=False,
         )
         def kalman_smoothing(
             params: npt.NDArray[np.float64],
@@ -754,7 +763,7 @@ class GeneralLinearGaussianStateSpaceModel(GenericLinearGaussianStateSpaceModel)
             "Tuple((f8[:, ::1], f8[:, :, ::1]))(f8[::1], f8[:, ::1], f8[:, :, ::1], int64, b1)",
             nopython=True,
             nogil=True,
-            cache=True,
+            cache=False,
         )
         def smoothed_state_to_obs(
             params: npt.NDArray[np.float64],
@@ -797,7 +806,7 @@ class GeneralLinearGaussianStateSpaceModel(GenericLinearGaussianStateSpaceModel)
             "Tuple((f8[:, ::1], f8[:, :, ::1]))(f8[::1], f8[::1], f8[:, ::1], int64)",
             nopython=True,
             nogil=True,
-            cache=True,
+            cache=False,
         )
         def forecast(
             params: npt.NDArray[np.float64],
