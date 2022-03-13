@@ -52,7 +52,7 @@ local_level_model_general = GeneralLinearGaussianStateSpaceModel(
 
 
 class TestLocalLevelGaussian(TestCase):
-    y = y_nan
+    y = y
 
     def setUp(self) -> None:
         C = 1e8
