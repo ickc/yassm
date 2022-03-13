@@ -3,20 +3,14 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
-import numpy as np
-
 from ...lib.linear_gaussian.model.local_level import forecast as _forecast
 from ...lib.linear_gaussian.model.local_level import kalman_filtering as _kalman_filtering
 from ...lib.linear_gaussian.model.local_level import kalman_smoothing as _kalman_smoothing
 from ...lib.linear_gaussian.model.local_level import mle as _mle
 from ...lib.linear_gaussian.model.local_level import smoothed_state_to_obs as _smoothed_state_to_obs
-from .. import GeneralLinearGaussianStateSpaceModelFit, GenericLinearGaussianStateSpaceModel
+from .. import GenericLinearGaussianStateSpaceModel
 
 if TYPE_CHECKING:
-    from typing import Any
-
-    import numpy.typing as npt
-
     from .. import Forecast, KalmanFiltering, KalmanSmoothing, Mle, SmoothedStateToObs
 
 

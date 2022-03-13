@@ -13,7 +13,7 @@ from ..lib import sqrt_diag
 from ..lib.linear_gaussian import filter_update, one_step_ahead, smoothing_backward_recursion
 
 if TYPE_CHECKING:
-    from typing import Any, Callable, Iterable
+    from typing import Any, Callable
 
     import matplotlib as mpl
     import numpy.typing as npt

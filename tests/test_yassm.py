@@ -1,18 +1,8 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
-from unittest import TestCase
-
 import numpy as np
-import statsmodels.tsa.api as tsa
 
 from yassm.lib import sqrt_diag
-from yassm.linear_gaussian.model.local_level import local_level_model
-
-from tests import y
-
-if TYPE_CHECKING:
-    from yassm.linear_gaussian import GeneralLinearGaussianStateSpaceModelFit
 
 
 def test_sqrt_diag() -> None:
