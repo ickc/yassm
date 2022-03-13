@@ -3,7 +3,7 @@ SHELL = /usr/bin/env bash
 _python ?= python
 # for bump2version, valid options are: major, minor, patch
 PART ?= patch
-PYTESTARGS ?= --workers auto
+PYTESTARGS ?= -n auto
 
 PANDOC = pandoc
 pandocArgs = --toc -M date="`date "+%B %e, %Y"`" --wrap=none
