@@ -27,10 +27,38 @@ def one_step_ahead(
     :param m_sMinus1_given_t: shape of (d,).
     :param Q_sMinus1_given_t: shape of (d, d).
     :return: (m_s_given_t, Q_s_given_t).
+
+    TODO: delete this as not used?
     """
     m_s_given_t = A_s @ m_sMinus1_given_t
     Q_s_given_t = A_s @ Q_sMinus1_given_t @ A_s.transpose() + Σ_s
     return m_s_given_t, Q_s_given_t
+
+
+@jit(
+    "(f8[::1], f8[:, ::1], f8[:, ::1], f8[:, ::1], f8[::1], f8[:, ::1])",
+    nopython=True,
+    nogil=True,
+    cache=True,
+)
+def one_step_ahead_inplace(
+    m_s_given_t: npt.NDArray[np.float64],
+    Q_s_given_t: npt.NDArray[np.float64],
+    A_s: npt.NDArray[np.float64],
+    Σ_s: npt.NDArray[np.float64],
+    m_sMinus1_given_t: npt.NDArray[np.float64],
+    Q_sMinus1_given_t: npt.NDArray[np.float64],
+) -> None:
+    """Calculate one step ahead prediction.
+
+    :param m_s_given_t: output array to be written.
+    :param Q_s_given_t: output array to be written.
+    :param m_sMinus1_given_t: shape of (d,).
+    :param Q_sMinus1_given_t: shape of (d, d).
+    :return: (m_s_given_t, Q_s_given_t).
+    """
+    m_s_given_t[:] = A_s @ m_sMinus1_given_t
+    Q_s_given_t[:] = A_s @ Q_sMinus1_given_t @ A_s.transpose() + Σ_s
 
 
 @jit(

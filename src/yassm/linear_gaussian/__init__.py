@@ -20,7 +20,7 @@ from numba import jit
 from scipy import stats
 
 from ..lib import sqrt_diag
-from ..lib.linear_gaussian import filter_update, one_step_ahead, smoothing_backward_recursion
+from ..lib.linear_gaussian import filter_update, one_step_ahead_inplace, smoothing_backward_recursion
 
 if TYPE_CHECKING:
     from typing import Any, Callable
@@ -684,9 +684,14 @@ class GeneralLinearGaussianStateSpaceModel(GenericLinearGaussianStateSpaceModel)
                     A(A_t, params, t)
                 if Σ is not None:
                     Σ(Σ_t, params, t)
-                temp = one_step_ahead(A_t, Σ_t, m_t_given_t[tMinus1], Q_t_given_t[tMinus1])
-                m_t_given_tMinus1[t] = temp[0]
-                Q_t_given_tMinus1[t] = temp[1]
+                one_step_ahead_inplace(
+                    m_t_given_tMinus1[t],
+                    Q_t_given_tMinus1[t],
+                    A_t,
+                    Σ_t,
+                    m_t_given_t[tMinus1],
+                    Q_t_given_t[tMinus1],
+                )
 
                 if B is not None:
                     B(B_t, params, t)
@@ -835,14 +840,16 @@ class GeneralLinearGaussianStateSpaceModel(GenericLinearGaussianStateSpaceModel)
                     A(A_s, params, s)
                 if Σ is not None:
                     Σ(Σ_s, params, s)
-                m_sMinus1_given_T, Q_sMinus1_given_T = one_step_ahead(
+                one_step_ahead_inplace(
+                    m_t_given_T_predict[s - size],
+                    Q_t_given_T_predict[s - size],
                     A_s,
                     Σ_s,
                     m_sMinus1_given_T,
                     Q_sMinus1_given_T,
                 )
-                m_t_given_T_predict[s - size] = m_sMinus1_given_T
-                Q_t_given_T_predict[s - size] = Q_sMinus1_given_T
+                m_sMinus1_given_T = m_t_given_T_predict[s - size]
+                Q_sMinus1_given_T = Q_t_given_T_predict[s - size]
             return m_t_given_T_predict, Q_t_given_T_predict
 
         return forecast
