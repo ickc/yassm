@@ -567,10 +567,10 @@ class GeneralLinearGaussianStateSpaceModel(GenericLinearGaussianStateSpaceModel)
     """General linear gaussian state space model.
 
     :param N: no. of params.
-    :param A0: a Numba0-jitted function of (params) initializing transition, shape of (d, d).
-    :param B0: a Numba0-jitted function of (params) initializing design, shape of (n, d).
-    :param Σ0: a Numba0-jitted function of (params) initializing state covariance, shape of (d, d).
-    :param R0: a Numba0-jitted function of (params) initializing observation coariance, shape of (n, n).
+    :param A0: a Numba-jitted function of (params) initializing transition, shape of (d, d).
+    :param B0: a Numba-jitted function of (params) initializing design, shape of (n, d).
+    :param Σ0: a Numba-jitted function of (params) initializing state covariance, shape of (d, d).
+    :param R0: a Numba-jitted function of (params) initializing observation coariance, shape of (n, n).
     :param A: If None, Numba-jit should optimized this away to have no cost, else, a Numba0-jitted function of (out, params, t) updating out as transition, shape of (d, d).
     :param B: If None, Numba-jit should optimized this away to have no cost, else, a Numba0-jitted function of (out, params, t) updating out as design, shape of (n, d).
     :param Σ: If None, Numba-jit should optimized this away to have no cost, else, a Numba0-jitted function of (out, params, t) updating out as state covariance, shape of (d, d).
