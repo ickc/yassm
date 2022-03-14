@@ -10,6 +10,7 @@ These cannot be cached as they are compiled using closure.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from functools import cached_property
 from logging import getLogger
 from typing import TYPE_CHECKING
 
@@ -622,7 +623,7 @@ class GeneralLinearGaussianStateSpaceModel(GenericLinearGaussianStateSpaceModel)
         assert R0(params).shape == (n, n)
         del params
 
-    @property
+    @cached_property
     def kalman_filtering(self) -> KalmanFiltering:
         A0 = self.A0
         B0 = self.B0
@@ -699,7 +700,7 @@ class GeneralLinearGaussianStateSpaceModel(GenericLinearGaussianStateSpaceModel)
 
         return kalman_filtering
 
-    @property
+    @cached_property
     def kalman_smoothing(self) -> KalmanSmoothing:
         A0 = self.A0
         A = self.A
@@ -751,7 +752,7 @@ class GeneralLinearGaussianStateSpaceModel(GenericLinearGaussianStateSpaceModel)
 
         return kalman_smoothing
 
-    @property
+    @cached_property
     def smoothed_state_to_obs(self) -> SmoothedStateToObs:
         B0 = self.B0
         R0 = self.R0
@@ -794,7 +795,7 @@ class GeneralLinearGaussianStateSpaceModel(GenericLinearGaussianStateSpaceModel)
 
         return smoothed_state_to_obs
 
-    @property
+    @cached_property
     def forecast(self) -> Forecast:
         A0 = self.A0
         Σ0 = self.Σ0
