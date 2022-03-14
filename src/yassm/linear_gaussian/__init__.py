@@ -571,10 +571,10 @@ class GeneralLinearGaussianStateSpaceModel(GenericLinearGaussianStateSpaceModel)
     :param B0: a Numba-jitted function of (params) initializing design, shape of (n, d).
     :param Σ0: a Numba-jitted function of (params) initializing state covariance, shape of (d, d).
     :param R0: a Numba-jitted function of (params) initializing observation coariance, shape of (n, n).
-    :param A: If None, Numba-jit should optimized this away to have no cost, else, a Numba0-jitted function of (out, params, t) updating out as transition, shape of (d, d).
-    :param B: If None, Numba-jit should optimized this away to have no cost, else, a Numba0-jitted function of (out, params, t) updating out as design, shape of (n, d).
-    :param Σ: If None, Numba-jit should optimized this away to have no cost, else, a Numba0-jitted function of (out, params, t) updating out as state covariance, shape of (d, d).
-    :param R: If None, Numba-jit should optimized this away to have no cost, else, a Numba0-jitted function of (out, params, t) updating out as observation coariance, shape of (n, n).
+    :param A: If None, Numba-jit should optimized this away to have no cost, else, a Numba-jitted function of (out, params, t) updating out as transition, shape of (d, d).
+    :param B: If None, Numba-jit should optimized this away to have no cost, else, a Numba-jitted function of (out, params, t) updating out as design, shape of (n, d).
+    :param Σ: If None, Numba-jit should optimized this away to have no cost, else, a Numba-jitted function of (out, params, t) updating out as state covariance, shape of (d, d).
+    :param R: If None, Numba-jit should optimized this away to have no cost, else, a Numba-jitted function of (out, params, t) updating out as observation coariance, shape of (n, n).
     :param param_names: list of names of the parameters.
 
     Y is of n-dimension,
