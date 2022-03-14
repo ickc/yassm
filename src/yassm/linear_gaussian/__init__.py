@@ -816,7 +816,6 @@ class GeneralLinearGaussianStateSpaceModel(GenericLinearGaussianStateSpaceModel)
             T_forecast: int,
         ) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]]:
             size = m_T_given_T.shape[0]
-            T = size - 1
 
             # memalloc
             A_s = A0(params)

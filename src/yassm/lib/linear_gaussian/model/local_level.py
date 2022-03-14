@@ -247,7 +247,6 @@ def kalman_smoothing(
     Q_t_given_t_3d: npt.NDArray[np.float64],
 ) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]]:
     size = m_t_given_t_2d.shape[0]
-    T = size - 1
     # to 1d
     m_t_given_t = m_t_given_t_2d.flatten()
     Q_t_given_t = Q_t_given_t_3d.flatten()
