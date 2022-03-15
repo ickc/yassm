@@ -20,7 +20,7 @@ from numba import jit
 from scipy import stats
 
 from ..lib import sqrt_diag
-from ..lib.linear_gaussian import filter_update, one_step_ahead_inplace, smoothing_backward_recursion
+from ..lib.linear_gaussian import filter_update_inplace, one_step_ahead_inplace, smoothing_backward_recursion
 
 if TYPE_CHECKING:
     from typing import Any, Callable
@@ -507,7 +507,7 @@ class GenericLinearGaussianStateSpaceModel:
     @property
     def kalman_filtering(self) -> KalmanFiltering:
         """
-        Remember to write your `filter_update` to handle nan indicating missing at random.
+        Remember to write your `filter_update_inplace` to handle nan indicating missing at random.
         """
         raise NotImplementedError
 
@@ -674,9 +674,15 @@ class GeneralLinearGaussianStateSpaceModel(GenericLinearGaussianStateSpaceModel)
             if R is not None:
                 R(R_t, params, 0)
             y_t = y[t]
-            temp = filter_update(y_t, B_t, R_t, m_t_given_tMinus1[t], Q_t_given_tMinus1[t])
-            m_t_given_t[t] = temp[0]
-            Q_t_given_t[t] = temp[1]
+            filter_update_inplace(
+                m_t_given_t[t],
+                Q_t_given_t[t],
+                y_t,
+                B_t,
+                R_t,
+                m_t_given_tMinus1[t],
+                Q_t_given_tMinus1[t],
+            )
             for t in range(1, size):
                 tMinus1 = t - 1
                 # s = t, t = t - 1
@@ -698,9 +704,15 @@ class GeneralLinearGaussianStateSpaceModel(GenericLinearGaussianStateSpaceModel)
                 if R is not None:
                     R(R_t, params, t)
                 y_t = y[t]
-                temp = filter_update(y_t, B_t, R_t, m_t_given_tMinus1[t], Q_t_given_tMinus1[t])
-                m_t_given_t[t] = temp[0]
-                Q_t_given_t[t] = temp[1]
+                filter_update_inplace(
+                    m_t_given_t[t],
+                    Q_t_given_t[t],
+                    y_t,
+                    B_t,
+                    R_t,
+                    m_t_given_tMinus1[t],
+                    Q_t_given_tMinus1[t],
+                )
             return m_t_given_tMinus1, Q_t_given_tMinus1, m_t_given_t, Q_t_given_t
 
         return kalman_filtering

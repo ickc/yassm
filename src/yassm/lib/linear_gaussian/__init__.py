@@ -55,7 +55,6 @@ def one_step_ahead_inplace(
     :param Q_s_given_t: output array to be written.
     :param m_sMinus1_given_t: shape of (d,).
     :param Q_sMinus1_given_t: shape of (d, d).
-    :return: (m_s_given_t, Q_s_given_t).
     """
     m_s_given_t[:] = A_s @ m_sMinus1_given_t
     Q_s_given_t[:] = A_s @ Q_sMinus1_given_t @ A_s.transpose() + Σ_s
@@ -82,6 +81,8 @@ def filter_update(
 
     TODO: provide another version using Sherman-Morrison-Woodbury formula
     and dispatch by comparing n, d
+
+    TODO: delete this as not used?
     """
     has_nan = False
     for y_ti in y_t:
@@ -98,6 +99,48 @@ def filter_update(
     m_t_given_t = m_t_given_tMinus1 + QB @ solve(BQB_plus_R, y_t - B_t @ m_t_given_tMinus1)
     Q_t_given_t = Q_t_given_tMinus1 - QB @ solve(BQB_plus_R, BQ)
     return m_t_given_t, Q_t_given_t
+
+
+@jit(
+    "(f8[::1], f8[:, ::1], f8[::1], f8[:, ::1], f8[:, ::1], f8[::1], f8[:, ::1])",
+    nopython=True,
+    nogil=True,
+    cache=True,
+)
+def filter_update_inplace(
+    m_t_given_t: npt.NDArray[np.float64],
+    Q_t_given_t: npt.NDArray[np.float64],
+    y_t: npt.NDArray[np.float64],
+    B_t: npt.NDArray[np.float64],
+    R_t: npt.NDArray[np.float64],
+    m_t_given_tMinus1: npt.NDArray[np.float64],
+    Q_t_given_tMinus1: npt.NDArray[np.float64],
+) -> None:
+    """Calculate filter update.
+
+    :param m_t_given_t: output array to be written.
+    :param Q_t_given_t: output array to be written.
+    :param m_t_given_tMinus1: shape of (d,).
+    :param Q_t_given_tMinus1: shape of (d, d).
+
+    TODO: provide another version using Sherman-Morrison-Woodbury formula
+    and dispatch by comparing n, d
+    """
+    has_nan = False
+    for y_ti in y_t:
+        if np.isnan(y_ti):
+            has_nan = True
+            break
+    if has_nan:
+        m_t_given_t[:] = m_t_given_tMinus1
+        Q_t_given_t[:] = Q_t_given_tMinus1
+    else:
+        BQ = B_t @ Q_t_given_tMinus1
+        QB = BQ.transpose()
+        BQB_plus_R = B_t @ QB + R_t
+
+        m_t_given_t[:] = m_t_given_tMinus1 + QB @ solve(BQB_plus_R, y_t - B_t @ m_t_given_tMinus1)
+        Q_t_given_t[:] = Q_t_given_tMinus1 - QB @ solve(BQB_plus_R, BQ)
 
 
 @jit(
