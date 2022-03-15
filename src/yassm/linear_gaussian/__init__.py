@@ -655,10 +655,11 @@ class GeneralLinearGaussianStateSpaceModel(GenericLinearGaussianStateSpaceModel)
             size = y.shape[0]
 
             # memalloc
-            m_t_given_tMinus1 = np.empty((size, d))
-            m_t_given_t = np.empty((size, d))
-            Q_t_given_tMinus1 = np.empty((size, d, d))
-            Q_t_given_t = np.empty((size, d, d))
+            temp = np.empty(2 * size * d * (d + 1))
+            m_t_given_tMinus1 = temp[: size * d].reshape((size, d))
+            Q_t_given_tMinus1 = temp[size * d : size * d * (d + 1)].reshape((size, d, d))
+            m_t_given_t = temp[size * d * (d + 1) : size * d * (d + 2)].reshape((size, d))
+            Q_t_given_t = temp[size * d * (d + 2) :].reshape((size, d, d))
             A_t = A0(params)
             B_t = B0(params)
             Σ_t = Σ0(params)
@@ -740,8 +741,9 @@ class GeneralLinearGaussianStateSpaceModel(GenericLinearGaussianStateSpaceModel)
             T = size - 1
 
             # memalloc
-            m_t_given_T = np.empty((size, d))
-            Q_t_given_T = np.empty((size, d, d))
+            temp = np.empty(size * d * (d + 1))
+            m_t_given_T = temp[: size * d].reshape((size, d))
+            Q_t_given_T = temp[size * d : size * d * (d + 1)].reshape((size, d, d))
             A_sPlus1 = A0(params)
 
             # initialize
@@ -794,8 +796,9 @@ class GeneralLinearGaussianStateSpaceModel(GenericLinearGaussianStateSpaceModel)
 
             # memalloc
             B_t = B0(params)
-            smoothed_obs = np.empty((size, n))
-            smoothed_obs_cov = np.empty((size, n, n))
+            temp = np.empty(size * n * (n + 1))
+            smoothed_obs = temp[: size * n].reshape((size, n))
+            smoothed_obs_cov = temp[size * n : size * n * (n + 1)].reshape((size, n, n))
             if with_obs_cov:
                 R_t = R0(params)
 
@@ -839,8 +842,9 @@ class GeneralLinearGaussianStateSpaceModel(GenericLinearGaussianStateSpaceModel)
             Σ_s = Σ0(params)
             # these indices are offset by size
             # i.e. m_s_given_T_predict = m_t_given_T_predict[s - size]
-            m_t_given_T_predict = np.empty((T_forecast, d))
-            Q_t_given_T_predict = np.empty((T_forecast, d, d))
+            temp = np.empty(T_forecast * d * (d + 1))
+            m_t_given_T_predict = temp[: T_forecast * d].reshape((T_forecast, d))
+            Q_t_given_T_predict = temp[T_forecast * d : T_forecast * d * (d + 1)].reshape((T_forecast, d, d))
 
             # initialize
             m_sMinus1_given_T = m_T_given_T

@@ -309,8 +309,9 @@ def forecast(
     # memalloc
     # these indices are offset by size
     # i.e. m_s_given_T_predict = m_t_given_T_predict[s - size]
-    m_t_given_T_predict = np.empty(T_forecast)
-    Q_t_given_T_predict = np.empty(T_forecast)
+    temp = np.empty((2, T_forecast))
+    m_t_given_T_predict = temp[0]
+    Q_t_given_T_predict = temp[1]
 
     # initialize
     m_sMinus1_given_T = m_T_given_T
