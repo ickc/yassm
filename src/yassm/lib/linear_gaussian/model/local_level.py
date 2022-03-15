@@ -97,12 +97,16 @@ def smoothing_backward_recursion(
 
 
 @jit(
-    "Tuple((f8[::1], f8[::1], f8[::1], f8[::1]))(f8[::1], f8[::1], f8, f8)",
+    "(f8[::1], f8[::1], f8[::1], f8[::1], f8[::1], f8[::1], f8, f8)",
     nopython=True,
     nogil=True,
     cache=True,
 )
-def _kalman_filtering_1d(
+def _kalman_filtering_1d_inplace(
+    m_t_given_tMinus1,
+    Q_t_given_tMinus1,
+    m_t_given_t,
+    Q_t_given_t,
     y: npt.NDArray[np.float64],
     params: npt.NDArray[np.float64],
     μ_0: float,
@@ -110,20 +114,17 @@ def _kalman_filtering_1d(
 ) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64], npt.NDArray[np.float64], npt.NDArray[np.float64]]:
     """Kalman filtering.
 
+    :param m_t_given_tMinus1: output array.
+    :param Q_t_given_tMinus1: output array.
+    :param m_t_given_t: output array.
+    :param Q_t_given_t: output array.
     :param params: paramters of the model, θ.
-    :return: m_t_given_tMinus1, Q_t_given_tMinus1, m_t_given_t, Q_t_given_t
     """
     size = y.shape[0]
 
     # param_names=["obs_cov", "state_cov"]
     # obs_cov
     R_t, Σ_t = params
-
-    # memalloc
-    m_t_given_tMinus1 = np.empty(size)
-    m_t_given_t = np.empty(size)
-    Q_t_given_tMinus1 = np.empty(size)
-    Q_t_given_t = np.empty(size)
 
     # initialize
     m_t_given_tMinus1[0] = μ_0
@@ -145,12 +146,6 @@ def _kalman_filtering_1d(
         temp = filter_update(y_t, R_t, m_t_given_tMinus1[t], Q_t_given_tMinus1[t])
         m_t_given_t[t] = temp[0]
         Q_t_given_t[t] = temp[1]
-    return (
-        Q_t_given_tMinus1,
-        m_t_given_tMinus1,
-        m_t_given_t,
-        Q_t_given_t,
-    )
 
 
 @jit(
@@ -176,7 +171,18 @@ def kalman_filtering(
     μ_0 = μ_0_1d[0]
     Γ_0 = Γ_0_2d[0, 0]
 
-    (Q_t_given_tMinus1, m_t_given_tMinus1, m_t_given_t, Q_t_given_t,) = _kalman_filtering_1d(
+    # memalloc
+    temp = np.empty((4, size))
+    m_t_given_tMinus1 = temp[0]
+    Q_t_given_tMinus1 = temp[1]
+    m_t_given_t = temp[2]
+    Q_t_given_t = temp[3]
+
+    _kalman_filtering_1d_inplace(
+        m_t_given_tMinus1,
+        Q_t_given_tMinus1,
+        m_t_given_t,
+        Q_t_given_t,
         y,
         params,
         μ_0,
@@ -348,14 +354,23 @@ def mle(
     params = params0.copy()
     if return_chain:
         chain[0] = params0
+    temp = np.empty((4, size))
+    m_t_given_tMinus1 = temp[0]
+    Q_t_given_tMinus1 = temp[1]
+    m_t_given_t = temp[2]
+    Q_t_given_t = temp[3]
 
     for i in range(1, n_iter + 1):
-        (
-            Q_t_given_tMinus1,
+        _kalman_filtering_1d_inplace(
             m_t_given_tMinus1,
+            Q_t_given_tMinus1,
             m_t_given_t,
             Q_t_given_t,
-        ) = _kalman_filtering_1d(y, params, μ_0, Γ_0)
+            y,
+            params,
+            μ_0,
+            Γ_0,
+        )
         (m_t_given_T, Q_t_given_T,) = _kalman_smoothing_1d(
             params,
             m_t_given_t,
