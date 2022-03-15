@@ -111,7 +111,7 @@ def _kalman_filtering_1d_inplace(
     params: npt.NDArray[np.float64],
     μ_0: float,
     Γ_0: float,
-) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64], npt.NDArray[np.float64], npt.NDArray[np.float64]]:
+) -> None:
     """Kalman filtering.
 
     :param m_t_given_tMinus1: output array.
@@ -197,24 +197,22 @@ def kalman_filtering(
 
 
 @jit(
-    "Tuple((f8[::1], f8[::1]))(f8[::1], f8[::1], f8[::1])",
+    "(f8[::1], f8[::1], f8[::1], f8[::1], f8[::1])",
     nopython=True,
     nogil=True,
     cache=True,
 )
-def _kalman_smoothing_1d(
+def _kalman_smoothing_1d_inplace(
+    m_t_given_T: npt.NDArray[np.float64],
+    Q_t_given_T: npt.NDArray[np.float64],
     params: npt.NDArray[np.float64],
     m_t_given_t: npt.NDArray[np.float64],
     Q_t_given_t: npt.NDArray[np.float64],
-) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]]:
+) -> None:
     size = m_t_given_t.shape[0]
     T = size - 1
 
     Σ = params[1]
-
-    # memalloc
-    m_t_given_T = np.empty(size)
-    Q_t_given_T = np.empty(size)
 
     # initialize
     m_t_given_T[T] = m_t_given_t[T]
@@ -233,10 +231,6 @@ def _kalman_smoothing_1d(
         )
         m_t_given_T[s] = temp[0]
         Q_t_given_T[s] = temp[1]
-    return (
-        m_t_given_T,
-        Q_t_given_T,
-    )
 
 
 @jit(
@@ -256,7 +250,15 @@ def kalman_smoothing(
     # to 1d
     m_t_given_t = m_t_given_t_2d.flatten()
     Q_t_given_t = Q_t_given_t_3d.flatten()
-    (m_t_given_T, Q_t_given_T,) = _kalman_smoothing_1d(
+
+    # memalloc
+    temp = np.empty((2, size))
+    m_t_given_T = temp[0]
+    Q_t_given_T = temp[1]
+
+    _kalman_smoothing_1d_inplace(
+        m_t_given_T,
+        Q_t_given_T,
         params,
         m_t_given_t,
         Q_t_given_t,
@@ -354,11 +356,13 @@ def mle(
     params = params0.copy()
     if return_chain:
         chain[0] = params0
-    temp = np.empty((4, size))
+    temp = np.empty((6, size))
     m_t_given_tMinus1 = temp[0]
     Q_t_given_tMinus1 = temp[1]
     m_t_given_t = temp[2]
     Q_t_given_t = temp[3]
+    m_t_given_T = temp[4]
+    Q_t_given_T = temp[5]
 
     for i in range(1, n_iter + 1):
         _kalman_filtering_1d_inplace(
@@ -371,7 +375,9 @@ def mle(
             μ_0,
             Γ_0,
         )
-        (m_t_given_T, Q_t_given_T,) = _kalman_smoothing_1d(
+        _kalman_smoothing_1d_inplace(
+            m_t_given_T,
+            Q_t_given_T,
             params,
             m_t_given_t,
             Q_t_given_t,
