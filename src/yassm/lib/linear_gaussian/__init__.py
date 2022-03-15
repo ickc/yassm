@@ -167,6 +167,8 @@ def smoothing_backward_recursion(
     :param m_sPlus1_given_s: shape of (d,).
     :param Q_sPlus1_given_s: shape of (d, d).
     :return: (m_s_given_t, Q_s_given_t).
+
+    TODO: delete this as not used?
     """
     Γ_sPlus1_transpose = solve(Q_sPlus1_given_s, A_sPlus1 @ Q_s_given_s)
     Γ_sPlus1 = Γ_sPlus1_transpose.transpose()
@@ -174,3 +176,38 @@ def smoothing_backward_recursion(
     m_s_given_t = m_s_given_s + Γ_sPlus1 @ (m_sPlus1_given_t - m_sPlus1_given_s)
     Q_s_given_t = Q_s_given_s + Γ_sPlus1 @ (Q_sPlus1_given_t - Q_sPlus1_given_s) @ Γ_sPlus1_transpose
     return m_s_given_t, Q_s_given_t
+
+
+@jit(
+    "(f8[::1], f8[:, ::1], f8[:, ::1], f8[::1], f8[:, ::1], f8[::1], f8[:, ::1], f8[::1], f8[:, ::1])",
+    nopython=True,
+    nogil=True,
+    cache=True,
+)
+def smoothing_backward_recursion_inplace(
+    m_s_given_t: npt.NDArray[np.float64],
+    Q_s_given_t: npt.NDArray[np.float64],
+    A_sPlus1: npt.NDArray[np.float64],
+    m_s_given_s: npt.NDArray[np.float64],
+    Q_s_given_s: npt.NDArray[np.float64],
+    m_sPlus1_given_t: npt.NDArray[np.float64],
+    Q_sPlus1_given_t: npt.NDArray[np.float64],
+    m_sPlus1_given_s: npt.NDArray[np.float64],
+    Q_sPlus1_given_s: npt.NDArray[np.float64],
+) -> None:
+    """Calculate filter update.
+
+    :param m_s_given_t: output array to be written.
+    :param Q_s_given_t: output array to be written.
+    :param m_s_given_s: shape of (d,).
+    :param Q_s_given_s: shape of (d, d).
+    :param m_sPlus1_given_t: shape of (d,).
+    :param Q_sPlus1_given_t: shape of (d, d).
+    :param m_sPlus1_given_s: shape of (d,).
+    :param Q_sPlus1_given_s: shape of (d, d).
+    """
+    Γ_sPlus1_transpose = solve(Q_sPlus1_given_s, A_sPlus1 @ Q_s_given_s)
+    Γ_sPlus1 = Γ_sPlus1_transpose.transpose()
+
+    m_s_given_t[:] = m_s_given_s + Γ_sPlus1 @ (m_sPlus1_given_t - m_sPlus1_given_s)
+    Q_s_given_t[:] = Q_s_given_s + Γ_sPlus1 @ (Q_sPlus1_given_t - Q_sPlus1_given_s) @ Γ_sPlus1_transpose

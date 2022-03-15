@@ -20,7 +20,7 @@ from numba import jit
 from scipy import stats
 
 from ..lib import sqrt_diag
-from ..lib.linear_gaussian import filter_update_inplace, one_step_ahead_inplace, smoothing_backward_recursion
+from ..lib.linear_gaussian import filter_update_inplace, one_step_ahead_inplace, smoothing_backward_recursion_inplace
 
 if TYPE_CHECKING:
     from typing import Any, Callable
@@ -754,7 +754,9 @@ class GeneralLinearGaussianStateSpaceModel(GenericLinearGaussianStateSpaceModel)
                 if A is not None:
                     A(A_sPlus1, params, sPlus1)
 
-                temp = smoothing_backward_recursion(
+                smoothing_backward_recursion_inplace(
+                    m_t_given_T[s],
+                    Q_t_given_T[s],
                     A_sPlus1,
                     m_t_given_t[s],
                     Q_t_given_t[s],
@@ -763,8 +765,6 @@ class GeneralLinearGaussianStateSpaceModel(GenericLinearGaussianStateSpaceModel)
                     m_t_given_tMinus1[sPlus1],
                     Q_t_given_tMinus1[sPlus1],
                 )
-                m_t_given_T[s] = temp[0]
-                Q_t_given_T[s] = temp[1]
             return m_t_given_T, Q_t_given_T
 
         return kalman_smoothing
