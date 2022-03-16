@@ -8,11 +8,9 @@ from typing import TYPE_CHECKING
 import numpy as np
 from numba import jit
 
-from ...lib.linear_gaussian.model.local_level import _kalman_filtering_1d_inplace, _kalman_smoothing_1d_inplace
 from ...lib.linear_gaussian.model.local_level import forecast as _forecast
 from ...lib.linear_gaussian.model.local_level import kalman_filtering as _kalman_filtering
 from ...lib.linear_gaussian.model.local_level import kalman_smoothing as _kalman_smoothing
-from ...lib.linear_gaussian.model.local_level import param_update_inplace_em
 from ...lib.linear_gaussian.model.local_level import smoothed_state_to_obs as _smoothed_state_to_obs
 from .. import GenericLinearGaussianStateSpaceModel
 
@@ -52,7 +50,12 @@ class LocalLevelModel(GenericLinearGaussianStateSpaceModel):
     def forecast(self) -> Forecast:
         return _forecast
 
-    def get_mle_func(self, param_update_inplace: ParamUpdateInplace) -> Mle:
+    def get_mle_func(
+        self,
+        _kalman_filtering_1d_inplace: KalmanFiltering,
+        _kalman_smoothing_1d_inplace: KalmanSmoothing,
+        param_update_inplace: ParamUpdateInplace,
+    ) -> Mle:
         @jit(
             "Tuple((f8[::1], f8[:, ::1]))(f8[:, ::1], f8[::1], f8[::1], f8[:, ::1], i8, b1)",
             nopython=True,
@@ -125,8 +128,14 @@ class LocalLevelModel(GenericLinearGaussianStateSpaceModel):
 
     @cached_property
     def mle_em(self) -> Mle:
+        from ...lib.linear_gaussian.model.local_level import (
+            _kalman_filtering_1d_inplace,
+            _kalman_smoothing_1d_inplace,
+            param_update_inplace_em,
+        )
+
         # now we can cache this
-        return self.get_mle_func(param_update_inplace_em)
+        return self.get_mle_func(_kalman_filtering_1d_inplace, _kalman_smoothing_1d_inplace, param_update_inplace_em)
 
     def mle(self, method: str) -> Mle:
         method_lower = method.lower()
