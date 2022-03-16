@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING
 import numpy as np
 from numba import jit
 
+# smoothed_state_to_obs is for export
 from .local_level import filter_update, smoothed_state_to_obs
 
 if TYPE_CHECKING:
@@ -74,10 +75,10 @@ def smoothing_backward_recursion(
     cache=True,
 )
 def _kalman_filtering_1d_inplace(
-    m_t_given_tMinus1,
-    Q_t_given_tMinus1,
-    m_t_given_t,
-    Q_t_given_t,
+    m_t_given_tMinus1: npt.NDArray[np.float64],
+    Q_t_given_tMinus1: npt.NDArray[np.float64],
+    m_t_given_t: npt.NDArray[np.float64],
+    Q_t_given_t: npt.NDArray[np.float64],
     y: npt.NDArray[np.float64],
     params: npt.NDArray[np.float64],
     μ_0: float,
@@ -285,3 +286,150 @@ def forecast(
         m_t_given_T_predict[s - size] = m_sMinus1_given_T
         Q_t_given_T_predict[s - size] = Q_sMinus1_given_T
     return m_t_given_T_predict.reshape((T_forecast, 1)), Q_t_given_T_predict.reshape((T_forecast, 1, 1))
+
+
+@jit(
+    "(f8[::1], f8[::1], f8[::1], f8[::1], f8[::1], f8[::1], f8[::1], f8[::1], f8[::1])",
+    nopython=True,
+    nogil=True,
+    cache=True,
+)
+def score_inplace(
+    out: npt.NDArray[np.float64],
+    m_t_given_tMinus1: npt.NDArray[np.float64],
+    Q_t_given_tMinus1: npt.NDArray[np.float64],
+    m_t_given_t: npt.NDArray[np.float64],
+    Q_t_given_t: npt.NDArray[np.float64],
+    m_t_given_T: npt.NDArray[np.float64],
+    Q_t_given_T: npt.NDArray[np.float64],
+    y: npt.NDArray[np.float64],
+    params: npt.NDArray[np.float64],
+) -> None:
+    """Calculate the score vector from data.
+
+    :param out: output parameters of length 3.
+    :param temp: holding the intermediate ?_s_given_t stuffs.
+    """
+    σ_ε_sq, σ_Z_sq, φ = params
+    σ_ε = np.sqrt(σ_ε_sq)
+    σ_Z = np.sqrt(σ_Z_sq)
+    φ_sq = φ * φ
+
+    T_plus1 = y.size
+    T = T_plus1 - 1
+
+    # σ_ε_sq
+    out[0] = -T_plus1 / σ_ε + 1.0 / (σ_ε * σ_ε_sq) * (Q_t_given_T + np.square(y - m_t_given_T)).sum()
+    # σ_Z_sq
+    out[1] = (
+        -T / σ_Z
+        + 1.0
+        / (σ_Z_sq * σ_Z)
+        * (
+            φ_sq * Q_t_given_T[:-1]
+            + Q_t_given_T[1:] * (1.0 - 2.0 * φ_sq * (Q_t_given_t[:-1] / Q_t_given_tMinus1[1:]))
+            + np.square(m_t_given_T[1:] - φ * m_t_given_T[:-1])
+        ).sum()
+    )
+    # φ
+    out[2] = (
+        -1.0
+        / σ_Z_sq
+        * (
+            φ * (Q_t_given_T[:-1] - Q_t_given_T[1:] * Q_t_given_t[:-1] / Q_t_given_tMinus1[1:])
+            - (m_t_given_T[1:] - φ * m_t_given_T[:-1]) * m_t_given_T[:-1]
+        ).sum()
+    )
+
+
+@jit(
+    "(f8[::1], f8[::1], f8[::1], f8[::1], f8[::1], f8[::1], f8[::1], f8[::1])",
+    nopython=True,
+    nogil=True,
+    cache=True,
+)
+def param_update_inplace_gradient(
+    params: npt.NDArray[np.float64],
+    m_t_given_tMinus1: npt.NDArray[np.float64],
+    Q_t_given_tMinus1: npt.NDArray[np.float64],
+    m_t_given_t: npt.NDArray[np.float64],
+    Q_t_given_t: npt.NDArray[np.float64],
+    m_t_given_T: npt.NDArray[np.float64],
+    Q_t_given_T: npt.NDArray[np.float64],
+    y: npt.NDArray[np.float64],
+) -> None:
+    out = np.empty(3)
+    score_inplace(
+        out,
+        m_t_given_tMinus1,
+        Q_t_given_tMinus1,
+        m_t_given_t,
+        Q_t_given_t,
+        m_t_given_T,
+        Q_t_given_T,
+        y,
+        params,
+    )
+    γ = 1e-3
+    # # if the gradient is negative, reduce to r times the original value
+    # # in order to not go through the upper half plane
+    # r = 0.5
+    # for i in range(2):
+    #     if out[i] < 0:
+    #         γ = min(γ, (r - 1.) * params[i] / out[i])
+    params += γ * out
+
+
+@jit(
+    "(f8[::1], f8[::1], f8[::1], f8[::1], f8[::1], f8[::1], f8[::1], f8[::1])",
+    nopython=True,
+    nogil=True,
+    cache=True,
+)
+def param_update_inplace_em(
+    params: npt.NDArray[np.float64],
+    m_t_given_tMinus1: npt.NDArray[np.float64],
+    Q_t_given_tMinus1: npt.NDArray[np.float64],
+    m_t_given_t: npt.NDArray[np.float64],
+    Q_t_given_t: npt.NDArray[np.float64],
+    m_t_given_T: npt.NDArray[np.float64],
+    Q_t_given_T: npt.NDArray[np.float64],
+    y: npt.NDArray[np.float64],
+) -> None:
+    size = y.size
+    φ_old = params[2]
+
+    # σ_ε_sq
+    σ_ε_sq = params[0]
+    _sum = 0.0
+    for s in range(size):
+        y_s = y[s]
+        Q_s_given_T = Q_t_given_T[s]
+        m_s_given_T = m_t_given_T[s]
+
+        # missing at random
+        if np.isnan(y_s):
+            _sum += σ_ε_sq
+        else:
+            temp = y_s - m_s_given_T
+            _sum += Q_s_given_T + temp * temp
+    params[0] = _sum / size
+
+    # φ
+    params[2] = (
+        φ_old * (Q_t_given_T[1:] * Q_t_given_t[:-1] / Q_t_given_tMinus1[1:]).sum()
+        + (m_t_given_T[1:] * m_t_given_T[:-1]).sum()
+    ) / (Q_t_given_T[:-1] + np.square(m_t_given_T[:-1])).sum()
+    φ = params[2]
+    φ_sq = φ * φ
+
+    # σ_Z_sq
+    # if nan is at the beginning of y, and Γ_0 = ∞,
+    # then Q_t_given_t[:-1], Q_t_given_tMinus1[1:] can have infinities in the beginning,
+    # as the missing at random assumption will propagate the infinity there.
+    # in that case there will be a nan and we simply discard it as no information there.
+    params[1] = np.nanmean(
+        φ_sq * Q_t_given_T[:-1]
+        + Q_t_given_T[1:] * (1.0 - 2.0 * φ * φ_old * (Q_t_given_t[:-1] / Q_t_given_tMinus1[1:]))
+        + np.square(m_t_given_T[1:] - φ * m_t_given_T[:-1])
+    )

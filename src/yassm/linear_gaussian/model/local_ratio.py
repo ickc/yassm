@@ -1,20 +1,21 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from functools import cached_property
 from typing import TYPE_CHECKING
 
 from ...lib.linear_gaussian.model.local_ratio import forecast as _forecast
 from ...lib.linear_gaussian.model.local_ratio import kalman_filtering as _kalman_filtering
 from ...lib.linear_gaussian.model.local_ratio import kalman_smoothing as _kalman_smoothing
 from ...lib.linear_gaussian.model.local_ratio import smoothed_state_to_obs as _smoothed_state_to_obs
-from .. import GenericLinearGaussianStateSpaceModel
+from .local_level import LocalLevelModel
 
 if TYPE_CHECKING:
-    from .. import Forecast, KalmanFiltering, KalmanSmoothing, SmoothedStateToObs
+    from .. import Forecast, KalmanFiltering, KalmanSmoothing, Mle, SmoothedStateToObs
 
 
 @dataclass
-class LocalRatioModel(GenericLinearGaussianStateSpaceModel):
+class LocalRatioModel(LocalLevelModel):
     """Local ratio model."""
 
     N: int = 3
@@ -40,6 +41,39 @@ class LocalRatioModel(GenericLinearGaussianStateSpaceModel):
     @property
     def forecast(self) -> Forecast:
         return _forecast
+
+    @cached_property
+    def mle_gradient(self) -> Mle:
+        from ...lib.linear_gaussian.model.local_ratio import (
+            _kalman_filtering_1d_inplace,
+            _kalman_smoothing_1d_inplace,
+            param_update_inplace_gradient,
+        )
+
+        # now we can cache this
+        return self.get_mle_func(
+            _kalman_filtering_1d_inplace, _kalman_smoothing_1d_inplace, param_update_inplace_gradient
+        )
+
+    @cached_property
+    def mle_em(self) -> Mle:
+        from ...lib.linear_gaussian.model.local_ratio import (
+            _kalman_filtering_1d_inplace,
+            _kalman_smoothing_1d_inplace,
+            param_update_inplace_em,
+        )
+
+        # now we can cache this
+        return self.get_mle_func(_kalman_filtering_1d_inplace, _kalman_smoothing_1d_inplace, param_update_inplace_em)
+
+    def mle(self, method: str = "gradient") -> Mle:
+        method_lower = method.lower()
+        if method_lower == "gradient":
+            return self.mle_gradient
+        elif method_lower == "em":
+            return self.mle_em
+        else:
+            raise ValueError
 
 
 local_ratio_model = LocalRatioModel()
