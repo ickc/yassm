@@ -102,8 +102,9 @@ class LocalLevelModel(GenericLinearGaussianStateSpaceModel):
             Γ_0 = Γ_0_2d[0, 0]
 
             size = y.size
+            N = params0.size
 
-            chain = np.empty((n_iter + 1 if return_chain else 0, 2))
+            chain = np.empty((n_iter + 1 if return_chain else 0, N))
 
             # initialize & memalloc
             params = params0.copy()
