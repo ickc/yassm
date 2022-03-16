@@ -57,3 +57,28 @@ def one_step_ahead_inplace(
             p_s_given_t[g] += transition_func(x, x_p, params) * p_sMinus1_given_t[g_p]
     # normalize
     p_s_given_t /= p_s_given_t.sum()
+
+
+@jit(nopython=True, nogil=True, cache=False, parallel=True)
+def filter_update_inplace(
+    p_t_given_t: npt.NDArray[np.float64],
+    y_t: float,
+    params: npt.NDArray[np.float64],
+    design_func: Callable[[float, float, npt.NDArray[np.float64]], float],
+    grid_to_position: Callable[[float], float],
+    p_t_given_tMinus1: npt.NDArray[np.float64],
+) -> None:
+    """Filter update inplace.
+
+    :param p_t_given_t: output array, must be intialized with zeros.
+    :param design_func: a function of (y_t, x_t, params) returning the
+        density at y_t given X_t = x_t.
+    :param grid_to_position: a function from grid index to grid position.
+    """
+    G = p_t_given_tMinus1.size
+
+    for g in range(G):
+        x = grid_to_position(g)
+        p_t_given_t[g] = design_func(y_t, x, params) * p_t_given_tMinus1[g]
+    # normalize
+    p_t_given_t /= p_t_given_t.sum()
