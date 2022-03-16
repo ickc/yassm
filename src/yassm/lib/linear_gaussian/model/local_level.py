@@ -103,10 +103,10 @@ def smoothing_backward_recursion(
     cache=True,
 )
 def _kalman_filtering_1d_inplace(
-    m_t_given_tMinus1,
-    Q_t_given_tMinus1,
-    m_t_given_t,
-    Q_t_given_t,
+    m_t_given_tMinus1: npt.NDArray[np.float64],
+    Q_t_given_tMinus1: npt.NDArray[np.float64],
+    m_t_given_t: npt.NDArray[np.float64],
+    Q_t_given_t: npt.NDArray[np.float64],
     y: npt.NDArray[np.float64],
     params: npt.NDArray[np.float64],
     μ_0: float,

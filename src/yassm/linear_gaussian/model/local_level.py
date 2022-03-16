@@ -15,9 +15,35 @@ from ...lib.linear_gaussian.model.local_level import smoothed_state_to_obs as _s
 from .. import GenericLinearGaussianStateSpaceModel
 
 if TYPE_CHECKING:
+    from typing import Callable
+
     import numpy.typing as npt
 
     from .. import Forecast, KalmanFiltering, KalmanSmoothing, Mle, ParamUpdateInplace, SmoothedStateToObs
+
+    KalmanFilteringInplace1D = Callable[
+        [
+            npt.NDArray[np.float64],
+            npt.NDArray[np.float64],
+            npt.NDArray[np.float64],
+            npt.NDArray[np.float64],
+            npt.NDArray[np.float64],
+            npt.NDArray[np.float64],
+            float,
+            float,
+        ],
+        None,
+    ]
+    KalmanSmoothingInplace1D = Callable[
+        [
+            npt.NDArray[np.float64],
+            npt.NDArray[np.float64],
+            npt.NDArray[np.float64],
+            npt.NDArray[np.float64],
+            npt.NDArray[np.float64],
+        ],
+        None,
+    ]
 
 logger = getLogger(__name__)
 
@@ -52,8 +78,8 @@ class LocalLevelModel(GenericLinearGaussianStateSpaceModel):
 
     def get_mle_func(
         self,
-        _kalman_filtering_1d_inplace: KalmanFiltering,
-        _kalman_smoothing_1d_inplace: KalmanSmoothing,
+        _kalman_filtering_1d_inplace: KalmanFilteringInplace1D,
+        _kalman_smoothing_1d_inplace: KalmanSmoothingInplace1D,
         param_update_inplace: ParamUpdateInplace,
     ) -> Mle:
         @jit(
@@ -137,7 +163,7 @@ class LocalLevelModel(GenericLinearGaussianStateSpaceModel):
         # now we can cache this
         return self.get_mle_func(_kalman_filtering_1d_inplace, _kalman_smoothing_1d_inplace, param_update_inplace_em)
 
-    def mle(self, method: str) -> Mle:
+    def mle(self, method: str = "gradient") -> Mle:
         method_lower = method.lower()
         if method_lower != "em":
             logger.warning("The only implemented MLE method is EM for local level model. Using EM...")

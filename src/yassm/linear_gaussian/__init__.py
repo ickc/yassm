@@ -576,7 +576,7 @@ class GenericLinearGaussianStateSpaceModel:
     def forecast(self) -> Forecast:
         raise NotImplementedError
 
-    def mle(self, method="gradient") -> Mle:
+    def mle(self, method: str = "gradient") -> Mle:
         raise NotImplementedError
 
     def fit(
