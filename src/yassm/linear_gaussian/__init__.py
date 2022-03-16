@@ -145,6 +145,7 @@ class GeneralLinearGaussianStateSpaceModelFit:
     :param params: parameters of the model
     :param μ_0: mean of X0
     :param Γ_0: covariance of X0
+    :param mle_method: method used to estimate MLE
     :param mle_n_iter: number of iteration run with MLE
     :param mle_return_chain: if True, return the chain of parameters during MLE
     :param t: optional time axis
@@ -584,6 +585,7 @@ class GenericLinearGaussianStateSpaceModel:
         params: npt.ArrayLike,
         μ_0: npt.ArrayLike,
         Γ_0: npt.ArrayLike,
+        mle_method: str = "gradient",
         mle_n_iter: int = 0,
         mle_return_chain: bool = False,
         t: npt.NDArray[Any] | None = None,
@@ -591,14 +593,15 @@ class GenericLinearGaussianStateSpaceModel:
     ) -> GeneralLinearGaussianStateSpaceModelFit:
         """Return a GeneralLinearGaussianStateSpaceModelFit instance.
 
-        :param y: observed data (Y)
-        :param params: parameters of the model
-        :param μ_0: mean of X0
-        :param Γ_0: covariance of X0
-        :param mle_n_iter: number of iteration run with MLE
-        :param mle_return_chain: if True, return the chain of parameters during MLE
-        :param t: optional time axis
-        :param param_names: optional names of parameters
+            :param y: observed data (Y)
+            :param params: parameters of the model
+            :param μ_0: mean of X0
+            :param Γ_0: covariance of X0
+        :param mle_method: method used to estimate MLE
+            :param mle_n_iter: number of iteration run with MLE
+            :param mle_return_chain: if True, return the chain of parameters during MLE
+            :param t: optional time axis
+            :param param_names: optional names of parameters
         """
         return GeneralLinearGaussianStateSpaceModelFit(
             self,
@@ -606,6 +609,7 @@ class GenericLinearGaussianStateSpaceModel:
             params,
             μ_0,
             Γ_0,
+            mle_method=mle_method,
             mle_n_iter=mle_n_iter,
             mle_return_chain=mle_return_chain,
             t=t,
