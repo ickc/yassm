@@ -330,84 +330,45 @@ def forecast(
 
 
 @jit(
-    "Tuple((f8[::1], f8[:, ::1]))(f8[:, ::1], f8[::1], f8[::1], f8[:, ::1], i8, b1)",
+    "(f8[::1], f8[::1], f8[::1], f8[::1], f8[::1], f8[::1], f8[::1], f8[::1])",
     nopython=True,
     nogil=True,
     cache=True,
 )
-def mle(
-    y_2d: npt.NDArray[np.float64],
-    params0: npt.NDArray[np.float64],
-    μ_0_1d: npt.NDArray[np.float64],
-    Γ_0_2d: npt.NDArray[np.float64],
-    n_iter: int,
-    return_chain: bool,
-) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]]:
-    # to 1d
-    y = y_2d.flatten()
-    μ_0 = μ_0_1d[0]
-    Γ_0 = Γ_0_2d[0, 0]
-
+def param_update_inplace_em(
+    params: npt.NDArray[np.float64],
+    m_t_given_tMinus1: npt.NDArray[np.float64],
+    Q_t_given_tMinus1: npt.NDArray[np.float64],
+    m_t_given_t: npt.NDArray[np.float64],
+    Q_t_given_t: npt.NDArray[np.float64],
+    m_t_given_T: npt.NDArray[np.float64],
+    Q_t_given_T: npt.NDArray[np.float64],
+    y: npt.NDArray[np.float64],
+) -> None:
     size = y.size
     size_inv = 1.0 / size
 
-    chain = np.empty((n_iter + 1 if return_chain else 0, 2))
+    σ_ε_sq = params[0]
+    _sum = 0.0
+    for s in range(size):
+        y_s = y[s]
+        Q_s_given_T = Q_t_given_T[s]
+        m_s_given_T = m_t_given_T[s]
 
-    # initialize & memalloc
-    params = params0.copy()
-    if return_chain:
-        chain[0] = params0
-    temp = np.empty((6, size))
-    m_t_given_tMinus1 = temp[0]
-    Q_t_given_tMinus1 = temp[1]
-    m_t_given_t = temp[2]
-    Q_t_given_t = temp[3]
-    m_t_given_T = temp[4]
-    Q_t_given_T = temp[5]
+        # missing at random
+        if np.isnan(y_s):
+            _sum += σ_ε_sq
+        else:
+            temp = y_s - m_s_given_T
+            _sum += Q_s_given_T + temp * temp
+    params[0] = _sum * size_inv
 
-    for i in range(1, n_iter + 1):
-        _kalman_filtering_1d_inplace(
-            m_t_given_tMinus1,
-            Q_t_given_tMinus1,
-            m_t_given_t,
-            Q_t_given_t,
-            y,
-            params,
-            μ_0,
-            Γ_0,
-        )
-        _kalman_smoothing_1d_inplace(
-            m_t_given_T,
-            Q_t_given_T,
-            params,
-            m_t_given_t,
-            Q_t_given_t,
-        )
-
-        σ_ε_sq = params[0]
-        _sum = 0.0
-        for s in range(size):
-            y_s = y[s]
-            Q_s_given_T = Q_t_given_T[s]
-            m_s_given_T = m_t_given_T[s]
-
-            # missing at random
-            if np.isnan(y_s):
-                _sum += σ_ε_sq
-            else:
-                temp = y_s - m_s_given_T
-                _sum += Q_s_given_T + temp * temp
-        params[0] = _sum * size_inv
-
-        # if nan is at the beginning of y, and Γ_0 = ∞,
-        # then Q_t_given_t[:-1], Q_t_given_tMinus1[1:] can have infinities in the beginning,
-        # as the missing at random assumption will propagate the infinity there.
-        # in that case there will be a nan and we simply discard it as no information there.
-        params[1] = np.nanmean(
-            Q_t_given_T[:-1]
-            + Q_t_given_T[1:] * (1.0 - 2.0 * (Q_t_given_t[:-1] / Q_t_given_tMinus1[1:]))
-            + np.square(m_t_given_T[1:] - m_t_given_T[:-1])
-        )
-        if return_chain:
-            chain[i] = params
-    return params, chain
+    # if nan is at the beginning of y, and Γ_0 = ∞,
+    # then Q_t_given_t[:-1], Q_t_given_tMinus1[1:] can have infinities in the beginning,
+    # as the missing at random assumption will propagate the infinity there.
+    # in that case there will be a nan and we simply discard it as no information there.
+    params[1] = np.nanmean(
+        Q_t_given_T[:-1]
+        + Q_t_given_T[1:] * (1.0 - 2.0 * (Q_t_given_t[:-1] / Q_t_given_tMinus1[1:]))
+        + np.square(m_t_given_T[1:] - m_t_given_T[:-1])
+    )

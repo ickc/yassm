@@ -105,6 +105,19 @@ if TYPE_CHECKING:
             npt.NDArray[np.float64],
         ],
     ]
+    ParamUpdateInplace = Callable[
+        [
+            npt.NDArray[np.float64],
+            npt.NDArray[np.float64],
+            npt.NDArray[np.float64],
+            npt.NDArray[np.float64],
+            npt.NDArray[np.float64],
+            npt.NDArray[np.float64],
+            npt.NDArray[np.float64],
+            npt.NDArray[np.float64],
+        ],
+        None,
+    ]
     Mle = Callable[
         [
             npt.NDArray[np.float64],  # y
