@@ -28,6 +28,19 @@ if TYPE_CHECKING:
     import matplotlib as mpl
     import numpy.typing as npt
 
+    KalmanFilteringInplace = Callable[
+        [
+            npt.NDArray[np.float64],
+            npt.NDArray[np.float64],
+            npt.NDArray[np.float64],
+            npt.NDArray[np.float64],
+            npt.NDArray[np.float64],
+            npt.NDArray[np.float64],
+            npt.NDArray[np.float64],
+            npt.NDArray[np.float64],
+        ],
+        None,
+    ]
     KalmanFiltering = Callable[
         [
             npt.NDArray[np.float64],
@@ -505,6 +518,13 @@ class GenericLinearGaussianStateSpaceModel:
         raise NotImplementedError
 
     @property
+    def kalman_filtering_inplace(self) -> KalmanFilteringInplace:
+        """
+        Remember to write your `filter_update_inplace` to handle nan indicating missing at random.
+        """
+        raise NotImplementedError
+
+    @property
     def kalman_filtering(self) -> KalmanFiltering:
         """
         Remember to write your `filter_update_inplace` to handle nan indicating missing at random.
@@ -624,7 +644,7 @@ class GeneralLinearGaussianStateSpaceModel(GenericLinearGaussianStateSpaceModel)
         del params
 
     @cached_property
-    def kalman_filtering(self) -> KalmanFiltering:
+    def kalman_filtering_inplace(self) -> KalmanFilteringInplace:
         A0 = self.A0
         B0 = self.B0
         Σ0 = self.Σ0
@@ -633,15 +653,18 @@ class GeneralLinearGaussianStateSpaceModel(GenericLinearGaussianStateSpaceModel)
         B = self.B
         Σ = self.Σ
         R = self.R
-        d = self.d
 
         @jit(
-            "Tuple((f8[:, ::1], f8[:, :, ::1], f8[:, ::1], f8[:, :, ::1]))(f8[:, ::1], f8[::1], f8[::1], f8[:, ::1])",
+            "(f8[:, ::1], f8[:, :, ::1], f8[:, ::1], f8[:, :, ::1], f8[:, ::1], f8[::1], f8[::1], f8[:, ::1])",
             nopython=True,
             nogil=True,
             cache=False,
         )
-        def kalman_filtering(
+        def kalman_filtering_inplace(
+            m_t_given_tMinus1: npt.NDArray[np.float64],
+            Q_t_given_tMinus1: npt.NDArray[np.float64],
+            m_t_given_t: npt.NDArray[np.float64],
+            Q_t_given_t: npt.NDArray[np.float64],
             y: npt.NDArray[np.float64],
             params: npt.NDArray[np.float64],
             μ_0: npt.NDArray[np.float64],
@@ -649,17 +672,14 @@ class GeneralLinearGaussianStateSpaceModel(GenericLinearGaussianStateSpaceModel)
         ) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64], npt.NDArray[np.float64], npt.NDArray[np.float64]]:
             """Kalman filtering.
 
+            :param m_t_given_tMinus1: output array.
+            :param Q_t_given_tMinus1: output array.
+            :param m_t_given_t: output array.
+            :param Q_t_given_t: output array.
             :param params: paramters of the model, θ.
-            :return: m_t_given_tMinus1, Q_t_given_tMinus1, m_t_given_t, Q_t_given_t
             """
             size = y.shape[0]
 
-            # memalloc
-            temp = np.empty(2 * size * d * (d + 1))
-            m_t_given_tMinus1 = temp[: size * d].reshape((size, d))
-            Q_t_given_tMinus1 = temp[size * d : size * d * (d + 1)].reshape((size, d, d))
-            m_t_given_t = temp[size * d * (d + 1) : size * d * (d + 2)].reshape((size, d))
-            Q_t_given_t = temp[size * d * (d + 2) :].reshape((size, d, d))
             A_t = A0(params)
             B_t = B0(params)
             Σ_t = Σ0(params)
@@ -714,6 +734,50 @@ class GeneralLinearGaussianStateSpaceModel(GenericLinearGaussianStateSpaceModel)
                     m_t_given_tMinus1[t],
                     Q_t_given_tMinus1[t],
                 )
+            return m_t_given_tMinus1, Q_t_given_tMinus1, m_t_given_t, Q_t_given_t
+
+        return kalman_filtering_inplace
+
+    @cached_property
+    def kalman_filtering(self) -> KalmanFiltering:
+        d = self.d
+        kalman_filtering_inplace = self.kalman_filtering_inplace
+
+        @jit(
+            "Tuple((f8[:, ::1], f8[:, :, ::1], f8[:, ::1], f8[:, :, ::1]))(f8[:, ::1], f8[::1], f8[::1], f8[:, ::1])",
+            nopython=True,
+            nogil=True,
+            cache=False,
+        )
+        def kalman_filtering(
+            y: npt.NDArray[np.float64],
+            params: npt.NDArray[np.float64],
+            μ_0: npt.NDArray[np.float64],
+            Γ_0: npt.NDArray[np.float64],
+        ) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64], npt.NDArray[np.float64], npt.NDArray[np.float64]]:
+            """Kalman filtering.
+            :param params: paramters of the model, θ.
+            :return: m_t_given_tMinus1, Q_t_given_tMinus1, m_t_given_t, Q_t_given_t
+            """
+            size = y.shape[0]
+
+            # memalloc
+            temp = np.empty(2 * size * d * (d + 1))
+            m_t_given_tMinus1 = temp[: size * d].reshape((size, d))
+            Q_t_given_tMinus1 = temp[size * d : size * d * (d + 1)].reshape((size, d, d))
+            m_t_given_t = temp[size * d * (d + 1) : size * d * (d + 2)].reshape((size, d))
+            Q_t_given_t = temp[size * d * (d + 2) :].reshape((size, d, d))
+
+            kalman_filtering_inplace(
+                m_t_given_tMinus1,
+                Q_t_given_tMinus1,
+                m_t_given_t,
+                Q_t_given_t,
+                y,
+                params,
+                μ_0,
+                Γ_0,
+            )
             return m_t_given_tMinus1, Q_t_given_tMinus1, m_t_given_t, Q_t_given_t
 
         return kalman_filtering
