@@ -42,8 +42,7 @@ class LocalLevelModel(GenericLinearGaussianStateSpaceModel):
     def forecast(self) -> Forecast:
         return _forecast
 
-    @property
-    def mle(self) -> Mle:
+    def mle(self, method: str) -> Mle:
         return _mle
 
 

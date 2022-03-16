@@ -143,6 +143,7 @@ class GeneralLinearGaussianStateSpaceModelFit:
     _params: npt.ArrayLike
     _μ_0: npt.ArrayLike
     _Γ_0: npt.ArrayLike
+    mle_method: str = "gradient"
     mle_n_iter: int = 0
     mle_return_chain: bool = False
     t: npt.NDArray[Any] | None = None
@@ -194,7 +195,9 @@ class GeneralLinearGaussianStateSpaceModelFit:
             param_names = [f"param_{i}" for i in range(N)]
 
         if mle_n_iter:
-            self.params, self.mle_params_chain = self.parent.mle(y, params, μ_0, Γ_0, mle_n_iter, mle_return_chain)
+            self.params, self.mle_params_chain = self.parent.mle(self.mle_method)(
+                y, params, μ_0, Γ_0, mle_n_iter, mle_return_chain
+            )
 
     # defaults
 
@@ -559,8 +562,7 @@ class GenericLinearGaussianStateSpaceModel:
     def forecast(self) -> Forecast:
         raise NotImplementedError
 
-    @property
-    def mle(self) -> Mle:
+    def mle(self, method="gradient") -> Mle:
         raise NotImplementedError
 
     def fit(
