@@ -55,6 +55,18 @@ if TYPE_CHECKING:
             npt.NDArray[np.float64],
         ],
     ]
+    KalmanSmoothingInplace = Callable[
+        [
+            npt.NDArray[np.float64],
+            npt.NDArray[np.float64],
+            npt.NDArray[np.float64],
+            npt.NDArray[np.float64],
+            npt.NDArray[np.float64],
+            npt.NDArray[np.float64],
+            npt.NDArray[np.float64],
+        ],
+        None,
+    ]
     KalmanSmoothing = Callable[
         [
             npt.NDArray[np.float64],
@@ -532,6 +544,10 @@ class GenericLinearGaussianStateSpaceModel:
         raise NotImplementedError
 
     @property
+    def kalman_smoothing_inplace(self) -> KalmanSmoothingInplace:
+        raise NotImplementedError
+
+    @property
     def kalman_smoothing(self) -> KalmanSmoothing:
         raise NotImplementedError
 
@@ -783,31 +799,29 @@ class GeneralLinearGaussianStateSpaceModel(GenericLinearGaussianStateSpaceModel)
         return kalman_filtering
 
     @cached_property
-    def kalman_smoothing(self) -> KalmanSmoothing:
+    def kalman_smoothing_inplace(self) -> KalmanSmoothingInplace:
         A0 = self.A0
         A = self.A
-        d = self.d
 
         @jit(
-            "Tuple((f8[:, ::1], f8[:, :, ::1]))(f8[::1], f8[:, ::1], f8[:, :, ::1], f8[:, ::1], f8[:, :, ::1])",
+            "(f8[:, ::1], f8[:, :, ::1], f8[::1], f8[:, ::1], f8[:, :, ::1], f8[:, ::1], f8[:, :, ::1])",
             nopython=True,
             nogil=True,
             cache=False,
         )
-        def kalman_smoothing(
+        def kalman_smoothing_inplace(
+            m_t_given_T: npt.NDArray[np.float64],
+            Q_t_given_T: npt.NDArray[np.float64],
             params: npt.NDArray[np.float64],
             m_t_given_tMinus1: npt.NDArray[np.float64],
             Q_t_given_tMinus1: npt.NDArray[np.float64],
             m_t_given_t: npt.NDArray[np.float64],
             Q_t_given_t: npt.NDArray[np.float64],
-        ) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]]:
+        ) -> None:
             size = m_t_given_t.shape[0]
             T = size - 1
 
             # memalloc
-            temp = np.empty(size * d * (d + 1))
-            m_t_given_T = temp[: size * d].reshape((size, d))
-            Q_t_given_T = temp[size * d : size * d * (d + 1)].reshape((size, d, d))
             A_sPlus1 = A0(params)
 
             # initialize
@@ -831,6 +845,43 @@ class GeneralLinearGaussianStateSpaceModel(GenericLinearGaussianStateSpaceModel)
                     m_t_given_tMinus1[sPlus1],
                     Q_t_given_tMinus1[sPlus1],
                 )
+
+        return kalman_smoothing_inplace
+
+    @cached_property
+    def kalman_smoothing(self) -> KalmanSmoothing:
+        kalman_smoothing_inplace = self.kalman_smoothing_inplace
+        d = self.d
+
+        @jit(
+            "Tuple((f8[:, ::1], f8[:, :, ::1]))(f8[::1], f8[:, ::1], f8[:, :, ::1], f8[:, ::1], f8[:, :, ::1])",
+            nopython=True,
+            nogil=True,
+            cache=False,
+        )
+        def kalman_smoothing(
+            params: npt.NDArray[np.float64],
+            m_t_given_tMinus1: npt.NDArray[np.float64],
+            Q_t_given_tMinus1: npt.NDArray[np.float64],
+            m_t_given_t: npt.NDArray[np.float64],
+            Q_t_given_t: npt.NDArray[np.float64],
+        ) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]]:
+            size = m_t_given_t.shape[0]
+
+            # memalloc
+            temp = np.empty(size * d * (d + 1))
+            m_t_given_T = temp[: size * d].reshape((size, d))
+            Q_t_given_T = temp[size * d : size * d * (d + 1)].reshape((size, d, d))
+
+            kalman_smoothing_inplace(
+                m_t_given_T,
+                Q_t_given_T,
+                params,
+                m_t_given_tMinus1,
+                Q_t_given_tMinus1,
+                m_t_given_t,
+                Q_t_given_t,
+            )
             return m_t_given_T, Q_t_given_T
 
         return kalman_smoothing
