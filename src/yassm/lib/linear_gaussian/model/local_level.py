@@ -346,7 +346,6 @@ def param_update_inplace_em(
     y: npt.NDArray[np.float64],
 ) -> None:
     size = y.size
-    size_inv = 1.0 / size
 
     σ_ε_sq = params[0]
     _sum = 0.0
@@ -361,7 +360,7 @@ def param_update_inplace_em(
         else:
             temp = y_s - m_s_given_T
             _sum += Q_s_given_T + temp * temp
-    params[0] = _sum * size_inv
+    params[0] = _sum / size
 
     # if nan is at the beginning of y, and Γ_0 = ∞,
     # then Q_t_given_t[:-1], Q_t_given_tMinus1[1:] can have infinities in the beginning,
