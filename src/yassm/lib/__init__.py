@@ -53,5 +53,4 @@ def normal_1d(
     μ: float | npt.NDArray[np.float64],
     Σ: float | npt.NDArray[np.float64],
 ) -> npt.NDArray[np.float64]:
-    res = x - μ
-    return np.sqrt(2.0 * np.pi * Σ) * np.exp(-0.5 * (np.square(res) / Σ))
+    return np.exp(-0.5 * (np.square(x - μ) / Σ)) / np.sqrt(2.0 * np.pi * Σ)
