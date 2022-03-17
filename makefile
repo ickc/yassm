@@ -7,7 +7,7 @@ PYTESTARGS ?= -n auto
 
 PANDOC = pandoc
 pandocArgs = --toc -M date="`date "+%B %e, %Y"`" --wrap=none
-RSTs = CHANGELOG.rst README.rst docs/example-output.rst
+RSTs = CHANGELOG.rst README.rst
 
 # Main Targets #################################################################
 
