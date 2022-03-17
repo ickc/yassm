@@ -910,13 +910,10 @@ class GeneralLinearGaussianStateSpaceModel(GenericLinearGaussianStateSpaceModel)
 
     @cached_property
     def smoothed_state_to_obs(self) -> SmoothedStateToObs:
-        use_B_forcast = self.B0_forecast is not None
-        if use_B_forcast:
-            B0 = self.B0_forecast
-            B = self.B_forecast
-        else:
-            B0 = self.B0
-            B = self.B
+        B0 = self.B0
+        B = self.B
+        B0_forecast = self.B0_forecast
+        B_forecast = self.B_forecast
         R0 = self.R0
         R = self.R
         n = self.n
@@ -938,6 +935,7 @@ class GeneralLinearGaussianStateSpaceModel(GenericLinearGaussianStateSpaceModel)
 
             # memalloc
             B_t = B0(params)
+            B_t_forecast = B_t if B0_forecast is None else B0_forecast(params)
             temp = np.empty(size * n * (n + 1))
             smoothed_obs = temp[: size * n].reshape((size, n))
             smoothed_obs_cov = temp[size * n : size * n * (n + 1)].reshape((size, n, n))
@@ -947,12 +945,15 @@ class GeneralLinearGaussianStateSpaceModel(GenericLinearGaussianStateSpaceModel)
             for t in range(size):
                 if B is not None:
                     B(B_t, params, t0 + t)
+                if B0_forecast is not None and B_forecast is not None:
+                    B_forecast(B_t_forecast, params, t0 + t)
                 if with_obs_cov and R is not None:
                     R(R_t, params, t0 + t)
-                smoothed_obs[t] = B_t @ m_t[t]
-                smoothed_obs_cov[t] = B_t @ Q_t[t] @ B_t.transpose()
+                smoothed_obs[t] = B_t_forecast @ m_t[t]
                 if with_obs_cov:
-                    smoothed_obs_cov[t] += R_t
+                    smoothed_obs_cov[t] = B_t @ Q_t[t] @ B_t.transpose() + R_t
+                else:
+                    smoothed_obs_cov[t] = B_t_forecast @ Q_t[t] @ B_t_forecast.transpose()
             return smoothed_obs, smoothed_obs_cov
 
         return smoothed_state_to_obs
