@@ -42,7 +42,7 @@ def one_step_ahead_inplace(
     p_s_given_t: npt.NDArray[np.float64],
     params: npt.NDArray[np.float64],
     transition_func: Callable[[float, float, npt.NDArray[np.float64]], float],
-    grid_to_position: Callable[[float], float],
+    grid_to_position: Callable[[int], float],
     p_sMinus1_given_t: npt.NDArray[np.float64],
 ) -> None:
     """One-step ahead prediction inplace.
@@ -71,7 +71,7 @@ def filter_update_inplace(
     y_t: float,
     params: npt.NDArray[np.float64],
     design_func: Callable[[float, float, npt.NDArray[np.float64]], float],
-    grid_to_position: Callable[[float], float],
+    grid_to_position: Callable[[int], float],
     p_t_given_tMinus1: npt.NDArray[np.float64],
 ) -> None:
     """Filter update inplace.
@@ -95,7 +95,7 @@ def smoothing_backward_recursion_inplace(
     p_s_given_t: npt.NDArray[np.float64],
     params: npt.NDArray[np.float64],
     transition_func: Callable[[float, float, npt.NDArray[np.float64]], float],
-    grid_to_position: Callable[[float], float],
+    grid_to_position: Callable[[int], float],
     p_s_given_s: npt.NDArray[np.float64],
     p_sPlus1_given_t: npt.NDArray[np.float64],
     p_sPlus1_given_s: npt.NDArray[np.float64],
