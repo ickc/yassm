@@ -15,8 +15,8 @@ from ..lib.grid.one_dimension import (
     filter_update_inplace,
     get_grid_to_position,
     one_step_ahead_inplace,
-    smoothing_backward_recursion_inplace,
     ps_to_mQ,
+    smoothing_backward_recursion_inplace,
 )
 
 if TYPE_CHECKING:
@@ -56,10 +56,7 @@ class General1DStateSpaceModelFit:
 
     def _run_kalman_filtering(self) -> None:
         logger.info("Running kalman filtering...")
-        (
-            self._p_t_given_tMinus1,
-            self._p_t_given_t,
-        ) = self.parent.kalman_filtering(
+        (self._p_t_given_tMinus1, self._p_t_given_t,) = self.parent.kalman_filtering(
             self.y,
             self.params,
             self.p_0,
@@ -109,6 +106,7 @@ class General1DStateSpaceModelFit:
         if not hasattr(self, "_Q_t_given_T"):
             self._run_p_t_given_T_to_mQ()
         return self._Q_t_given_T
+
 
 @dataclass
 class General1DStateSpaceModel:
