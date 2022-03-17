@@ -37,6 +37,33 @@ def get_grid_to_position(
     return grid_to_position
 
 
+@jit("(f8[::1], f8[::1], f8[::1])", nopython=True, nogil=True, cache=True)
+def p_to_mQ_inplace(
+    mQ: npt.NDArray[np.float64],
+    p: npt.NDArray[np.float64],
+    x: npt.NDArray[np.float64],
+):
+    m = (p * x).sum()
+    mQ[0] = m
+    mQ[1] = (p * np.square(x - m)).sum()
+
+
+@jit("f8[:, ::1](f8[:, ::1], f8[::1])", nopython=True, nogil=True, cache=True, parallel=True)
+def ps_to_mQ(
+    ps: npt.NDArray[np.float64],
+    x: npt.NDArray[np.float64],
+) -> npt.NDArray[np.float64]:
+    size, Q = ps.shape
+    mQs = np.empty((size, 2))
+    for t in prange(size):
+        p_to_mQ_inplace(
+            mQs[t],
+            ps[t],
+            x,
+        )
+    return mQs
+
+
 @jit(nopython=True, nogil=True, cache=False, parallel=True)
 def one_step_ahead_inplace(
     p_s_given_t: npt.NDArray[np.float64],
