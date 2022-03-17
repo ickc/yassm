@@ -90,6 +90,23 @@ class General1DStateSpaceModelFit:
             self._run_kalman_smoothing()
         return self._p_t_given_T
 
+    def _run_p_t_given_t_to_mQ(self):
+        mQs = ps_to_mQ(self.p_t_given_t, self.x_array)
+        self._m_t_given_t = np.ascontiguousarray(mQs[:, 0])
+        self._Q_t_given_t = np.ascontiguousarray(mQs[:, 1])
+
+    @property
+    def m_t_given_t(self) -> npt.NDArray[np.float64]:
+        if not hasattr(self, "_m_t_given_t"):
+            self._run_p_t_given_t_to_mQ()
+        return self._m_t_given_t
+
+    @property
+    def Q_t_given_t(self) -> npt.NDArray[np.float64]:
+        if not hasattr(self, "_Q_t_given_t"):
+            self._run_p_t_given_t_to_mQ()
+        return self._Q_t_given_t
+
     def _run_p_t_given_T_to_mQ(self):
         mQs = ps_to_mQ(self.p_t_given_T, self.x_array)
         self._m_t_given_T = np.ascontiguousarray(mQs[:, 0])
