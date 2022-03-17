@@ -87,3 +87,12 @@ mathjax3_config = {
 apidoc_module_dir = "../src/yassm"
 apidoc_separate_modules = True
 apidoc_module_first = True
+
+# LaTeX
+latex_engine = "lualatex"
+latex_elements = {
+    "preamble": "\\usepackage{unicode-math}\n",
+}
+autodoc_default_options = {"members": True, "undoc-members": True, "private-members": True}
+
+viewcode_enable_epub = True
