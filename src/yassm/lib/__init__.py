@@ -1,12 +1,16 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, overload
 
 import numpy as np
 from numba import jit, vectorize
 
 if TYPE_CHECKING:
+    from typing import TypeVar
+
     import numpy.typing as npt
+
+    FloatMaybeArray = TypeVar("FloatMaybeArray", float, npt.NDArray[np.float64])
 
 
 @jit(
@@ -25,11 +29,29 @@ def sqrt_diag(array: npt.NDArray[np.float64]) -> npt.NDArray[np.float64]:
     return res
 
 
+@overload
+def normal_1d(  # type: ignore[misc]
+    x: float,
+    μ: float,
+    Σ: float,
+) -> float:
+    ...
+
+
+@overload
+def normal_1d(
+    x: float | npt.NDArray[np.float64],
+    μ: float | npt.NDArray[np.float64],
+    Σ: float | npt.NDArray[np.float64],
+) -> npt.NDArray[np.float64]:
+    ...
+
+
 @vectorize("f8(f8, f8, f8)")
 def normal_1d(
-    x: npt.NDArray[np.float64],
-    μ: npt.NDArray[np.float64],
-    Σ: npt.NDArray[np.float64],
+    x: float | npt.NDArray[np.float64],
+    μ: float | npt.NDArray[np.float64],
+    Σ: float | npt.NDArray[np.float64],
 ) -> npt.NDArray[np.float64]:
     res = x - μ
     return np.sqrt(2.0 * np.pi * Σ) * np.exp(-0.5 * (np.square(res) / Σ))
