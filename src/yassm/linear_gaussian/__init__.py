@@ -704,7 +704,7 @@ class GeneralLinearGaussianStateSpaceModel(GenericLinearGaussianStateSpaceModel)
             params: npt.NDArray[np.float64],
             μ_0: npt.NDArray[np.float64],
             Γ_0: npt.NDArray[np.float64],
-        ) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64], npt.NDArray[np.float64], npt.NDArray[np.float64]]:
+        ) -> None:
             """Kalman filtering.
 
             :param m_t_given_tMinus1: output array.
@@ -769,7 +769,6 @@ class GeneralLinearGaussianStateSpaceModel(GenericLinearGaussianStateSpaceModel)
                     m_t_given_tMinus1[t],
                     Q_t_given_tMinus1[t],
                 )
-            return m_t_given_tMinus1, Q_t_given_tMinus1, m_t_given_t, Q_t_given_t
 
         return kalman_filtering_inplace
 
