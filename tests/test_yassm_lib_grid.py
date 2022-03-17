@@ -270,7 +270,7 @@ def test_smoothing_backward_recursion_inplace(
         m_sPlus1_given_s,
         Q_sPlus1_given_s,
     )
-    p_sPlus1_given_t /= p_sPlus1_given_t.sum()
+    p_sPlus1_given_s /= p_sPlus1_given_s.sum()
 
     p_s_given_t = np.zeros(G)
     smoothing_backward_recursion_inplace(
