@@ -53,4 +53,9 @@ def normal_1d(
     μ: float | npt.NDArray[np.float64],
     Σ: float | npt.NDArray[np.float64],
 ) -> npt.NDArray[np.float64]:
-    return np.exp(-0.5 * (np.square(x - μ) / Σ)) / np.sqrt(2.0 * np.pi * Σ)
+    """Relative probability of normal distribution.
+
+    Overall normalization constant of `1. / np.sqrt(2.0 * np.pi * Σ)`
+    is skipped.
+    """
+    return np.exp(-0.5 * (np.square(x - μ) / Σ))
