@@ -13,7 +13,7 @@ RSTs = CHANGELOG.rst README.rst
 
 .PHONY: docs api html test clean
 
-docs: $(RSTs)
+docs: $(RSTs) dist/epub/yassm.epub dist/docs-from-epub.pdf
 	$(MAKE) html
 api: docs/api/
 html: dist/docs/
@@ -61,6 +61,12 @@ docs/api/:
 dist/docs/:
 	sphinx-build -E -b dirhtml docs dist/docs
 	# sphinx-build -b linkcheck docs dist/docs
+
+dist/epub/yassm.epub:
+	sphinx-build -E -b epub docs dist/epub
+
+dist/docs-from-epub.pdf: dist/epub/yassm.epub
+	ebook-convert $< $@ --paper-size=letter --pdf-add-toc --pdf-default-font-size=10
 
 # maintenance ##################################################################
 
