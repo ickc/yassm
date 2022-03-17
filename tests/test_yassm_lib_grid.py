@@ -34,6 +34,18 @@ if TYPE_CHECKING:
 logger = getLogger(__name__)
 
 
+@pytest.mark.parametrize(
+    "x_0, x_f, G",
+    (
+        (0.0, 1.0, 100),
+        (-19.0, 72.0, 1000),
+    ),
+)
+def test_get_grid_to_position(x_0, x_f, G):
+    grid_to_position = get_grid_to_position(x_0, x_f, G)
+    np.testing.assert_array_equal(grid_to_position(np.arange(G)), np.linspace(x_0, x_f, G))
+
+
 @jit("f8(f8, f8, f8[::1])", nopython=True, nogil=True, cache=True)
 def transition_func(
     x_t: float,
@@ -272,12 +284,13 @@ def test_smoothing_backward_recursion_inplace(
     )
     p_sPlus1_given_s /= p_sPlus1_given_s.sum()
 
+    grid_to_position = get_grid_to_position(x_0, x_f, G)
     p_s_given_t = np.zeros(G)
     smoothing_backward_recursion_inplace(
         p_s_given_t,
         params,
         transition_func,
-        get_grid_to_position(x_0, x_f, G),
+        grid_to_position,
         p_s_given_s,
         p_sPlus1_given_t,
         p_sPlus1_given_s,
