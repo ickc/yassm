@@ -262,6 +262,8 @@ def test_smoothing_backward_recursion_inplace(
     σ_ε = np.sqrt(σ_ε_sq)
     x_f = n_σ * σ_Z
     x_0 = -x_f
+    R = σ_ε_sq
+    Σ = σ_Z_sq
 
     x = np.linspace(x_0, x_f, G)
 
@@ -300,7 +302,7 @@ def test_smoothing_backward_recursion_inplace(
 
     m_s_given_t, Q_s_given_t = local_ratio_smoothing_backward_recursion(
         φ,
-        σ_Z_sq,
+        Σ,
         m_s_given_s,
         Q_s_given_s,
         m_sPlus1_given_t,
