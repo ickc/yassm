@@ -142,7 +142,9 @@ def smoothing_backward_recursion_inplace(
         x = grid_to_position(g)
         for g_p in range(G):
             x_p = grid_to_position(g_p)
-            p_s_given_t[g] += transition_func(x_p, x, params) * p_sPlus1_given_t[g_p] / p_sPlus1_given_s[g_p]
+            # avoid underflow problem
+            if p_sPlus1_given_s[g_p] != 0.0:
+                p_s_given_t[g] += transition_func(x_p, x, params) * p_sPlus1_given_t[g_p] / p_sPlus1_given_s[g_p]
         p_s_given_t[g] *= p_s_given_s[g]
     # normalize
     p_s_given_t /= p_s_given_t.sum()
