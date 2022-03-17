@@ -630,6 +630,8 @@ class GeneralLinearGaussianStateSpaceModel(GenericLinearGaussianStateSpaceModel)
     :param B: If None, Numba-jit should optimized this away to have no cost, else, a Numba-jitted function of (out, params, t) updating out as design, shape of (n, d).
     :param Σ: If None, Numba-jit should optimized this away to have no cost, else, a Numba-jitted function of (out, params, t) updating out as state covariance, shape of (d, d).
     :param R: If None, Numba-jit should optimized this away to have no cost, else, a Numba-jitted function of (out, params, t) updating out as observation coariance, shape of (n, n).
+    :param B0_forecast: Transition for forecasting, a Numba-jitted function of (params) initializing design, shape of (n, d).
+    :param B_forecast: Transition for forecasting. If None, Numba-jit should optimized this away to have no cost, else, a Numba-jitted function of (out, params, t) updating out as design, shape of (n, d).
     :param param_names: list of names of the parameters.
 
     Y is of n-dimension,
@@ -652,6 +654,8 @@ class GeneralLinearGaussianStateSpaceModel(GenericLinearGaussianStateSpaceModel)
     B: Callable[[npt.NDArray[np.float64], npt.NDArray[np.float64], int], npt.NDArray[np.float64]] | None = None
     Σ: Callable[[npt.NDArray[np.float64], npt.NDArray[np.float64], int], npt.NDArray[np.float64]] | None = None
     R: Callable[[npt.NDArray[np.float64], npt.NDArray[np.float64], int], npt.NDArray[np.float64]] | None = None
+    B0_forecast: Callable[[npt.NDArray[np.float64]], npt.NDArray[np.float64]] | None = None
+    B_forecast: Callable[[npt.NDArray[np.float64], npt.NDArray[np.float64], int], npt.NDArray[np.float64]] | None = None
     param_names: list[str] | None = None
 
     def __post_init__(self) -> None:
@@ -906,9 +910,14 @@ class GeneralLinearGaussianStateSpaceModel(GenericLinearGaussianStateSpaceModel)
 
     @cached_property
     def smoothed_state_to_obs(self) -> SmoothedStateToObs:
-        B0 = self.B0
+        use_B_forcast = self.B0_forecast is not None
+        if use_B_forcast:
+            B0 = self.B0_forecast
+            B = self.B_forecast
+        else:
+            B0 = self.B0
+            B = self.B
         R0 = self.R0
-        B = self.B
         R = self.R
         n = self.n
 
