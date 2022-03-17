@@ -237,10 +237,10 @@ def test_filter_update(
 
 
 @pytest.mark.parametrize(
-    "σ_ε_sq,σ_Z_sq,φ,G,n_σ,m_s_given_s,Q_s_given_s,m_sPlus1_given_t,Q_sPlus1_given_t,m_sPlus1_given_s,Q_sPlus1_given_s",
+    "σ_ε_sq,σ_Z_sq,φ,G,n_σ,m_s_given_s,Q_s_given_s,m_sPlus1_given_t,Q_sPlus1_given_t",
     (
-        (0.1, 4.0, 1.0, 1000, 3.0, 2.0, 1.5, 1.3, 2.1, 4.2, 1.1),
-        (0.2, 1.7, 0.9, 1500, 5.0, 1.3, 1.9, 2.1, 0.7, 1.34, 3.33),
+        (0.1, 4.0, 1.0, 1000, 3.0, 2.0, 1.5, 1.3, 2.1),
+        (0.2, 1.7, 0.9, 1500, 5.0, 1.3, 1.9, 2.1, 0.7),
     ),
 )
 def test_smoothing_backward_recursion_inplace(
@@ -253,8 +253,6 @@ def test_smoothing_backward_recursion_inplace(
     Q_s_given_s: float,
     m_sPlus1_given_t: float,
     Q_sPlus1_given_t: float,
-    m_sPlus1_given_s: float,
-    Q_sPlus1_given_s: float,
     raise_assertion_error: bool = True,
 ) -> tuple[npt.NDArray[np.float64], float, float, npt.NDArray[np.float64], float, float, npt.NDArray[np.float64],]:
     params = np.array([σ_ε_sq, σ_Z_sq, φ])
@@ -264,6 +262,8 @@ def test_smoothing_backward_recursion_inplace(
     x_0 = -x_f
     R = σ_ε_sq
     Σ = σ_Z_sq
+
+    m_sPlus1_given_s, Q_sPlus1_given_s = local_ratio_one_step_ahead(φ, Σ, m_s_given_s, Q_s_given_s)
 
     x = np.linspace(x_0, x_f, G)
 
@@ -317,12 +317,13 @@ def test_smoothing_backward_recursion_inplace(
     p_s_given_t_ref /= p_s_given_t_ref.sum()
 
     try:
-        np.testing.assert_allclose(m_s_given_t_hat, m_s_given_t)
-        np.testing.assert_allclose(Q_s_given_t_hat, Q_s_given_t)
+        np.testing.assert_allclose(m_s_given_t_hat, m_s_given_t, rtol=1e-2)
+        np.testing.assert_allclose(Q_s_given_t_hat, Q_s_given_t, rtol=1e-2)
         np.testing.assert_allclose(
             p_s_given_t,
             p_s_given_t_ref,
             rtol=0.01,
+            atol=1e-6,
         )
     except AssertionError as e:
         if raise_assertion_error:
