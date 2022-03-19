@@ -82,9 +82,11 @@ def p_to_mQ_inplace(
     p: npt.NDArray[np.float64],
     x: npt.NDArray[np.float64],
 ):
-    m = (p * x).sum()
+    # assume p to be approximately normalized only
+    norm_inv = 1.0 / p.sum()
+    m = (p * x).sum() * norm_inv
     mQ[0] = m
-    mQ[1] = (p * np.square(x - m)).sum()
+    mQ[1] = (p * np.square(x - m)).sum() * norm_inv
 
 
 @jit("f8[:, ::1](f8[:, ::1], f8[::1])", nopython=True, nogil=True, cache=True, parallel=True)
