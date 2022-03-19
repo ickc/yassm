@@ -254,7 +254,7 @@ class General1DStateSpaceModel:
             G = p_0.size
 
             # memalloc
-            temp = np.empty((2, size, G))
+            temp = np.zeros((2, size, G))
             p_t_given_tMinus1 = temp[0]
             p_t_given_t = temp[1]
 
@@ -326,7 +326,7 @@ class General1DStateSpaceModel:
             p_t_given_t: npt.NDArray[np.float64],
         ) -> npt.NDArray[np.float64]:
             # memalloc
-            p_t_given_T = np.empty_like(p_t_given_t)
+            p_t_given_T = np.zero_like(p_t_given_t)
 
             kalman_smoothing_inplace(
                 p_t_given_T,
@@ -393,6 +393,7 @@ class General1DStateSpaceModel:
 
             t = 0
             y_t = y[t]
+            p_t_given_t[:] = 0.0
             filter_update_inplace(
                 p_t_given_t,
                 y_t,
@@ -403,6 +404,7 @@ class General1DStateSpaceModel:
                 Δx,
             )
             for t in range(1, size):
+                p_t_given_tMinus1[:] = 0.0
                 one_step_ahead_inplace(
                     p_t_given_tMinus1,
                     params,
@@ -412,6 +414,7 @@ class General1DStateSpaceModel:
                     Δx,
                 )
                 y_t = y[t]
+                p_t_given_t[:] = 0.0
                 filter_update_inplace(
                     p_t_given_t,
                     y_t,
@@ -425,8 +428,10 @@ class General1DStateSpaceModel:
                 for g in range(G):
                     x = grid_to_position(g)
                     integral += design_func(y_t, x, params, Δx) * p_t_given_tMinus1[g]
-                # negative log likelihood
-                res -= np.log(integral)
+                # protect against underflow
+                if not np.isnan(integral):
+                    # negative log likelihood
+                    res -= np.log(integral)
             return res
 
         return neg_log_likelihood
