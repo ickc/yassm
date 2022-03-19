@@ -3,7 +3,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from functools import cached_property
 from logging import getLogger
 from typing import TYPE_CHECKING
@@ -24,6 +24,9 @@ if TYPE_CHECKING:
 
     import numpy.typing as npt
 
+    TransitionFunc = Callable[[float, float, npt.NDArray[np.float64], float], float]
+    DesignFunc = TransitionFunc
+
 logger = getLogger(__name__)
 
 
@@ -34,6 +37,10 @@ class General1DStateSpaceModelFit:
     y: npt.NDArray[np.float64]
     params: npt.NDArray[np.float64]
     p_0: npt.NDArray[np.float64]
+    mle_method: str = "scipy_minimize"
+    mle_n_iter: int = 0
+    mle_return_chain: bool = False
+    mle_kwargs: dict[Any, Any] = field(default_factory=dict)
     t: npt.NDArray[Any] | None = None
     param_names: list[str] | None = None
 
@@ -41,6 +48,16 @@ class General1DStateSpaceModelFit:
         self.size = self.y.size
         self.G = self.p_0.size
         self.N = self.params.size
+
+        if self.mle_n_iter:
+            self.params, self.mle_params_chain = self.parent.mle(self.mle_method)(
+                self.y,
+                self.params,
+                self.p_0,
+                self.mle_n_iter,
+                self.mle_return_chain,
+                **self.mle_kwargs,
+            )
 
     # defaults
 
@@ -124,12 +141,22 @@ class General1DStateSpaceModelFit:
             self._run_p_t_given_T_to_mQ()
         return self._Q_t_given_T
 
+    # other cached properties
+
+    @cached_property
+    def neg_log_likelihood(self) -> float:
+        return self.parent.neg_log_likelihood(self.params, self.y, self.p_0)
+
+    @property
+    def log_likelihood(self) -> float:
+        return -self.neg_log_likelihood
+
 
 @dataclass
 class General1DStateSpaceModel:
     N: int
-    transition_func: Callable[[float, float, npt.NDArray[np.float64]], float]
-    design_func: Callable[[float, float, npt.NDArray[np.float64]], float]
+    transition_func: TransitionFunc
+    design_func: DesignFunc
     # grid spec
     x_0: float
     x_f: float
@@ -137,6 +164,7 @@ class General1DStateSpaceModel:
     param_names: list[str] | None = None
 
     def __post_init__(self):
+        self.Δx = (self.x_f - self.x_0) / (self.G - 1)
         self.grid_to_position = get_grid_to_position(self.x_0, self.x_f, self.G)
 
     @cached_property
@@ -144,6 +172,7 @@ class General1DStateSpaceModel:
         design_func = self.design_func
         grid_to_position = self.grid_to_position
         transition_func = self.transition_func
+        Δx = self.Δx
 
         @jit(
             "(f8[:, ::1], f8[:, ::1], f8[::1], f8[::1], f8[::1])",
@@ -181,6 +210,7 @@ class General1DStateSpaceModel:
                 design_func,
                 grid_to_position,
                 p_t_given_tMinus1[t],
+                Δx,
             )
             for t in range(1, size):
                 tMinus1 = t - 1
@@ -190,6 +220,7 @@ class General1DStateSpaceModel:
                     transition_func,
                     grid_to_position,
                     p_t_given_t[tMinus1],
+                    Δx,
                 )
                 y_t = y[t]
                 filter_update_inplace(
@@ -199,6 +230,7 @@ class General1DStateSpaceModel:
                     design_func,
                     grid_to_position,
                     p_t_given_tMinus1[t],
+                    Δx,
                 )
 
         return kalman_filtering_inplace
@@ -241,6 +273,7 @@ class General1DStateSpaceModel:
     def kalman_smoothing_inplace(self):
         transition_func = self.transition_func
         grid_to_position = self.grid_to_position
+        Δx = self.Δx
 
         @jit(
             "(f8[:, ::1], f8[::1], f8[:, ::1], f8[:, ::1])",
@@ -272,6 +305,7 @@ class General1DStateSpaceModel:
                     p_t_given_t[s],
                     p_t_given_T[sPlus1],
                     p_t_given_tMinus1[sPlus1],
+                    Δx,
                 )
 
         return kalman_smoothing_inplace
@@ -312,11 +346,151 @@ class General1DStateSpaceModel:
     def forecast(self):
         raise NotImplementedError
 
+    @cached_property
+    def neg_log_likelihood(self):
+        """Calculate negative log-likelihood.
+
+        Y|θ
+        """
+        design_func = self.design_func
+        grid_to_position = self.grid_to_position
+        transition_func = self.transition_func
+        Δx = self.Δx
+
+        @jit(
+            "f8(f8[::1], f8[::1], f8[::1])",
+            nopython=True,
+            nogil=True,
+            cache=False,
+        )
+        def neg_log_likelihood(
+            params: npt.NDArray[np.float64],
+            y: npt.NDArray[np.float64],
+            p_0: npt.NDArray[np.float64],
+        ) -> float:
+            """
+            :param y: data.
+            :param params: params.
+            :param p_0: initial density.
+            :return: negative log-likelihood up to a constant
+
+            Modified from Kalman filter.
+            """
+            size = y.shape[0]
+            G = p_0.size
+
+            # memalloc
+            # keep only p at the current t step
+            temp = np.empty((2, G))
+            p_t_given_tMinus1 = temp[0]
+            p_t_given_t = temp[1]
+
+            # initialize
+            p_t_given_tMinus1[:] = p_0
+
+            # ignoring the initial defused distribution
+            res = 0.0
+
+            t = 0
+            y_t = y[t]
+            filter_update_inplace(
+                p_t_given_t,
+                y_t,
+                params,
+                design_func,
+                grid_to_position,
+                p_t_given_tMinus1,
+                Δx,
+            )
+            for t in range(1, size):
+                one_step_ahead_inplace(
+                    p_t_given_tMinus1,
+                    params,
+                    transition_func,
+                    grid_to_position,
+                    p_t_given_t,
+                    Δx,
+                )
+                y_t = y[t]
+                filter_update_inplace(
+                    p_t_given_t,
+                    y_t,
+                    params,
+                    design_func,
+                    grid_to_position,
+                    p_t_given_tMinus1,
+                    Δx,
+                )
+                integral = 0.0
+                for g in range(G):
+                    x = grid_to_position(g)
+                    # up to a normalization factor
+                    integral += design_func(y_t, x, params, Δx) * p_t_given_tMinus1[g]
+                # negative log likelihood up to a constant
+                res -= np.log(integral)
+            return res
+
+        return neg_log_likelihood
+
+    def mle(self, method: str = "scipy_minimize"):
+        """
+        Similar to `yassm.linear_gaussian.GeneralLinearGaussianStateSpaceModel.mle`.
+        """
+        method_lower = method.lower()
+        if method_lower != "scipy_minimize":
+            logger.warning(
+                "The only implemented MLE method is scipy_minimize for general linear Gaussian model. Using"
+                " scipy_minimize..."
+            )
+        neg_log_likelihood = self.neg_log_likelihood
+
+        def mle_scipy_minimize(
+            y: npt.NDArray[np.float64],
+            params0: npt.NDArray[np.float64],
+            p_0: npt.NDArray[np.float64],
+            n_iter: int,
+            return_chain: bool,
+            **kwargs: dict[str, Any],
+        ) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]]:
+            """Calculate MLE from log-likelihood using scipy.optimize.minimize.
+
+            Tips: include `bounds` for constrainted variables.
+            """
+            from scipy.optimize import minimize
+
+            def _callback(xk: npt.NDArray[np.float64]) -> None:
+                """Store iterations."""
+                chain.append(xk)
+
+            if n_iter:
+                logger.warning("n_iter %s is ignored when using scipy.optimize.minimize.", n_iter)
+
+            chain: list[npt.NDArray[np.float64]] = []
+            callack: Callable[[npt.NDArray[np.float64]], None] | None
+            if return_chain:
+                chain.append(params0)
+                callback = _callback
+            else:
+                callback = None
+
+            opt = minimize(neg_log_likelihood, params0, args=(y, p_0), callback=callback, **kwargs)
+            msg = opt.message
+            if not opt.success:
+                raise RuntimeError(f"MLE unccessful with message: {msg}")
+            logger.info("MLE constructed with message: %s", msg)
+            return opt.x, np.array(chain)
+
+        return mle_scipy_minimize
+
     def fit(
         self,
         y: npt.ArrayLike,
         params: npt.ArrayLike,
         p_0: npt.ArrayLike,
+        mle_method: str = "scipy_minimize",
+        mle_n_iter: int = 0,
+        mle_return_chain: bool = False,
+        mle_kwargs: dict[Any, Any] = {},
         t: npt.NDArray[Any] | None = None,
         param_names: list[str] | None = None,
     ):
@@ -325,6 +499,10 @@ class General1DStateSpaceModel:
             y,
             params,
             p_0,
+            mle_method=mle_method,
+            mle_n_iter=mle_n_iter,
+            mle_return_chain=mle_return_chain,
+            mle_kwargs=mle_kwargs,
             t=t,
             param_names=param_names or self.param_names,
         )

@@ -13,11 +13,11 @@ import pandas as pd
 import pytest
 from numba import jit
 
-from yassm.lib import normal_1d
 from yassm.lib.grid.one_dimension import (
     filter_update_inplace,
     get_grid_to_position,
     one_step_ahead_inplace,
+    prob_normal,
     smoothing_backward_recursion_inplace,
 )
 from yassm.lib.linear_gaussian.model.local_ratio import filter_update as local_ratio_filter_update
@@ -34,6 +34,10 @@ if TYPE_CHECKING:
 logger = getLogger(__name__)
 
 
+def test_prob_normal():
+    np.testing.assert_allclose(prob_normal(np.linspace(-10.0, 10.0, 1001), 0.0, 4.0, 0.02).sum(), 1.0, rtol=1e-6)
+
+
 @pytest.mark.parametrize(
     "x_0, x_f, G",
     (
@@ -46,32 +50,34 @@ def test_get_grid_to_position(x_0, x_f, G):
     np.testing.assert_array_equal(grid_to_position(np.arange(G)), np.linspace(x_0, x_f, G))
 
 
-@jit("f8(f8, f8, f8[::1])", nopython=True, nogil=True, cache=True)
+@jit("f8(f8, f8, f8[::1], f8)", nopython=True, nogil=True, cache=True)
 def transition_func(
     x_t: float,
     x_tMinus1: float,
     params: npt.NDArray[np.float64],
+    Δx: float,
 ) -> float:
     """
     X_t = A_t X_(t-1) + U_t
     U_t ~ N(0, Σ_t)
     """
     σ_ε_sq, σ_Z_sq, φ = params
-    return normal_1d(x_t, φ * x_tMinus1, σ_Z_sq)
+    return prob_normal(x_t, φ * x_tMinus1, σ_Z_sq, Δx)
 
 
-@jit("f8(f8, f8, f8[::1])", nopython=True, nogil=True, cache=True)
+@jit("f8(f8, f8, f8[::1], f8)", nopython=True, nogil=True, cache=True)
 def design_func(
     y_t: float,
     x_t: float,
     params: npt.NDArray[np.float64],
+    Δx: float,
 ) -> float:
     """
     Y_t = B_t X_t + V_t
     V_t ~ N(0, R_t)
     """
     σ_ε_sq, σ_Z_sq, φ = params
-    return normal_1d(y_t, x_t, σ_ε_sq)
+    return prob_normal(y_t, x_t, σ_ε_sq, Δx)
 
 
 @pytest.mark.parametrize(
@@ -95,13 +101,15 @@ def test_one_step_ahead(
     σ_Z = np.sqrt(σ_Z_sq)
     x_f = n_σ * σ_Z
     x_0 = -x_f
+    Δx = (x_f - x_0) / (G - 1)
 
     x: npt.NDArray[np.float64] = np.linspace(x_0, x_f, G)
 
-    p_sMinus1_given_t = normal_1d(
+    p_sMinus1_given_t = prob_normal(
         x,
         m_sMinus1_given_t,
         Q_sMinus1_given_t,
+        Δx,
     )
     p_s_given_t = np.zeros(G)
     one_step_ahead_inplace(
@@ -110,9 +118,13 @@ def test_one_step_ahead(
         transition_func,
         get_grid_to_position(x_0, x_f, G),
         p_sMinus1_given_t,
+        Δx,
     )
-    m_s_given_t_hat = (p_s_given_t * x).sum()
-    Q_s_given_t_hat = (p_s_given_t * np.square(x - m_s_given_t_hat)).sum()
+    norm = p_s_given_t.sum()
+    np.testing.assert_allclose(norm, 1.0, rtol=1e-3)
+
+    m_s_given_t_hat = (p_s_given_t * x).sum() / norm
+    Q_s_given_t_hat = (p_s_given_t * np.square(x - m_s_given_t_hat)).sum() / norm
 
     m_s_given_t, Q_s_given_t = local_ratio_one_step_ahead(
         φ,
@@ -121,12 +133,13 @@ def test_one_step_ahead(
         Q_sMinus1_given_t,
     )
 
-    p_s_given_t_ref = normal_1d(
+    p_s_given_t_ref = prob_normal(
         x,
         m_s_given_t,
         Q_s_given_t,
+        Δx,
     )
-    p_s_given_t_ref /= p_s_given_t_ref.sum()
+    # p_s_given_t_ref /= p_s_given_t_ref.sum()
 
     try:
         np.testing.assert_allclose(m_s_given_t_hat, m_s_given_t, rtol=1e-2)
@@ -176,13 +189,15 @@ def test_filter_update(
     σ_ε = np.sqrt(σ_ε_sq)
     x_f = n_σ * σ_Z
     x_0 = -x_f
+    Δx = (x_f - x_0) / (G - 1)
 
     x = np.linspace(x_0, x_f, G)
 
-    p_t_given_tMinus1 = normal_1d(
+    p_t_given_tMinus1 = prob_normal(
         x,
         m_t_given_tMinus1,
         Q_t_given_tMinus1,
+        Δx,
     )
     p_t_given_t = np.zeros(G)
     filter_update_inplace(
@@ -192,9 +207,13 @@ def test_filter_update(
         design_func,
         get_grid_to_position(x_0, x_f, G),
         p_t_given_tMinus1,
+        Δx,
     )
-    m_t_given_t_hat = (p_t_given_t * x).sum()
-    Q_t_given_t_hat = (p_t_given_t * np.square(x - m_t_given_t_hat)).sum()
+    norm = p_t_given_t.sum()
+    np.testing.assert_allclose(norm, 1.0, rtol=1e-3)
+
+    m_t_given_t_hat = (p_t_given_t * x).sum() / norm
+    Q_t_given_t_hat = (p_t_given_t * np.square(x - m_t_given_t_hat)).sum() / norm
 
     m_t_given_t, Q_t_given_t = local_ratio_filter_update(
         y_t,
@@ -203,12 +222,13 @@ def test_filter_update(
         Q_t_given_tMinus1,
     )
 
-    p_t_given_t_ref = normal_1d(
+    p_t_given_t_ref = prob_normal(
         x,
         m_t_given_t,
         Q_t_given_t,
+        Δx,
     )
-    p_t_given_t_ref /= p_t_given_t_ref.sum()
+    # p_t_given_t_ref /= p_t_given_t_ref.sum()
 
     try:
         np.testing.assert_allclose(m_t_given_t_hat, m_t_given_t)
@@ -262,29 +282,33 @@ def test_smoothing_backward_recursion_inplace(
     x_0 = -x_f
     R = σ_ε_sq
     Σ = σ_Z_sq
+    Δx = (x_f - x_0) / (G - 1)
 
     m_sPlus1_given_s, Q_sPlus1_given_s = local_ratio_one_step_ahead(φ, Σ, m_s_given_s, Q_s_given_s)
 
     x = np.linspace(x_0, x_f, G)
 
-    p_s_given_s = normal_1d(
+    p_s_given_s = prob_normal(
         x,
         m_s_given_s,
         Q_s_given_s,
+        Δx,
     )
-    p_s_given_s /= p_s_given_s.sum()
-    p_sPlus1_given_t = normal_1d(
+    # p_s_given_s /= p_s_given_s.sum()
+    p_sPlus1_given_t = prob_normal(
         x,
         m_sPlus1_given_t,
         Q_sPlus1_given_t,
+        Δx,
     )
-    p_sPlus1_given_t /= p_sPlus1_given_t.sum()
-    p_sPlus1_given_s = normal_1d(
+    # p_sPlus1_given_t /= p_sPlus1_given_t.sum()
+    p_sPlus1_given_s = prob_normal(
         x,
         m_sPlus1_given_s,
         Q_sPlus1_given_s,
+        Δx,
     )
-    p_sPlus1_given_s /= p_sPlus1_given_s.sum()
+    # p_sPlus1_given_s /= p_sPlus1_given_s.sum()
 
     grid_to_position = get_grid_to_position(x_0, x_f, G)
     p_s_given_t = np.zeros(G)
@@ -296,9 +320,13 @@ def test_smoothing_backward_recursion_inplace(
         p_s_given_s,
         p_sPlus1_given_t,
         p_sPlus1_given_s,
+        Δx,
     )
-    m_s_given_t_hat = (p_s_given_t * x).sum()
-    Q_s_given_t_hat = (p_s_given_t * np.square(x - m_s_given_t_hat)).sum()
+    norm = p_s_given_t.sum()
+    np.testing.assert_allclose(norm, 1.0, rtol=0.05)
+
+    m_s_given_t_hat = (p_s_given_t * x).sum() / norm
+    Q_s_given_t_hat = (p_s_given_t * np.square(x - m_s_given_t_hat)).sum() / norm
 
     m_s_given_t, Q_s_given_t = local_ratio_smoothing_backward_recursion(
         φ,
@@ -309,12 +337,13 @@ def test_smoothing_backward_recursion_inplace(
         Q_sPlus1_given_t,
     )
 
-    p_s_given_t_ref = normal_1d(
+    p_s_given_t_ref = prob_normal(
         x,
         m_s_given_t,
         Q_s_given_t,
+        Δx,
     )
-    p_s_given_t_ref /= p_s_given_t_ref.sum()
+    # p_s_given_t_ref /= p_s_given_t_ref.sum()
 
     try:
         np.testing.assert_allclose(m_s_given_t_hat, m_s_given_t, rtol=1e-2)

@@ -1,9 +1,9 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, overload
+from typing import TYPE_CHECKING
 
 import numpy as np
-from numba import jit, vectorize
+from numba import jit
 
 if TYPE_CHECKING:
     from typing import TypeVar
@@ -27,35 +27,3 @@ def sqrt_diag(array: npt.NDArray[np.float64]) -> npt.NDArray[np.float64]:
         for j in range(d):
             res[i, j] = np.sqrt(array[i, j, j])
     return res
-
-
-@overload
-def normal_1d(  # type: ignore[misc]
-    x: float,
-    μ: float,
-    Σ: float,
-) -> float:
-    ...
-
-
-@overload
-def normal_1d(
-    x: float | npt.NDArray[np.float64],
-    μ: float | npt.NDArray[np.float64],
-    Σ: float | npt.NDArray[np.float64],
-) -> npt.NDArray[np.float64]:
-    ...
-
-
-@vectorize("f8(f8, f8, f8)")
-def normal_1d(
-    x: float | npt.NDArray[np.float64],
-    μ: float | npt.NDArray[np.float64],
-    Σ: float | npt.NDArray[np.float64],
-) -> npt.NDArray[np.float64]:
-    """Relative probability of normal distribution.
-
-    Overall normalization constant of `1. / np.sqrt(2.0 * np.pi * Σ)`
-    is skipped.
-    """
-    return np.exp(-0.5 * (np.square(x - μ) / Σ))

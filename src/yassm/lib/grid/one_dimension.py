@@ -5,17 +5,56 @@ representing the density over a fixed interval throughout.
 """
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, overload
 
 import numpy as np
-from numba import jit, prange
+from numba import jit, prange, vectorize
 
 if TYPE_CHECKING:
     from typing import Callable
 
     import numpy.typing as npt
 
-    from .. import FloatMaybeArray
+SQRT_2Π_INV = 1.0 / np.sqrt(2.0 * np.pi)
+
+# probaility functions #########################################################
+
+
+@overload
+def prob_normal(  # type: ignore[misc]
+    x: float,
+    μ: float,
+    Σ: float,
+    Δx: float,
+) -> float:
+    ...
+
+
+@overload
+def prob_normal(
+    x: float | npt.NDArray[np.float64],
+    μ: float | npt.NDArray[np.float64],
+    Σ: float | npt.NDArray[np.float64],
+    Δx: float | npt.NDArray[np.float64],
+) -> npt.NDArray[np.float64]:
+    ...
+
+
+@vectorize("f8(f8, f8, f8, f8)")
+def prob_normal(
+    x: float | npt.NDArray[np.float64],
+    μ: float | npt.NDArray[np.float64],
+    Σ: float | npt.NDArray[np.float64],
+    Δx: float | npt.NDArray[np.float64],
+) -> float | npt.NDArray[np.float64]:
+    """Relative probability of normal distribution.
+
+    Normalized to 1 given grid size Δx.
+    """
+    return np.exp(-0.5 * (np.square(x - μ) / Σ)) * (SQRT_2Π_INV * Δx / np.sqrt(Σ))
+
+
+# pipelines ####################################################################
 
 
 def get_grid_to_position(
@@ -71,6 +110,7 @@ def one_step_ahead_inplace(
     transition_func: Callable[[float, float, npt.NDArray[np.float64]], float],
     grid_to_position: Callable[[int], float],
     p_sMinus1_given_t: npt.NDArray[np.float64],
+    Δx: float,
 ) -> None:
     """One-step ahead prediction inplace.
 
@@ -87,9 +127,11 @@ def one_step_ahead_inplace(
         x = grid_to_position(g)
         for g_p in range(G):
             x_p = grid_to_position(g_p)
-            p_s_given_t[g] += transition_func(x, x_p, params) * p_sMinus1_given_t[g_p]
-    # normalize
-    p_s_given_t /= p_s_given_t.sum()
+            p_s_given_t[g] += transition_func(x, x_p, params, Δx) * p_sMinus1_given_t[g_p]
+    # the sum is approximate 1
+    # don't normalize for numerical stability
+    # but remember to normalize to 1 for inference in the end
+    # p_s_given_t /= p_s_given_t.sum()
 
 
 @jit(nopython=True, nogil=True, cache=False, parallel=True)
@@ -100,6 +142,7 @@ def filter_update_inplace(
     design_func: Callable[[float, float, npt.NDArray[np.float64]], float],
     grid_to_position: Callable[[int], float],
     p_t_given_tMinus1: npt.NDArray[np.float64],
+    Δx: float,
 ) -> None:
     """Filter update inplace.
 
@@ -112,8 +155,8 @@ def filter_update_inplace(
 
     for g in prange(G):
         x = grid_to_position(g)
-        p_t_given_t[g] = design_func(y_t, x, params) * p_t_given_tMinus1[g]
-    # normalize
+        p_t_given_t[g] = design_func(y_t, x, params, Δx) * p_t_given_tMinus1[g]
+    # normalize: p_t_given_t.sum() is now f_Yt_given_Y1..(t-1)
     p_t_given_t /= p_t_given_t.sum()
 
 
@@ -126,6 +169,7 @@ def smoothing_backward_recursion_inplace(
     p_s_given_s: npt.NDArray[np.float64],
     p_sPlus1_given_t: npt.NDArray[np.float64],
     p_sPlus1_given_s: npt.NDArray[np.float64],
+    Δx: float,
 ) -> None:
     """Smoothing backward recursion inplace.
 
@@ -144,7 +188,9 @@ def smoothing_backward_recursion_inplace(
             x_p = grid_to_position(g_p)
             # avoid underflow problem
             if p_sPlus1_given_s[g_p] != 0.0:
-                p_s_given_t[g] += transition_func(x_p, x, params) * p_sPlus1_given_t[g_p] / p_sPlus1_given_s[g_p]
+                p_s_given_t[g] += transition_func(x_p, x, params, Δx) * p_sPlus1_given_t[g_p] / p_sPlus1_given_s[g_p]
         p_s_given_t[g] *= p_s_given_s[g]
-    # normalize
-    p_s_given_t /= p_s_given_t.sum()
+    # the sum is approximate 1
+    # don't normalize for numerical stability
+    # but remember to normalize to 1 for inference in the end
+    # p_s_given_t /= p_s_given_t.sum()
