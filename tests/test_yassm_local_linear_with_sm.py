@@ -118,6 +118,13 @@ class TestLocalLinearGaussian(TestCase):
             self.μ_0,
             self.Γ_0,
         )
+        self.fit_mle = local_linear_model.fit(
+            self.y,
+            self.params0,
+            self.μ_0,
+            self.Γ_0,
+            mle_n_iter=1,
+        )
 
     def setUpSM(self) -> tsa.statespace.mlemodel.MLEResultsWrapper:
         """Reference answer from statsmodels."""
@@ -174,3 +181,6 @@ class TestLocalLinearGaussian(TestCase):
             forecast_sm.se_mean,
             atol=self.atol,
         )
+
+    def test_mle(self) -> None:
+        np.testing.assert_allclose(self.fit_mle.params, self.sm.params, rtol=0.005)

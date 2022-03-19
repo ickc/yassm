@@ -9,7 +9,7 @@ These cannot be cached as they are compiled using closure.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from functools import cached_property
 from logging import getLogger
 from typing import TYPE_CHECKING
@@ -27,6 +27,7 @@ if TYPE_CHECKING:
 
     import matplotlib as mpl
     import numpy.typing as npt
+    from typing_extensions import Protocol
 
     KalmanFilteringInplace = Callable[
         [
@@ -127,20 +128,20 @@ if TYPE_CHECKING:
         ],
         float,
     ]
-    Mle = Callable[
-        [
-            npt.NDArray[np.float64],  # y
-            npt.NDArray[np.float64],  # params0
-            npt.NDArray[np.float64],  # μ_0
-            npt.NDArray[np.float64],  # Γ_0
-            int,  # n_iter
-            bool,  # return_chain
-        ],
-        tuple[
-            npt.NDArray[np.float64],  # params_mle
-            ...,  # other custom results such as params_chain
-        ],
-    ]
+
+    class Mle(Protocol):
+        def __call__(
+            self,
+            y: npt.NDArray[np.float64],
+            params0: npt.NDArray[np.float64],
+            μ_0: npt.NDArray[np.float64],
+            Γ_0: npt.NDArray[np.float64],
+            n_iter: int,
+            return_chain: bool,
+            **kwargs: dict[str, Any],
+        ) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]]:
+            ...
+
 
 logger = getLogger(__name__)
 LOG2Π = np.log(2.0 * np.pi)
@@ -158,6 +159,7 @@ class GeneralLinearGaussianStateSpaceModelFit:
     :param mle_method: method used to estimate MLE
     :param mle_n_iter: number of iteration run with MLE
     :param mle_return_chain: if True, return the chain of parameters during MLE
+    :param mle_kwargs: pass to self.parent.mle
     :param t: optional time axis
     :param param_names: optional names of parameters
     """
@@ -167,9 +169,10 @@ class GeneralLinearGaussianStateSpaceModelFit:
     _params: npt.ArrayLike
     _μ_0: npt.ArrayLike
     _Γ_0: npt.ArrayLike
-    mle_method: str = "gradient"
+    mle_method: str = "scipy_minimize"
     mle_n_iter: int = 0
     mle_return_chain: bool = False
+    mle_kwargs: dict[Any, Any] = field(default_factory=dict)
     t: npt.NDArray[Any] | None = None
     param_names: list[str] | None = None
 
@@ -220,7 +223,13 @@ class GeneralLinearGaussianStateSpaceModelFit:
 
         if mle_n_iter:
             self.params, self.mle_params_chain = self.parent.mle(self.mle_method)(
-                y, params, μ_0, Γ_0, mle_n_iter, mle_return_chain
+                y,
+                params,
+                μ_0,
+                Γ_0,
+                mle_n_iter,
+                mle_return_chain,
+                **self.mle_kwargs,
             )
 
     # defaults
@@ -367,7 +376,7 @@ class GeneralLinearGaussianStateSpaceModelFit:
 
     @cached_property
     def neg2_log_likelihood(self) -> float:
-        return self.parent.neg2_log_likelihood(self.y, self.params, self.μ_0, self.Γ_0)
+        return self.parent.neg2_log_likelihood(self.params, self.y, self.μ_0, self.Γ_0)
 
     @property
     def log_likelihood(self) -> float:
@@ -613,9 +622,10 @@ class GenericLinearGaussianStateSpaceModel:
         params: npt.ArrayLike,
         μ_0: npt.ArrayLike,
         Γ_0: npt.ArrayLike,
-        mle_method: str = "gradient",
+        mle_method: str = "mle_method",
         mle_n_iter: int = 0,
         mle_return_chain: bool = False,
+        mle_kwargs: dict[Any, Any] = {},
         t: npt.NDArray[Any] | None = None,
         param_names: list[str] | None = None,
     ) -> GeneralLinearGaussianStateSpaceModelFit:
@@ -631,6 +641,9 @@ class GenericLinearGaussianStateSpaceModel:
             :param t: optional time axis
             :param param_names: optional names of parameters
         """
+        # using default if exists
+        if not mle_kwargs and hasattr(self, "mle_kwargs"):
+            mle_kwargs = self.mle_kwargs  # type: ignore[attr-defined]
         return GeneralLinearGaussianStateSpaceModelFit(
             self,
             y,
@@ -640,6 +653,7 @@ class GenericLinearGaussianStateSpaceModel:
             mle_method=mle_method,
             mle_n_iter=mle_n_iter,
             mle_return_chain=mle_return_chain,
+            mle_kwargs=mle_kwargs,
             t=t,
             param_names=param_names or self.param_names,
         )
@@ -660,6 +674,7 @@ class GeneralLinearGaussianStateSpaceModel(GenericLinearGaussianStateSpaceModel)
     :param R: If None, Numba-jit should optimized this away to have no cost, else, a Numba-jitted function of (out, params, t) updating out as observation coariance, shape of (n, n).
     :param B0_forecast: If None, B0 is used for forecasting, Numba-jit should optimized this away to have no cost, else, a Numba-jitted function of (params) initializing design for forecasting, shape of (n, d).
     :param B_forecast: If not None, B0_forecast should be specified. If None, Numba-jit should optimized this away to have no cost, else, a Numba-jitted function of (out, params, t) updating out as design for forecasting, shape of (n, d).
+    :param mle_kwargs: pass to self.mle.
     :param param_names: list of names of the parameters.
 
     Y is of n-dimension,
@@ -684,6 +699,7 @@ class GeneralLinearGaussianStateSpaceModel(GenericLinearGaussianStateSpaceModel)
     R: Callable[[npt.NDArray[np.float64], npt.NDArray[np.float64], int], npt.NDArray[np.float64]] | None = None
     B0_forecast: Callable[[npt.NDArray[np.float64]], npt.NDArray[np.float64]] | None = None
     B_forecast: Callable[[npt.NDArray[np.float64], npt.NDArray[np.float64], int], npt.NDArray[np.float64]] | None = None
+    mle_kwargs: dict[Any, Any] = field(default_factory=dict)
     param_names: list[str] | None = None
 
     def __post_init__(self) -> None:
@@ -1059,14 +1075,14 @@ class GeneralLinearGaussianStateSpaceModel(GenericLinearGaussianStateSpaceModel)
         n = self.n
 
         @jit(
-            "f8(f8[:, ::1], f8[::1], f8[::1], f8[:, ::1])",
+            "f8(f8[::1], f8[:, ::1], f8[::1], f8[:, ::1])",
             nopython=True,
             nogil=True,
             cache=False,
         )
         def neg2_log_likelihood(
-            y: npt.NDArray[np.float64],
             params: npt.NDArray[np.float64],
+            y: npt.NDArray[np.float64],
             μ_0: npt.NDArray[np.float64],
             Γ_0: npt.NDArray[np.float64],
         ) -> float:
@@ -1155,3 +1171,51 @@ class GeneralLinearGaussianStateSpaceModel(GenericLinearGaussianStateSpaceModel)
             return res
 
         return neg2_log_likelihood
+
+    def mle(self, method: str = "scipy_minimize") -> Mle:
+        method_lower = method.lower()
+        if method_lower != "scipy_minimize":
+            logger.warning(
+                "The only implemented MLE method is scipy_minimize for general linear Gaussian model. Using"
+                " scipy_minimize..."
+            )
+        neg2_log_likelihood = self.neg2_log_likelihood
+
+        def mle_scipy_minimize(
+            y: npt.NDArray[np.float64],
+            params0: npt.NDArray[np.float64],
+            μ_0: npt.NDArray[np.float64],
+            Γ_0: npt.NDArray[np.float64],
+            n_iter: int,
+            return_chain: bool,
+            **kwargs: dict[str, Any],
+        ) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]]:
+            """Calculate MLE from log-likelihood using scipy.optimize.minimize.
+
+            Tips: include `bounds` for constrainted variables.
+            """
+            from scipy.optimize import minimize
+
+            def _callback(xk: npt.NDArray[np.float64]) -> None:
+                """Store iterations."""
+                chain.append(xk)
+
+            if n_iter:
+                logger.warning("n_iter %s is ignored when using scipy.optimize.minimize.", n_iter)
+
+            chain: list[npt.NDArray[np.float64]] = []
+            callack: Callable[[npt.NDArray[np.float64]], None] | None
+            if return_chain:
+                chain.append(params0)
+                callback = _callback
+            else:
+                callback = None
+
+            opt = minimize(neg2_log_likelihood, params0, args=(y.reshape(-1, 1), μ_0, Γ_0), callback=callback, **kwargs)
+            msg = opt.message
+            if not opt.success:
+                raise RuntimeError(f"MLE unccessful with message: {msg}")
+            logger.info("MLE constructed with message: %s", msg)
+            return opt.x, np.array(chain)
+
+        return mle_scipy_minimize

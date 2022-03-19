@@ -9,4 +9,5 @@ local_linear_model = GeneralLinearGaussianStateSpaceModel(
     R0,
     # param_names=["σ_ε", "σ_η"],
     param_names=["obs_cov", "state_cov"],
+    mle_kwargs={"bounds": ((0.0, None), (0.0, None))},
 )
