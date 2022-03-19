@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 import numpy as np
-from numba import jit
+from numba import jit, prange
 
 if TYPE_CHECKING:
     import numpy.typing as npt
@@ -381,6 +381,39 @@ def neg2_log_likelihood(
         ε_t = y_t - m_t_given_tMinus1
         H_t = Q_t_given_tMinus1 + R_t
         res += np.log(H_t) + ε_t / H_t * ε_t
+    return res
+
+
+@jit(
+    "f8[::1](f8[:, ::1], f8[:, ::1], f8[::1], f8[:, ::1])",
+    nopython=True,
+    nogil=True,
+    cache=False,
+    parallel=True,
+)
+def neg2_log_likelihoods(
+    paramses: npt.NDArray[np.float64],
+    y_2d: npt.NDArray[np.float64],
+    μ_0_1d: npt.NDArray[np.float64],
+    Γ_0_2d: npt.NDArray[np.float64],
+) -> float:
+    """Calculate negative 2 times log-likelihood.
+
+        Y|θ
+
+    This is modified from Kalman filtering but not keeping the intermediate terms.
+
+    This skip the first term that uses the prior of X0 as that is typically a defused distribution.
+    """
+    N = paramses.shape[0]
+    res = np.empty(N)
+    for i in prange(N):
+        res[i] = neg2_log_likelihood(
+            paramses[i],
+            y_2d,
+            μ_0_1d,
+            Γ_0_2d,
+        )
     return res
 
 

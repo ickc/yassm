@@ -12,6 +12,7 @@ from ...lib.linear_gaussian.model.local_level import forecast as _forecast
 from ...lib.linear_gaussian.model.local_level import kalman_filtering as _kalman_filtering
 from ...lib.linear_gaussian.model.local_level import kalman_smoothing as _kalman_smoothing
 from ...lib.linear_gaussian.model.local_level import neg2_log_likelihood as _neg2_log_likelihood
+from ...lib.linear_gaussian.model.local_level import neg2_log_likelihoods as _neg2_log_likelihoods
 from ...lib.linear_gaussian.model.local_level import smoothed_state_to_obs as _smoothed_state_to_obs
 from .. import GenericLinearGaussianStateSpaceModel
 
@@ -84,6 +85,41 @@ class LocalLevelModel(GenericLinearGaussianStateSpaceModel):
         Y|θ
         """
         return _neg2_log_likelihood
+
+    @property
+    def neg2_log_likelihoods(self) -> Likelihoods:
+        """Calculate negative 2 times log-likelihood.
+
+        Y|θ
+        """
+        return _neg2_log_likelihoods
+
+    @cached_property
+    def neg_log_likelihoods(self):
+        neg_log_likelihood = self.neg_log_likelihood
+
+        @jit(
+            "f8[::1](f8[:, ::1], f8[::1], f8[::1])",
+            nopython=True,
+            nogil=True,
+            cache=False,
+        )
+        def neg_log_likelihoods(
+            paramses: npt.NDArray[np.float64],
+            y: npt.NDArray[np.float64],
+            p_0: npt.NDArray[np.float64],
+        ) -> float:
+            N = paramses.shape[0]
+            res = np.empty(N)
+            for i in range(N):
+                res[i] = neg_log_likelihood(
+                    paramses[i],
+                    y,
+                    p_0,
+                )
+            return res
+
+        return neg_log_likelihoods
 
     def get_mle_func(
         self,

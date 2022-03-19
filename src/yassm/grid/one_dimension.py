@@ -431,6 +431,33 @@ class General1DStateSpaceModel:
 
         return neg_log_likelihood
 
+    @cached_property
+    def neg_log_likelihoods(self):
+        neg_log_likelihood = self.neg_log_likelihood
+
+        @jit(
+            "f8[::1](f8[:, ::1], f8[::1], f8[::1])",
+            nopython=True,
+            nogil=True,
+            cache=False,
+        )
+        def neg_log_likelihoods(
+            paramses: npt.NDArray[np.float64],
+            y: npt.NDArray[np.float64],
+            p_0: npt.NDArray[np.float64],
+        ) -> float:
+            N = paramses.shape[0]
+            res = np.empty(N)
+            for i in range(N):
+                res[i] = neg_log_likelihood(
+                    paramses[i],
+                    y,
+                    p_0,
+                )
+            return res
+
+        return neg_log_likelihoods
+
     def mle(self, method: str = "scipy_minimize"):
         """
         Similar to `yassm.linear_gaussian.GeneralLinearGaussianStateSpaceModel.mle`.
