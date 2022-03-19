@@ -118,6 +118,15 @@ if TYPE_CHECKING:
         ],
         None,
     ]
+    Likelihood = Callable[
+        [
+            npt.NDArray[np.float64],
+            npt.NDArray[np.float64],
+            npt.NDArray[np.float64],
+            npt.NDArray[np.float64],
+        ],
+        float,
+    ]
     Mle = Callable[
         [
             npt.NDArray[np.float64],  # y
@@ -134,6 +143,7 @@ if TYPE_CHECKING:
     ]
 
 logger = getLogger(__name__)
+LOG2Π = np.log(2.0 * np.pi)
 
 
 @dataclass
@@ -352,6 +362,16 @@ class GeneralLinearGaussianStateSpaceModelFit:
         if not hasattr(self, "_smoothed_obs_cov_with_obs_cov"):
             self._run_smoothed_state_to_obs_with_obs_cov()
         return self._smoothed_obs_cov_with_obs_cov
+
+    # other cached properties
+
+    @cached_property
+    def neg2_log_likelihood(self) -> float:
+        return self.parent.neg2_log_likelihood(self.y, self.params, self.μ_0, self.Γ_0)
+
+    @property
+    def log_likelihood(self) -> float:
+        return -0.5 * self.neg2_log_likelihood
 
     # alias of statsmodels terminology
 
@@ -574,6 +594,14 @@ class GenericLinearGaussianStateSpaceModel:
 
     @property
     def forecast(self) -> Forecast:
+        raise NotImplementedError
+
+    @property
+    def neg2_log_likelihood(self) -> Likelihood:
+        """Calculate negative 2 times log-likelihood.
+
+        Y|θ
+        """
         raise NotImplementedError
 
     def mle(self, method: str = "gradient") -> Mle:
@@ -1012,3 +1040,118 @@ class GeneralLinearGaussianStateSpaceModel(GenericLinearGaussianStateSpaceModel)
             return m_t_given_T_predict, Q_t_given_T_predict
 
         return forecast
+
+    @cached_property
+    def neg2_log_likelihood(self) -> Likelihood:
+        """Calculate negative 2 times log-likelihood.
+
+        Y|θ
+        """
+        A0 = self.A0
+        B0 = self.B0
+        Σ0 = self.Σ0
+        R0 = self.R0
+        A = self.A
+        B = self.B
+        Σ = self.Σ
+        R = self.R
+        d = self.d
+        n = self.n
+
+        @jit(
+            "f8(f8[:, ::1], f8[::1], f8[::1], f8[:, ::1])",
+            nopython=True,
+            nogil=True,
+            cache=False,
+        )
+        def neg2_log_likelihood(
+            y: npt.NDArray[np.float64],
+            params: npt.NDArray[np.float64],
+            μ_0: npt.NDArray[np.float64],
+            Γ_0: npt.NDArray[np.float64],
+        ) -> float:
+            """Calculate negative 2 times log-likelihood.
+
+                Y|θ
+
+            This is modified from Kalman filtering but not keeping the intermediate terms.
+
+            This skip the first term that uses the prior of X0 as that is typically a defused distribution.
+            """
+            size = y.shape[0]
+            T = size - 1
+
+            A_t = A0(params)
+            B_t = B0(params)
+            Σ_t = Σ0(params)
+            R_t = R0(params)
+
+            # memalloc
+            # this only holds the value at step-t
+            temp = np.empty(2 * d * (d + 1) + n * (n + 1))
+            m_t_given_tMinus1 = temp[:d]
+            Q_t_given_tMinus1 = temp[d : d * (d + 1)].reshape((d, d))
+            m_t_given_t = temp[d * (d + 1) : d * (d + 2)]
+            Q_t_given_t = temp[d * (d + 2) : d * (2 * d + 2)].reshape((d, d))
+            ε_t = temp[d * (2 * d + 2) : d * (2 * d + 2) + n]
+            H_t = temp[d * (2 * d + 2) + n :].reshape((n, n))
+
+            # initialize
+            m_t_given_tMinus1[:] = μ_0
+            Q_t_given_tMinus1[:] = Γ_0
+
+            # we don't add t=0 term to res here
+            res = T * LOG2Π
+
+            t = 0
+            if B is not None:
+                B(B_t, params, 0)
+            if R is not None:
+                R(R_t, params, 0)
+            y_t = y[t]
+            filter_update_inplace(
+                m_t_given_t,
+                Q_t_given_t,
+                y_t,
+                B_t,
+                R_t,
+                m_t_given_tMinus1,
+                Q_t_given_tMinus1,
+            )
+            for t in range(1, size):
+                tMinus1 = t - 1
+                # s = t, t = t - 1
+                if A is not None:
+                    A(A_t, params, t)
+                if Σ is not None:
+                    Σ(Σ_t, params, t)
+                one_step_ahead_inplace(
+                    m_t_given_tMinus1,
+                    Q_t_given_tMinus1,
+                    A_t,
+                    Σ_t,
+                    m_t_given_t,
+                    Q_t_given_t,
+                )
+
+                if B is not None:
+                    B(B_t, params, t)
+                if R is not None:
+                    R(R_t, params, t)
+                y_t = y[t]
+                filter_update_inplace(
+                    m_t_given_t,
+                    Q_t_given_t,
+                    y_t,
+                    B_t,
+                    R_t,
+                    m_t_given_tMinus1,
+                    Q_t_given_tMinus1,
+                )
+
+                ε_t[:] = y_t - B_t @ m_t_given_tMinus1
+                H_t[:] = B_t @ Q_t_given_tMinus1 @ B_t.transpose() + R_t
+                res += np.log(np.linalg.det(H_t)) + ε_t @ np.linalg.solve(H_t, ε_t)
+            return res
+
+        return neg2_log_likelihood
