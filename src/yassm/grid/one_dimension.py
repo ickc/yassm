@@ -424,9 +424,8 @@ class General1DStateSpaceModel:
                 integral = 0.0
                 for g in range(G):
                     x = grid_to_position(g)
-                    # up to a normalization factor
                     integral += design_func(y_t, x, params, Δx) * p_t_given_tMinus1[g]
-                # negative log likelihood up to a constant
+                # negative log likelihood
                 res -= np.log(integral)
             return res
 
