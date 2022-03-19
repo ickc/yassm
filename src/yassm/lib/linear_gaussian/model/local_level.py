@@ -8,6 +8,7 @@ from numba import jit
 if TYPE_CHECKING:
     import numpy.typing as npt
 
+LOG2Π = np.log(2.0 * np.pi)
 # R, Σ = σ_ε_sq, σ_Z_sq = params
 
 
@@ -327,6 +328,60 @@ def forecast(
         m_t_given_T_predict[s - size] = m_sMinus1_given_T
         Q_t_given_T_predict[s - size] = Q_sMinus1_given_T
     return m_t_given_T_predict.reshape((T_forecast, 1)), Q_t_given_T_predict.reshape((T_forecast, 1, 1))
+
+
+@jit(
+    "f8(f8[::1], f8[:, ::1], f8[::1], f8[:, ::1])",
+    nopython=True,
+    nogil=True,
+    cache=False,
+)
+def neg2_log_likelihood(
+    params: npt.NDArray[np.float64],
+    y_2d: npt.NDArray[np.float64],
+    μ_0_1d: npt.NDArray[np.float64],
+    Γ_0_2d: npt.NDArray[np.float64],
+) -> float:
+    """Calculate negative 2 times log-likelihood.
+
+        Y|θ
+
+    This is modified from Kalman filtering but not keeping the intermediate terms.
+
+    This skip the first term that uses the prior of X0 as that is typically a defused distribution.
+    """
+    size = y_2d.shape[0]
+    T = size - 1
+    # to 1d
+    y = y_2d.flatten()
+    μ_0 = μ_0_1d[0]
+    Γ_0 = Γ_0_2d[0, 0]
+
+    # param_names=["obs_cov", "state_cov"]
+    # obs_cov
+    R_t, Σ_t = params
+
+    # initialize
+    m_t_given_tMinus1 = μ_0
+    Q_t_given_tMinus1 = Γ_0
+
+    # we don't add t=0 term to res here
+    res = T * LOG2Π
+
+    t = 0
+    y_t = y[t]
+    m_t_given_t, Q_t_given_t = filter_update(y_t, R_t, m_t_given_tMinus1, Q_t_given_tMinus1)
+    for t in range(1, size):
+        # s = t, t = t - 1
+        m_t_given_tMinus1, Q_t_given_tMinus1 = one_step_ahead(Σ_t, m_t_given_t, Q_t_given_t)
+
+        y_t = y[t]
+        m_t_given_t, Q_t_given_t = filter_update(y_t, R_t, m_t_given_tMinus1, Q_t_given_tMinus1)
+
+        ε_t = y_t - m_t_given_tMinus1
+        H_t = Q_t_given_tMinus1 + R_t
+        res += np.log(H_t) + ε_t / H_t * ε_t
+    return res
 
 
 @jit(

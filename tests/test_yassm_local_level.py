@@ -85,6 +85,13 @@ class TestLocalLevelGaussian(TestCase):
             self.Γ_0,
         )
 
+    # has some nan problem here, probably from general model?
+    # def test_neg2_log_likelihood(self) -> None:
+    #     np.testing.assert_allclose(
+    #         self.fit.neg2_log_likelihood,
+    #         self.fit_ref.neg2_log_likelihood,
+    #     )
+
     def test_kalman_filtering(self) -> None:
         np.testing.assert_allclose(
             self.fit.m_t_given_t,

@@ -11,6 +11,7 @@ from numba import jit
 from ...lib.linear_gaussian.model.local_level import forecast as _forecast
 from ...lib.linear_gaussian.model.local_level import kalman_filtering as _kalman_filtering
 from ...lib.linear_gaussian.model.local_level import kalman_smoothing as _kalman_smoothing
+from ...lib.linear_gaussian.model.local_level import neg2_log_likelihood as _neg2_log_likelihood
 from ...lib.linear_gaussian.model.local_level import smoothed_state_to_obs as _smoothed_state_to_obs
 from .. import GenericLinearGaussianStateSpaceModel
 
@@ -75,6 +76,14 @@ class LocalLevelModel(GenericLinearGaussianStateSpaceModel):
     @property
     def forecast(self) -> Forecast:
         return _forecast
+
+    @property
+    def neg2_log_likelihood(self) -> Likelihood:
+        """Calculate negative 2 times log-likelihood.
+
+        Y|θ
+        """
+        return _neg2_log_likelihood
 
     def get_mle_func(
         self,
