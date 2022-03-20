@@ -326,7 +326,7 @@ class General1DStateSpaceModel:
             p_t_given_t: npt.NDArray[np.float64],
         ) -> npt.NDArray[np.float64]:
             # memalloc
-            p_t_given_T = np.zero_like(p_t_given_t)
+            p_t_given_T = np.zeros_like(p_t_given_t)
 
             kalman_smoothing_inplace(
                 p_t_given_T,
