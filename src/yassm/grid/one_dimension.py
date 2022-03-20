@@ -356,6 +356,7 @@ class General1DStateSpaceModel:
         grid_to_position = self.grid_to_position
         transition_func = self.transition_func
         Δx = self.Δx
+        log_Δx = np.log(Δx)
 
         @jit(
             "f8(f8[::1], f8[::1], f8[::1])",
@@ -377,6 +378,7 @@ class General1DStateSpaceModel:
             Modified from Kalman filter.
             """
             size = y.shape[0]
+            T = size - 1
             G = p_0.size
 
             # memalloc
@@ -389,7 +391,7 @@ class General1DStateSpaceModel:
             p_t_given_tMinus1[:] = p_0
 
             # ignoring the initial defused distribution
-            res = 0.0
+            res = T * log_Δx
 
             t = 0
             y_t = y[t]
