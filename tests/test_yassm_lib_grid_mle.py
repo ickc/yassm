@@ -10,8 +10,6 @@ from typing import TYPE_CHECKING
 from unittest import TestCase
 
 import numpy as np
-import pandas as pd
-import pytest
 from numba import jit
 
 from yassm.grid.one_dimension import General1DStateSpaceModel
@@ -23,9 +21,12 @@ from tests import y
 if TYPE_CHECKING:
     import numpy.typing as npt
 
-    from yassm.lib import FloatMaybeArray
-
 logger = getLogger(__name__)
+
+y_min = y.min()
+y_max = y.max()
+y_range = 0.5 * (y_max - y_min)
+y_mid = 0.5 * (y_max + y_min)
 
 
 @jit("f8(f8, f8, f8[::1], f8)", nopython=True, nogil=True, cache=True)
@@ -59,16 +60,19 @@ def design_func(
 
 
 class TestGrid(TestCase):
-    x_0 = -3.0
-    x_f = 3.0
     G = 100
+    r = 1.5
     params0 = np.array([1.0, 0.01])
 
     def setUp(self):
-        x_0 = self.x_0
-        x_f = self.x_f
         G = self.G
+        r = self.r
         params0 = self.params0
+
+        # equals y_min if r = 1
+        x_0 = y_mid - r * y_range
+        x_f = y_mid + r * y_range
+        p_0 = np.full(G, 1.0 / G)
 
         mod = General1DStateSpaceModel(
             2,
@@ -79,10 +83,17 @@ class TestGrid(TestCase):
             G,
             param_names=["σ_ε_sq", "σ_Z_sq"],
         )
-        self.res = mod.fit(
-            y, params0, np.full(G, 1.0 / G), mle_n_iter=1, mle_kwargs={"bounds": ((0.0, None), (0.0, None))}
-        )
         self.ref = local_level_model.fit(y, params0, 0.0, np.infty, mle_n_iter=100)
+        self.res_with_ref_MLE = mod.fit(y, self.ref.params, p_0)
+
+        self.mod = mod
+        self.p_0 = p_0
+
+    def test_likelihood(self):
+        np.testing.assert_allclose(self.res_with_ref_MLE.log_likelihood, self.ref.log_likelihood)
 
     def test_mle(self):
-        np.testing.assert_allclose(self.res.params, self.ref.params)
+        self.res = self.mod.fit(
+            y, self.params0, self.p_0, mle_n_iter=1, mle_kwargs={"bounds": ((0.0, None), (0.0, None))}
+        )
+        np.testing.assert_allclose(self.res.params, self.ref.params, rtol=0.01)
