@@ -391,6 +391,9 @@ class General1DStateSpaceModel:
             p_t_given_tMinus1[:] = p_0
 
             # ignoring the initial defused distribution
+            # likelihood in continuum limit is a density
+            # this scaling factor ensure the result match
+            # theoretical density e.g. in linear Gaussian case
             res = T * log_Δx
 
             t = 0
@@ -430,10 +433,8 @@ class General1DStateSpaceModel:
                 for g in range(G):
                     x = grid_to_position(g)
                     integral += design_func(y_t, x, params, Δx) * p_t_given_tMinus1[g]
-                # protect against underflow
-                if not np.isnan(integral):
-                    # negative log likelihood
-                    res -= np.log(integral)
+                # negative log likelihood
+                res -= np.log(integral)
             return res
 
         return neg_log_likelihood
