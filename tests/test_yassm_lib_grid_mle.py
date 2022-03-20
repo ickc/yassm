@@ -84,12 +84,12 @@ class TestGrid(TestCase):
             param_names=["σ_ε_sq", "σ_Z_sq"],
         )
         self.ref = local_level_model.fit(y, params0, 0.0, np.infty, mle_n_iter=100)
-        self.res_with_ref_MLE = mod.fit(y, self.ref.params, p_0)
 
         self.mod = mod
         self.p_0 = p_0
 
     def test_likelihood(self):
+        self.res_with_ref_MLE = self.mod.fit(y, self.ref.params, self.p_0)
         np.testing.assert_allclose(self.res_with_ref_MLE.log_likelihood, self.ref.log_likelihood)
 
     def test_mle(self):
