@@ -396,7 +396,7 @@ def neg2_log_likelihoods(
     y_2d: npt.NDArray[np.float64],
     μ_0_1d: npt.NDArray[np.float64],
     Γ_0_2d: npt.NDArray[np.float64],
-) -> float:
+) -> npt.NDArray[np.float64]:
     """Calculate negative 2 times log-likelihood.
 
         Y|θ

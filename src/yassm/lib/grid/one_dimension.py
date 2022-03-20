@@ -15,6 +15,10 @@ if TYPE_CHECKING:
 
     import numpy.typing as npt
 
+    TransitionFunc = Callable[[float, float, npt.NDArray[np.float64], float], float]
+    DesignFunc = TransitionFunc
+    GridToPosition = Callable[[int], float]
+
 SQRT_2Π_INV = 1.0 / np.sqrt(2.0 * np.pi)
 
 # probaility functions #########################################################
@@ -81,7 +85,7 @@ def p_to_mQ_inplace(
     mQ: npt.NDArray[np.float64],
     p: npt.NDArray[np.float64],
     x: npt.NDArray[np.float64],
-):
+) -> None:
     # assume p to be approximately normalized only
     norm_inv = 1.0 / p.sum()
     m = (p * x).sum() * norm_inv
@@ -109,8 +113,8 @@ def ps_to_mQ(
 def one_step_ahead_inplace(
     p_s_given_t: npt.NDArray[np.float64],
     params: npt.NDArray[np.float64],
-    transition_func: Callable[[float, float, npt.NDArray[np.float64]], float],
-    grid_to_position: Callable[[int], float],
+    transition_func: TransitionFunc,
+    grid_to_position: GridToPosition,
     p_sMinus1_given_t: npt.NDArray[np.float64],
     Δx: float,
 ) -> None:
@@ -141,8 +145,8 @@ def filter_update_inplace(
     p_t_given_t: npt.NDArray[np.float64],
     y_t: float,
     params: npt.NDArray[np.float64],
-    design_func: Callable[[float, float, npt.NDArray[np.float64]], float],
-    grid_to_position: Callable[[int], float],
+    design_func: DesignFunc,
+    grid_to_position: GridToPosition,
     p_t_given_tMinus1: npt.NDArray[np.float64],
     Δx: float,
 ) -> None:
@@ -166,8 +170,8 @@ def filter_update_inplace(
 def smoothing_backward_recursion_inplace(
     p_s_given_t: npt.NDArray[np.float64],
     params: npt.NDArray[np.float64],
-    transition_func: Callable[[float, float, npt.NDArray[np.float64]], float],
-    grid_to_position: Callable[[int], float],
+    transition_func: TransitionFunc,
+    grid_to_position: GridToPosition,
     p_s_given_s: npt.NDArray[np.float64],
     p_sPlus1_given_t: npt.NDArray[np.float64],
     p_sPlus1_given_s: npt.NDArray[np.float64],

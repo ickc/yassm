@@ -23,9 +23,78 @@ if TYPE_CHECKING:
     from typing import Any, Callable
 
     import numpy.typing as npt
+    from typing_extensions import Protocol
 
-    TransitionFunc = Callable[[float, float, npt.NDArray[np.float64], float], float]
-    DesignFunc = TransitionFunc
+    from ..lib.grid.one_dimension import DesignFunc, TransitionFunc
+
+    KalmanFilteringInplace = Callable[
+        [
+            npt.NDArray[np.float64],
+            npt.NDArray[np.float64],
+            npt.NDArray[np.float64],
+            npt.NDArray[np.float64],
+            npt.NDArray[np.float64],
+        ],
+        None,
+    ]
+    KalmanFiltering = Callable[
+        [
+            npt.NDArray[np.float64],
+            npt.NDArray[np.float64],
+            npt.NDArray[np.float64],
+        ],
+        tuple[
+            npt.NDArray[np.float64],
+            npt.NDArray[np.float64],
+        ],
+    ]
+
+    KalmanSmoothingInplace = Callable[
+        [
+            npt.NDArray[np.float64],
+            npt.NDArray[np.float64],
+            npt.NDArray[np.float64],
+            npt.NDArray[np.float64],
+        ],
+        None,
+    ]
+    KalmanSmoothing = Callable[
+        [
+            npt.NDArray[np.float64],
+            npt.NDArray[np.float64],
+            npt.NDArray[np.float64],
+        ],
+        npt.NDArray[np.float64],
+    ]
+    Likelihood = Callable[
+        [
+            npt.NDArray[np.float64],
+            npt.NDArray[np.float64],
+            npt.NDArray[np.float64],
+        ],
+        float,
+    ]
+    Likelihoods = Callable[
+        [
+            npt.NDArray[np.float64],
+            npt.NDArray[np.float64],
+            npt.NDArray[np.float64],
+        ],
+        npt.NDArray[np.float64],
+    ]
+
+    class Mle(Protocol):
+        def __call__(
+            self,
+            y: npt.NDArray[np.float64],
+            params0: npt.NDArray[np.float64],
+            p_0: npt.NDArray[np.float64],
+            n_iter: int,
+            return_chain: bool,
+            **kwargs: dict[str, Any],
+        ) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]]:
+            ...
+
 
 logger = getLogger(__name__)
 
@@ -44,7 +113,7 @@ class General1DStateSpaceModelFit:
     t: npt.NDArray[Any] | None = None
     param_names: list[str] | None = None
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         self.size = self.y.size
         self.G = self.p_0.size
         self.N = self.params.size
@@ -107,7 +176,7 @@ class General1DStateSpaceModelFit:
             self._run_kalman_smoothing()
         return self._p_t_given_T
 
-    def _run_p_t_given_t_to_mQ(self):
+    def _run_p_t_given_t_to_mQ(self) -> None:
         mQs = ps_to_mQ(self.p_t_given_t, self.x_array)
         self._m_t_given_t = np.ascontiguousarray(mQs[:, 0])
         self._Q_t_given_t = np.ascontiguousarray(mQs[:, 1])
@@ -124,7 +193,7 @@ class General1DStateSpaceModelFit:
             self._run_p_t_given_t_to_mQ()
         return self._Q_t_given_t
 
-    def _run_p_t_given_T_to_mQ(self):
+    def _run_p_t_given_T_to_mQ(self) -> None:
         mQs = ps_to_mQ(self.p_t_given_T, self.x_array)
         self._m_t_given_T = np.ascontiguousarray(mQs[:, 0])
         self._Q_t_given_T = np.ascontiguousarray(mQs[:, 1])
@@ -163,12 +232,12 @@ class General1DStateSpaceModel:
     G: int
     param_names: list[str] | None = None
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         self.Δx = (self.x_f - self.x_0) / (self.G - 1)
         self.grid_to_position = get_grid_to_position(self.x_0, self.x_f, self.G)
 
     @cached_property
-    def kalman_filtering_inplace(self):
+    def kalman_filtering_inplace(self) -> KalmanFilteringInplace:
         design_func = self.design_func
         grid_to_position = self.grid_to_position
         transition_func = self.transition_func
@@ -186,7 +255,7 @@ class General1DStateSpaceModel:
             y: npt.NDArray[np.float64],
             params: npt.NDArray[np.float64],
             p_0: npt.NDArray[np.float64],
-        ):
+        ) -> None:
             """
             :param p_t_given_tMinus1: out array.
             :param p_t_given_t: out array.
@@ -236,7 +305,7 @@ class General1DStateSpaceModel:
         return kalman_filtering_inplace
 
     @cached_property
-    def kalman_filtering(self):
+    def kalman_filtering(self) -> KalmanFiltering:
         kalman_filtering_inplace = self.kalman_filtering_inplace
 
         @jit(
@@ -270,7 +339,7 @@ class General1DStateSpaceModel:
         return kalman_filtering
 
     @cached_property
-    def kalman_smoothing_inplace(self):
+    def kalman_smoothing_inplace(self) -> KalmanSmoothingInplace:
         transition_func = self.transition_func
         grid_to_position = self.grid_to_position
         Δx = self.Δx
@@ -286,7 +355,7 @@ class General1DStateSpaceModel:
             params: npt.NDArray[np.float64],
             p_t_given_tMinus1: npt.NDArray[np.float64],
             p_t_given_t: npt.NDArray[np.float64],
-        ):
+        ) -> None:
             size = p_t_given_T.shape[0]
             T = size - 1
 
@@ -311,7 +380,7 @@ class General1DStateSpaceModel:
         return kalman_smoothing_inplace
 
     @cached_property
-    def kalman_smoothing(self):
+    def kalman_smoothing(self) -> KalmanSmoothing:
         kalman_smoothing_inplace = self.kalman_smoothing_inplace
 
         @jit(
@@ -339,15 +408,15 @@ class General1DStateSpaceModel:
         return kalman_smoothing
 
     @cached_property
-    def smoothed_state_to_obs(self):
+    def smoothed_state_to_obs(self) -> Any:
         raise NotImplementedError
 
     @cached_property
-    def forecast(self):
+    def forecast(self) -> Any:
         raise NotImplementedError
 
     @cached_property
-    def neg_log_likelihood(self):
+    def neg_log_likelihood(self) -> Likelihood:
         """Calculate negative log-likelihood.
 
         Y|θ
@@ -440,7 +509,7 @@ class General1DStateSpaceModel:
         return neg_log_likelihood
 
     @cached_property
-    def neg_log_likelihoods(self):
+    def neg_log_likelihoods(self) -> Likelihoods:
         neg_log_likelihood = self.neg_log_likelihood
 
         @jit(
@@ -453,7 +522,7 @@ class General1DStateSpaceModel:
             paramses: npt.NDArray[np.float64],
             y: npt.NDArray[np.float64],
             p_0: npt.NDArray[np.float64],
-        ) -> float:
+        ) -> npt.NDArray[np.float64]:
             N = paramses.shape[0]
             res = np.empty(N)
             for i in range(N):
@@ -466,7 +535,7 @@ class General1DStateSpaceModel:
 
         return neg_log_likelihoods
 
-    def mle(self, method: str = "scipy_minimize"):
+    def mle(self, method: str = "scipy_minimize") -> Mle:
         """
         Similar to `yassm.linear_gaussian.GeneralLinearGaussianStateSpaceModel.mle`.
         """
@@ -518,16 +587,16 @@ class General1DStateSpaceModel:
 
     def fit(
         self,
-        y: npt.ArrayLike,
-        params: npt.ArrayLike,
-        p_0: npt.ArrayLike,
+        y: npt.NDArray[np.float64],
+        params: npt.NDArray[np.float64],
+        p_0: npt.NDArray[np.float64],
         mle_method: str = "scipy_minimize",
         mle_n_iter: int = 0,
         mle_return_chain: bool = False,
         mle_kwargs: dict[Any, Any] = {},
         t: npt.NDArray[Any] | None = None,
         param_names: list[str] | None = None,
-    ):
+    ) -> General1DStateSpaceModelFit:
         return General1DStateSpaceModelFit(
             self,
             y,

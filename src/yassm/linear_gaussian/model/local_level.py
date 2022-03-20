@@ -46,6 +46,24 @@ if TYPE_CHECKING:
         ],
         None,
     ]
+    Likelihood = Callable[
+        [
+            npt.NDArray[np.float64],
+            npt.NDArray[np.float64],
+            npt.NDArray[np.float64],
+            npt.NDArray[np.float64],
+        ],
+        float,
+    ]
+    Likelihoods = Callable[
+        [
+            npt.NDArray[np.float64],
+            npt.NDArray[np.float64],
+            npt.NDArray[np.float64],
+            npt.NDArray[np.float64],
+        ],
+        npt.NDArray[np.float64],
+    ]
 
 logger = getLogger(__name__)
 
@@ -93,33 +111,6 @@ class LocalLevelModel(GenericLinearGaussianStateSpaceModel):
         Y|θ
         """
         return _neg2_log_likelihoods
-
-    @cached_property
-    def neg_log_likelihoods(self):
-        neg_log_likelihood = self.neg_log_likelihood
-
-        @jit(
-            "f8[::1](f8[:, ::1], f8[::1], f8[::1])",
-            nopython=True,
-            nogil=True,
-            cache=False,
-        )
-        def neg_log_likelihoods(
-            paramses: npt.NDArray[np.float64],
-            y: npt.NDArray[np.float64],
-            p_0: npt.NDArray[np.float64],
-        ) -> float:
-            N = paramses.shape[0]
-            res = np.empty(N)
-            for i in range(N):
-                res[i] = neg_log_likelihood(
-                    paramses[i],
-                    y,
-                    p_0,
-                )
-            return res
-
-        return neg_log_likelihoods
 
     def get_mle_func(
         self,
