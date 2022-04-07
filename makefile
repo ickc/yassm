@@ -19,13 +19,11 @@ api: docs/api/
 html: dist/docs/
 
 test:
-	rm -f .coverage*
-	coverage run -m pytest -vv $(PYTESTARGS) \
+	pytest \
+		--cov \
+		--cov-config=pyproject.toml \
+		-vv $(PYTESTARGS) \
 		tests
-coverage: test
-	coverage combine
-	coverage report
-	coverage html
 
 clean:
 	rm -f $(RSTs) .coverage*
