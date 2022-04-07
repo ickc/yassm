@@ -103,10 +103,9 @@ source = [
 
 [tool.coverage.run]
 branch = true
-# concurrency = ["thread", "multiprocessing"]
+concurrency = ["thread", "multiprocessing"]
 source = [
     'src',
-    'tests',
 ]
 parallel = true
 relative_files = true
