@@ -274,7 +274,7 @@ def kalman_smoothing(
     "(f8[:, ::1], f8[::1], f8[::1], f8[::1], f8[::1], f8[::1], i8)",
     nopython=True,
     nogil=True,
-    cache=False,
+    cache=True,
 )
 def _backward_sampling_1d_inplace(
     samples: npt.NDArray[np.float64],
@@ -412,7 +412,7 @@ def forecast(
     "f8(f8[::1], f8[:, ::1], f8[::1], f8[:, ::1])",
     nopython=True,
     nogil=True,
-    cache=False,
+    cache=True,
 )
 def neg2_log_likelihood(
     params: npt.NDArray[np.float64],
@@ -466,7 +466,7 @@ def neg2_log_likelihood(
     "f8[::1](f8[:, ::1], f8[:, ::1], f8[::1], f8[:, ::1])",
     nopython=True,
     nogil=True,
-    cache=False,
+    cache=True,
     parallel=True,
 )
 def neg2_log_likelihoods(
