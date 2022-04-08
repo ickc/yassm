@@ -438,6 +438,7 @@ def gibbs_sampling(
             y,
             X_chain[i],
         )
+        params_cur = params_chain[i]
     return params_chain, X_chain.reshape((N, size, 1))
 
 
