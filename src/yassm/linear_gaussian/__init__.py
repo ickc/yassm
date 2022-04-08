@@ -97,6 +97,13 @@ if TYPE_CHECKING:
         ],
         npt.NDArray[np.float64],
     ]
+    SamplingParameters = Callable[
+        [
+            npt.NDArray[np.float64],
+            npt.NDArray[np.float64],
+        ],
+        npt.NDArray[np.float64],
+    ]
     SmoothedStateToObs = Callable[
         [
             npt.NDArray[np.float64],
@@ -678,6 +685,10 @@ class GenericLinearGaussianStateSpaceModel:
 
     @cached_property
     def backward_sampling(self) -> FFBSampling:
+        raise NotImplementedError
+
+    @property
+    def sampling_parameters(self) -> SamplingParameters:
         raise NotImplementedError
 
     @property

@@ -348,6 +348,38 @@ def backward_sampling(
     return samples.reshape((size, N, 1))
 
 
+@jit("(f8[::1], f8[::1], f8[::1])", nopython=True, nogil=True, cache=True)
+def _sampling_parameters_1d_inplace(
+    params: npt.NDArray[np.float64],
+    y: npt.NDArray[np.float64],
+    x: npt.NDArray[np.float64],
+):
+    """Sampling parameters given Xs, Ys.
+
+    Step 2 of Gibbs sampling.
+    """
+    size = y.size
+    T = size - 1
+    params[0] = 1.0 / np.sqrt(np.random.gamma(0.5 * size, 0.5 * np.square(y - x).sum(), size=1)[0])
+    params[1] = 1.0 / np.sqrt(np.random.gamma(0.5 * T, 0.5 * np.square(np.diff(x)).sum(), size=1)[0])
+
+
+@jit("f8[::1](f8[:, ::1], f8[:, ::1])", nopython=True, nogil=True, cache=True)
+def sampling_parameters(
+    y_2d: npt.NDArray[np.float64],
+    x_2d: npt.NDArray[np.float64],
+) -> npt.NDArray[np.float64]:
+    """Sampling parameters given Xs, Ys.
+
+    Step 2 of Gibbs sampling.
+    """
+    y = y_2d.flatten()
+    x = x_2d.flatten()
+    params = np.empty(2)
+    _sampling_parameters_1d_inplace(params, y, x)
+    return params
+
+
 @jit(
     "Tuple((f8[:, ::1], f8[:, :, ::1]))(f8[::1], f8[:, ::1], f8[:, :, ::1], int64, b1)",
     nopython=True,

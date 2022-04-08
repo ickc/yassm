@@ -14,6 +14,7 @@ from ...lib.linear_gaussian.model.local_level import kalman_filtering as _kalman
 from ...lib.linear_gaussian.model.local_level import kalman_smoothing as _kalman_smoothing
 from ...lib.linear_gaussian.model.local_level import neg2_log_likelihood as _neg2_log_likelihood
 from ...lib.linear_gaussian.model.local_level import neg2_log_likelihoods as _neg2_log_likelihoods
+from ...lib.linear_gaussian.model.local_level import sampling_parameters as _sampling_parameters
 from ...lib.linear_gaussian.model.local_level import smoothed_state_to_obs as _smoothed_state_to_obs
 from .. import GenericLinearGaussianStateSpaceModel
 
@@ -22,7 +23,16 @@ if TYPE_CHECKING:
 
     import numpy.typing as npt
 
-    from .. import Forecast, KalmanFiltering, KalmanSmoothing, Mle, ParamUpdateInplace, SmoothedStateToObs
+    from .. import (
+        FFBSampling,
+        Forecast,
+        KalmanFiltering,
+        KalmanSmoothing,
+        Mle,
+        ParamUpdateInplace,
+        SamplingParameters,
+        SmoothedStateToObs,
+    )
 
     KalmanFilteringInplace1D = Callable[
         [
@@ -92,6 +102,10 @@ class LocalLevelModel(GenericLinearGaussianStateSpaceModel):
     @property
     def backward_sampling(self) -> FFBSampling:
         return _backward_sampling
+
+    @property
+    def sampling_parameters(self) -> SamplingParameters:
+        return _sampling_parameters
 
     @property
     def smoothed_state_to_obs(self) -> SmoothedStateToObs:
