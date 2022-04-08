@@ -219,7 +219,7 @@ def smoothing_backward_recursion_inplace(
     nogil=True,
     cache=True,
 )
-def cov_from_samples(samples):
+def cov_from_samples(samples: npt.NDArray[np.float64]) -> npt.NDArray[np.float64]:
     size, N, d = samples.shape
     cov = np.empty((size, d, d))
     for i in range(size):
