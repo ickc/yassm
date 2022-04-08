@@ -427,8 +427,8 @@ class GeneralLinearGaussianStateSpaceModelFit:
             self.Γ_0,
             self.n_sample,
         )
-        self._gibbs_params_chain = self.gibbs_params_chain_with_burn_in[self.gibbs_burn_in:]
-        self._gibbs_X_chain = self.gibbs_X_chain_with_burn_in[self.gibbs_burn_in:]
+        self._gibbs_params_chain = self.gibbs_params_chain_with_burn_in[self.gibbs_burn_in :]
+        self._gibbs_X_chain = self.gibbs_X_chain_with_burn_in[self.gibbs_burn_in :]
 
     # cached parameters from _run_*
 
