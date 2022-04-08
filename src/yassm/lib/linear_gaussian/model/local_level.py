@@ -360,8 +360,8 @@ def _sampling_parameters_1d_inplace(
     """
     size = y.size
     T = size - 1
-    params[0] = 1.0 / np.sqrt(np.random.gamma(0.5 * size, 0.5 * np.square(y - x).sum(), size=1)[0])
-    params[1] = 1.0 / np.sqrt(np.random.gamma(0.5 * T, 0.5 * np.square(np.diff(x)).sum(), size=1)[0])
+    params[0] = 1.0 / np.random.gamma(0.5 * size, 0.5 * np.square(y - x).sum(), size=1)[0]
+    params[1] = 1.0 / np.random.gamma(0.5 * T, 0.5 * np.square(np.diff(x)).sum(), size=1)[0]
 
 
 @jit("f8[::1](f8[:, ::1], f8[:, ::1])", nopython=True, nogil=True, cache=True)
