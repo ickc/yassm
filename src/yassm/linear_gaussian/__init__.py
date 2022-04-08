@@ -16,11 +16,16 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 import pandas as pd
-from numba import jit
+from numba import jit, objmode
 from scipy import stats
 
 from ..lib import sqrt_diag
-from ..lib.linear_gaussian import filter_update_inplace, one_step_ahead_inplace, smoothing_backward_recursion_inplace
+from ..lib.linear_gaussian import (
+    cov_from_samples,
+    filter_update_inplace,
+    one_step_ahead_inplace,
+    smoothing_backward_recursion_inplace,
+)
 
 if TYPE_CHECKING:
     from typing import Any, Callable
@@ -80,6 +85,17 @@ if TYPE_CHECKING:
             npt.NDArray[np.float64],
             npt.NDArray[np.float64],
         ],
+    ]
+    FFBSampling = Callable[
+        [
+            npt.NDArray[np.float64],
+            npt.NDArray[np.float64],
+            npt.NDArray[np.float64],
+            npt.NDArray[np.float64],
+            npt.NDArray[np.float64],
+            int,
+        ],
+        npt.NDArray[np.float64],
     ]
     SmoothedStateToObs = Callable[
         [
@@ -160,6 +176,7 @@ class GeneralLinearGaussianStateSpaceModelFit:
     :param mle_n_iter: number of iteration run with MLE
     :param mle_return_chain: if True, return the chain of parameters during MLE
     :param mle_kwargs: pass to self.parent.mle
+    :param n_sample: number of samples used in FFBSampling algorithm
     :param t: optional time axis
     :param param_names: optional names of parameters
     """
@@ -173,6 +190,7 @@ class GeneralLinearGaussianStateSpaceModelFit:
     mle_n_iter: int = 0
     mle_return_chain: bool = False
     mle_kwargs: dict[Any, Any] = field(default_factory=dict)
+    n_sample: int = 0
     t: npt.NDArray[Any] | None = None
     param_names: list[str] | None = None
 
@@ -316,6 +334,41 @@ class GeneralLinearGaussianStateSpaceModelFit:
             True,
         )
 
+    def _run_smoothed_state_to_obs_from_samples(self) -> None:
+        logger.info("Running smoothed_state_to_obs from samples...")
+        (self._smoothed_obs_from_samples, self._smoothed_obs_cov_from_samples,) = self.parent.smoothed_state_to_obs(
+            self.params,
+            self.m_t_given_T_from_samples,
+            self.Q_t_given_T_from_samples,
+            0,
+            False,
+        )
+
+    def _run_smoothed_state_to_obs_with_obs_cov_from_samples(self) -> None:
+        logger.info("Running smoothed_state_to_obs with obs_cov from samples...")
+        (
+            self._smoothed_obs_from_samples,
+            self._smoothed_obs_cov_with_obs_cov_from_samples,
+        ) = self.parent.smoothed_state_to_obs(
+            self.params,
+            self.m_t_given_T_from_samples,
+            self.Q_t_given_T_from_samples,
+            0,
+            True,
+        )
+
+    @cached_property
+    def samples(self) -> npt.NDArray[np.float64]:
+        logger.info("Running backward_sampling...")
+        return self.parent.backward_sampling(
+            self.params,
+            self.m_t_given_tMinus1,
+            self.Q_t_given_tMinus1,
+            self.m_t_given_t,
+            self.Q_t_given_t,
+            self.n_sample,
+        )
+
     # cached parameters from _run_*
 
     @property
@@ -371,6 +424,32 @@ class GeneralLinearGaussianStateSpaceModelFit:
         if not hasattr(self, "_smoothed_obs_cov_with_obs_cov"):
             self._run_smoothed_state_to_obs_with_obs_cov()
         return self._smoothed_obs_cov_with_obs_cov
+
+    @cached_property
+    def m_t_given_T_from_samples(self) -> npt.NDArray[np.float64]:
+        return self.samples.mean(1)
+
+    @cached_property
+    def Q_t_given_T_from_samples(self) -> npt.NDArray[np.float64]:
+        return cov_from_samples(self.samples)
+
+    @property
+    def smoothed_obs_from_samples(self) -> npt.NDArray[np.float64]:
+        if not hasattr(self, "_smoothed_obs_from_samples"):
+            self._run_smoothed_state_to_obs_from_samples()
+        return self._smoothed_obs_from_samples
+
+    @property
+    def smoothed_obs_cov_from_samples(self) -> npt.NDArray[np.float64]:
+        if not hasattr(self, "_smoothed_obs_cov_from_samples"):
+            self._run_smoothed_state_to_obs_from_samples()
+        return self._smoothed_obs_cov_from_samples
+
+    @property
+    def smoothed_obs_cov_with_obs_cov_from_samples(self) -> npt.NDArray[np.float64]:
+        if not hasattr(self, "_smoothed_obs_cov_with_obs_cov_from_samples"):
+            self._run_smoothed_state_to_obs_with_obs_cov_from_samples()
+        return self._smoothed_obs_cov_with_obs_cov_from_samples
 
     # other cached properties
 
@@ -597,6 +676,10 @@ class GenericLinearGaussianStateSpaceModel:
     def kalman_smoothing(self) -> KalmanSmoothing:
         raise NotImplementedError
 
+    @cached_property
+    def backward_sampling(self) -> FFBSampling:
+        raise NotImplementedError
+
     @property
     def smoothed_state_to_obs(self) -> SmoothedStateToObs:
         raise NotImplementedError
@@ -626,6 +709,7 @@ class GenericLinearGaussianStateSpaceModel:
         mle_n_iter: int = 0,
         mle_return_chain: bool = False,
         mle_kwargs: dict[Any, Any] = {},
+        n_sample: int = 0,
         t: npt.NDArray[Any] | None = None,
         param_names: list[str] | None = None,
     ) -> GeneralLinearGaussianStateSpaceModelFit:
@@ -654,6 +738,7 @@ class GenericLinearGaussianStateSpaceModel:
             mle_n_iter=mle_n_iter,
             mle_return_chain=mle_return_chain,
             mle_kwargs=mle_kwargs,
+            n_sample=n_sample,
             t=t,
             param_names=param_names or self.param_names,
         )
@@ -951,6 +1036,65 @@ class GeneralLinearGaussianStateSpaceModel(GenericLinearGaussianStateSpaceModel)
             return m_t_given_T, Q_t_given_T
 
         return kalman_smoothing
+
+    @cached_property
+    def backward_sampling(self) -> FFBSampling:
+        A0 = self.A0
+        A = self.A
+
+        @jit(
+            "f8[:, :, ::1](f8[::1], f8[:, ::1], f8[:, :, ::1], f8[:, ::1], f8[:, :, ::1], i8)",
+            nopython=True,
+            nogil=True,
+            cache=False,
+        )
+        def backward_sampling(
+            params: npt.NDArray[np.float64],
+            m_t_given_tMinus1: npt.NDArray[np.float64],
+            Q_t_given_tMinus1: npt.NDArray[np.float64],
+            m_t_given_t: npt.NDArray[np.float64],
+            Q_t_given_t: npt.NDArray[np.float64],
+            N: int,
+        ) -> npt.NDArray[np.float64]:
+            """FFBSampling algorithm.
+
+            :param N: Number of samples to generate.
+
+            Modified from `kalman_smoothing_inplace` as they share
+            the same prerequisites.
+            """
+            size, d = m_t_given_t.shape
+            T = size - 1
+
+            # memalloc
+            A_tPlus1 = A0(params)
+            samples = np.empty((size, N, d))
+            Γ_tPlus1_transpose = np.empty((d, d))
+            m_current = np.empty((N, d))
+            Q_current = np.empty((d, d))
+
+            # # initialize
+            with objmode(sample="f8[:, :]"):
+                sample = np.random.multivariate_normal(m_t_given_t[T], Q_t_given_t[T], N)
+            samples[T] = sample
+
+            for t in range(T - 1, -1, -1):
+                tPlus1 = t + 1
+                if A is not None:
+                    A(A_tPlus1, params, tPlus1)
+                Γ_tPlus1_transpose[:] = np.linalg.solve(Q_t_given_tMinus1[tPlus1], A_tPlus1 @ Q_t_given_t[t])
+                for i in range(N):
+                    # this only stores the offset from m_t_given_t[t]
+                    m_current[i] = Γ_tPlus1_transpose.transpose() @ (samples[tPlus1, i] - m_t_given_tMinus1[tPlus1])
+                Q_current[:] = (
+                    Q_t_given_t[t] - Γ_tPlus1_transpose.transpose() @ Q_t_given_tMinus1[tPlus1] @ Γ_tPlus1_transpose
+                )
+                with objmode(sample="f8[:, :]"):
+                    sample = np.random.multivariate_normal(m_t_given_t[t], Q_current, N)
+                samples[t] = m_current + sample
+            return samples
+
+        return backward_sampling
 
     @cached_property
     def smoothed_state_to_obs(self) -> SmoothedStateToObs:

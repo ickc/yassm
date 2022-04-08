@@ -211,3 +211,17 @@ def smoothing_backward_recursion_inplace(
 
     m_s_given_t[:] = m_s_given_s + Γ_sPlus1 @ (m_sPlus1_given_t - m_sPlus1_given_s)
     Q_s_given_t[:] = Q_s_given_s + Γ_sPlus1 @ (Q_sPlus1_given_t - Q_sPlus1_given_s) @ Γ_sPlus1_transpose
+
+
+@jit(
+    "f8[:, :, ::1](f8[:, :, ::1])",
+    nopython=True,
+    nogil=True,
+    cache=True,
+)
+def cov_from_samples(samples):
+    size, N, d = samples.shape
+    cov = np.empty((size, d, d))
+    for i in range(size):
+        cov[i] = np.cov(samples[i], rowvar=False)
+    return cov
