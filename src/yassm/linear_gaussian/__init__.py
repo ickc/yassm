@@ -1079,7 +1079,6 @@ class GeneralLinearGaussianStateSpaceModel(GenericLinearGaussianStateSpaceModel)
             A_tPlus1 = A0(params)
             samples = np.empty((size, N, d))
             Γ_tPlus1_transpose = np.empty((d, d))
-            m_current = np.empty((N, d))
             Q_current = np.empty((d, d))
 
             # initialize
@@ -1094,13 +1093,13 @@ class GeneralLinearGaussianStateSpaceModel(GenericLinearGaussianStateSpaceModel)
                 Γ_tPlus1_transpose[:] = np.linalg.solve(Q_t_given_tMinus1[tPlus1], A_tPlus1 @ Q_t_given_t[t])
                 for i in range(N):
                     # this only stores the offset from m_t_given_t[t]
-                    m_current[i] = Γ_tPlus1_transpose.transpose() @ (samples[tPlus1, i] - m_t_given_tMinus1[tPlus1])
+                    samples[t, i] = Γ_tPlus1_transpose.transpose() @ (samples[tPlus1, i] - m_t_given_tMinus1[tPlus1])
                 Q_current[:] = (
                     Q_t_given_t[t] - Γ_tPlus1_transpose.transpose() @ Q_t_given_tMinus1[tPlus1] @ Γ_tPlus1_transpose
                 )
                 with objmode(sample="f8[:, :]"):
                     sample = np.random.multivariate_normal(m_t_given_t[t], Q_current, N)
-                samples[t] = m_current + sample
+                samples[t] += sample
             return samples
 
         return backward_sampling
