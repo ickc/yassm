@@ -31,6 +31,6 @@ class TestLocalLinearGaussian(TestCase):
 
     def test_FFBSampling(self) -> None:
         fit = self.fit
-
+        np.random.seed(11111)
         np.testing.assert_allclose(fit.m_t_given_T_from_samples, fit.m_t_given_T, atol=self.atol)
         np.testing.assert_allclose(fit.Q_t_given_T_from_samples, fit.Q_t_given_T, atol=self.atol)
