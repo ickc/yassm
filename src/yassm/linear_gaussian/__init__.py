@@ -1073,7 +1073,7 @@ class GeneralLinearGaussianStateSpaceModel(GenericLinearGaussianStateSpaceModel)
             m_current = np.empty((N, d))
             Q_current = np.empty((d, d))
 
-            # # initialize
+            # initialize
             with objmode(sample="f8[:, :]"):
                 sample = np.random.multivariate_normal(m_t_given_t[T], Q_t_given_t[T], N)
             samples[T] = sample

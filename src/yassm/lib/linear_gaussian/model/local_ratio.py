@@ -371,8 +371,8 @@ def param_update_inplace_gradient(
         params,
     )
     γ = 1e-3
-    # # if the gradient is negative, reduce to r times the original value
-    # # in order to not go through the upper half plane
+    # if the gradient is negative, reduce to r times the original value
+    # in order to not go through the upper half plane
     # r = 0.5
     # for i in range(2):
     #     if out[i] < 0:
