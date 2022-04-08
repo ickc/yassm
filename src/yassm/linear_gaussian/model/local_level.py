@@ -10,6 +10,7 @@ from numba import jit
 
 from ...lib.linear_gaussian.model.local_level import backward_sampling as _backward_sampling
 from ...lib.linear_gaussian.model.local_level import forecast as _forecast
+from ...lib.linear_gaussian.model.local_level import gibbs_sampling as _gibbs_sampling
 from ...lib.linear_gaussian.model.local_level import kalman_filtering as _kalman_filtering
 from ...lib.linear_gaussian.model.local_level import kalman_smoothing as _kalman_smoothing
 from ...lib.linear_gaussian.model.local_level import neg2_log_likelihood as _neg2_log_likelihood
@@ -26,6 +27,7 @@ if TYPE_CHECKING:
     from .. import (
         FFBSampling,
         Forecast,
+        GibbsSampling,
         KalmanFiltering,
         KalmanSmoothing,
         Mle,
@@ -106,6 +108,10 @@ class LocalLevelModel(GenericLinearGaussianStateSpaceModel):
     @property
     def sampling_parameters(self) -> SamplingParameters:
         return _sampling_parameters
+
+    @property
+    def gibbs_sampling(self) -> GibbsSampling:
+        return _gibbs_sampling
 
     @property
     def smoothed_state_to_obs(self) -> SmoothedStateToObs:

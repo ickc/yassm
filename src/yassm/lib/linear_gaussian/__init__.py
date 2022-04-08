@@ -225,3 +225,17 @@ def cov_from_samples(samples: npt.NDArray[np.float64]) -> npt.NDArray[np.float64
     for i in range(size):
         cov[i] = np.cov(samples[i], rowvar=False)
     return cov
+
+
+@jit(
+    "f8[:, :, ::1](f8[:, :, ::1])",
+    nopython=True,
+    nogil=True,
+    cache=True,
+)
+def cov_from_gibbs_samples(samples: npt.NDArray[np.float64]) -> npt.NDArray[np.float64]:
+    N, size, d = samples.shape
+    cov = np.empty((size, d, d))
+    for i in range(size):
+        cov[i] = np.cov(samples[:, i], rowvar=False)
+    return cov

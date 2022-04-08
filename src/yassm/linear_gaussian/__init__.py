@@ -21,6 +21,7 @@ from scipy import stats
 
 from ..lib import sqrt_diag
 from ..lib.linear_gaussian import (
+    cov_from_gibbs_samples,
     cov_from_samples,
     filter_update_inplace,
     one_step_ahead_inplace,
@@ -103,6 +104,19 @@ if TYPE_CHECKING:
             npt.NDArray[np.float64],
         ],
         npt.NDArray[np.float64],
+    ]
+    GibbsSampling = Callable[
+        [
+            npt.NDArray[np.float64],
+            npt.NDArray[np.float64],
+            npt.NDArray[np.float64],
+            npt.NDArray[np.float64],
+            int,
+        ],
+        tuple[
+            npt.NDArray[np.float64],
+            npt.NDArray[np.float64],
+        ],
     ]
     SmoothedStateToObs = Callable[
         [
@@ -376,6 +390,42 @@ class GeneralLinearGaussianStateSpaceModelFit:
             self.n_sample,
         )
 
+    def _run_smoothed_state_to_obs_from_gibbs_samples(self) -> None:
+        logger.info("Running smoothed_state_to_obs from Gibbs samples...")
+        (
+            self._smoothed_obs_from_gibbs_samples,
+            self._smoothed_obs_cov_from_gibbs_samples,
+        ) = self.parent.smoothed_state_to_obs(
+            self.params,
+            self.m_t_given_T_from_gibbs_samples,
+            self.Q_t_given_T_from_gibbs_samples,
+            0,
+            False,
+        )
+
+    def _run_smoothed_state_to_obs_with_obs_cov_from_gibbs_samples(self) -> None:
+        logger.info("Running smoothed_state_to_obs with obs_cov from Gibbs samples...")
+        (
+            self._smoothed_obs_from_gibbs_samples,
+            self._smoothed_obs_cov_with_obs_cov_from_gibbs_samples,
+        ) = self.parent.smoothed_state_to_obs(
+            self.params,
+            self.m_t_given_T_from_gibbs_samples,
+            self.Q_t_given_T_from_gibbs_samples,
+            0,
+            True,
+        )
+
+    def _run_gibbs_sampling(self) -> None:
+        logger.info("Running gibbs_sampling...")
+        self._gibbs_params_chain, self._gibbs_X_chain = self.parent.gibbs_sampling(
+            self.y,
+            self.params,
+            self.μ_0,
+            self.Γ_0,
+            self.n_sample,
+        )
+
     # cached parameters from _run_*
 
     @property
@@ -457,6 +507,44 @@ class GeneralLinearGaussianStateSpaceModelFit:
         if not hasattr(self, "_smoothed_obs_cov_with_obs_cov_from_samples"):
             self._run_smoothed_state_to_obs_with_obs_cov_from_samples()
         return self._smoothed_obs_cov_with_obs_cov_from_samples
+
+    @property
+    def gibbs_params_chain(self) -> npt.NDArray[np.float64]:
+        if not hasattr(self, "_gibbs_params_chain"):
+            self._run_gibbs_sampling()
+        return self._gibbs_params_chain
+
+    @property
+    def gibbs_X_chain(self) -> npt.NDArray[np.float64]:
+        if not hasattr(self, "_gibbs_X_chain"):
+            self._run_gibbs_sampling()
+        return self._gibbs_X_chain
+
+    @cached_property
+    def m_t_given_T_from_gibbs_samples(self) -> npt.NDArray[np.float64]:
+        return self.gibbs_X_chain.mean(0)
+
+    @cached_property
+    def Q_t_given_T_from_gibbs_samples(self) -> npt.NDArray[np.float64]:
+        return cov_from_gibbs_samples(self.gibbs_X_chain)
+
+    @property
+    def smoothed_obs_from_gibbs_samples(self) -> npt.NDArray[np.float64]:
+        if not hasattr(self, "_smoothed_obs_from_gibbs_samples"):
+            self._run_smoothed_state_to_obs_from_gibbs_samples()
+        return self._smoothed_obs_from_gibbs_samples
+
+    @property
+    def smoothed_obs_cov_from_gibbs_samples(self) -> npt.NDArray[np.float64]:
+        if not hasattr(self, "_smoothed_obs_cov_from_gibbs_samples"):
+            self._run_smoothed_state_to_obs_from_gibbs_samples()
+        return self._smoothed_obs_cov_from_gibbs_samples
+
+    @property
+    def smoothed_obs_cov_with_obs_cov_from_gibbs_samples(self) -> npt.NDArray[np.float64]:
+        if not hasattr(self, "_smoothed_obs_cov_with_obs_cov_from_gibbs_samples"):
+            self._run_smoothed_state_to_obs_with_obs_cov_from_gibbs_samples()
+        return self._smoothed_obs_cov_with_obs_cov_from_gibbs_samples
 
     # other cached properties
 
@@ -689,6 +777,10 @@ class GenericLinearGaussianStateSpaceModel:
 
     @property
     def sampling_parameters(self) -> SamplingParameters:
+        raise NotImplementedError
+
+    @property
+    def gibbs_sampling(self) -> GibbsSampling:
         raise NotImplementedError
 
     @property

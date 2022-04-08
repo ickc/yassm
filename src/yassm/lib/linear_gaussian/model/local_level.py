@@ -353,7 +353,7 @@ def _sampling_parameters_1d_inplace(
     params: npt.NDArray[np.float64],
     y: npt.NDArray[np.float64],
     x: npt.NDArray[np.float64],
-):
+) -> None:
     """Sampling parameters given Xs, Ys.
 
     Step 2 of Gibbs sampling.
@@ -378,6 +378,67 @@ def sampling_parameters(
     params = np.empty(2)
     _sampling_parameters_1d_inplace(params, y, x)
     return params
+
+
+@jit(
+    "Tuple((f8[:, ::1], f8[:, :, ::1]))(f8[:, ::1], f8[::1], f8[::1], f8[:, ::1], i8)",
+    nopython=True,
+    nogil=True,
+    cache=True,
+)
+def gibbs_sampling(
+    y_2d: npt.NDArray[np.float64],
+    params: npt.NDArray[np.float64],
+    μ_0_1d: npt.NDArray[np.float64],
+    Γ_0_2d: npt.NDArray[np.float64],
+    N: int,
+) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]]:
+    """Gibbs sampling.
+
+    :return: the parameters chain and the Xs chain.
+    """
+    n_params = params.size
+    y = y_2d.flatten()
+    μ_0 = μ_0_1d[0]
+    Γ_0 = Γ_0_2d[0, 0]
+    size = y.size
+
+    # memalloc
+    temp = np.empty((4, size))
+    m_t_given_tMinus1 = temp[0]
+    Q_t_given_tMinus1 = temp[1]
+    m_t_given_t = temp[2]
+    Q_t_given_t = temp[3]
+    params_chain = np.empty((N, n_params))
+    X_chain = np.empty((N, size))
+
+    params_cur = params
+    for i in range(N):
+        _kalman_filtering_1d_inplace(
+            m_t_given_tMinus1,
+            Q_t_given_tMinus1,
+            m_t_given_t,
+            Q_t_given_t,
+            y,
+            params_cur,
+            μ_0,
+            Γ_0,
+        )
+        _backward_sampling_1d_inplace(
+            X_chain[i].reshape((size, 1)),
+            params_cur,
+            m_t_given_tMinus1,
+            Q_t_given_tMinus1,
+            m_t_given_t,
+            Q_t_given_t,
+            1,
+        )
+        _sampling_parameters_1d_inplace(
+            params_chain[i],
+            y,
+            X_chain[i],
+        )
+    return params_chain, X_chain.reshape((N, size, 1))
 
 
 @jit(
