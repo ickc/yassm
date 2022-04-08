@@ -758,7 +758,11 @@ class GeneralLinearGaussianStateSpaceModelFit:
                 ax.plot(t, smoothed_obs_from_gibbs_samples[:, i], label=label, color=color_smooth_from_gibbs_samples)
 
         if plot_smoothed_from_gibbs_samples_CI:
-            smoothed_obs_lower_from_gibbs_samples, _, smoothed_obs_upper_from_gibbs_samples = self.smoothed_obs_CI_from_gibbs_samples(α)
+            (
+                smoothed_obs_lower_from_gibbs_samples,
+                _,
+                smoothed_obs_upper_from_gibbs_samples,
+            ) = self.smoothed_obs_CI_from_gibbs_samples(α)
             for i, ax in enumerate(axes):
                 ax.fill_between(
                     t,
