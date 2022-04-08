@@ -206,5 +206,17 @@ class LocalLevelModel(GenericLinearGaussianStateSpaceModel):
             logger.warning("The only implemented MLE method is EM for local level model. Using EM...")
         return self.mle_em
 
+    @staticmethod
+    def params_guess(y: npt.ArrayLike) -> npt.NDArray[np.float64]:
+        # law of large number guesstimate
+        # ~ 2 * σ_ε_sq + 2 * σ_Z_sq
+        temp1 = np.nanvar(y[2:] - y[:-2])
+        # ~ 2 * σ_ε_sq + σ_Z_sq
+        temp2 = np.nanvar(np.diff(y))
+        σ_Z_sq0 = temp1 - temp2
+        σ_ε_sq0 = 0.5 * (temp2 - σ_Z_sq0)
+        params0 = np.array([σ_ε_sq0, σ_Z_sq0])
+        return params0
+
 
 local_level_model = LocalLevelModel()

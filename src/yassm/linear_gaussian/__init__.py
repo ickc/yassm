@@ -699,10 +699,15 @@ class GenericLinearGaussianStateSpaceModel:
     def mle(self, method: str = "gradient") -> Mle:
         raise NotImplementedError
 
+    @staticmethod
+    def params_guess(y: npt.ArrayLike) -> npt.NDArray[np.float64]:
+        """Estimate initial parameters using the data with law of large number."""
+        raise NotImplementedError
+
     def fit(
         self,
         y: npt.ArrayLike,
-        params: npt.ArrayLike,
+        params: npt.ArrayLike | None,
         μ_0: npt.ArrayLike,
         Γ_0: npt.ArrayLike,
         mle_method: str = "scipy_minimize",
@@ -725,6 +730,9 @@ class GenericLinearGaussianStateSpaceModel:
             :param t: optional time axis
             :param param_names: optional names of parameters
         """
+        if params is None:
+            logger.info("Estimating initial parameters using the data with law of large number...")
+            params = self.params_guess(y)
         # using default if exists
         if not mle_kwargs and hasattr(self, "mle_kwargs"):
             mle_kwargs = self.mle_kwargs  # type: ignore[attr-defined]

@@ -37,7 +37,7 @@ class TestLinearGaussian(TestCase):
     def setUpYassm(self) -> GeneralLinearGaussianStateSpaceModelFit:
         return local_level_model.fit(
             self.y,
-            np.full(2, self.y.var()),
+            None,
             self.μ_0,
             self.Γ_0,
             mle_n_iter=self.mle_n_iter,
