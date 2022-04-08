@@ -700,7 +700,7 @@ class GenericLinearGaussianStateSpaceModel:
         raise NotImplementedError
 
     @staticmethod
-    def params_guess(y: npt.ArrayLike) -> npt.NDArray[np.float64]:
+    def params_guess(y: npt.NDArray[np.float64]) -> npt.NDArray[np.float64]:
         """Estimate initial parameters using the data with law of large number."""
         raise NotImplementedError
 
@@ -730,6 +730,7 @@ class GenericLinearGaussianStateSpaceModel:
             :param t: optional time axis
             :param param_names: optional names of parameters
         """
+        y = np.ascontiguousarray(y, dtype=np.float64)
         if params is None:
             logger.info("Estimating initial parameters using the data with law of large number...")
             params = self.params_guess(y)

@@ -207,7 +207,7 @@ class LocalLevelModel(GenericLinearGaussianStateSpaceModel):
         return self.mle_em
 
     @staticmethod
-    def params_guess(y: npt.ArrayLike) -> npt.NDArray[np.float64]:
+    def params_guess(y: npt.NDArray[np.float64]) -> npt.NDArray[np.float64]:
         # law of large number guesstimate
         # ~ 2 * σ_ε_sq + 2 * σ_Z_sq
         temp1 = np.nanvar(y[2:] - y[:-2])
