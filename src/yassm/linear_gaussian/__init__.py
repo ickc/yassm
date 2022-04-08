@@ -198,6 +198,7 @@ class GeneralLinearGaussianStateSpaceModelFit:
     :param mle_return_chain: if True, return the chain of parameters during MLE
     :param mle_kwargs: pass to self.parent.mle
     :param n_sample: number of samples used in FFBSampling algorithm
+    :param gibbs_burn_in: number of burn-in iterations in GibbsSampling algorithm
     :param t: optional time axis
     :param param_names: optional names of parameters
     """
@@ -212,6 +213,7 @@ class GeneralLinearGaussianStateSpaceModelFit:
     mle_return_chain: bool = False
     mle_kwargs: dict[Any, Any] = field(default_factory=dict)
     n_sample: int = 0
+    gibbs_burn_in: int = 0
     t: npt.NDArray[Any] | None = None
     param_names: list[str] | None = None
 
@@ -418,13 +420,15 @@ class GeneralLinearGaussianStateSpaceModelFit:
 
     def _run_gibbs_sampling(self) -> None:
         logger.info("Running gibbs_sampling...")
-        self._gibbs_params_chain, self._gibbs_X_chain = self.parent.gibbs_sampling(
+        self.gibbs_params_chain_with_burn_in, self.gibbs_X_chain_with_burn_in = self.parent.gibbs_sampling(
             self.y,
             self.params,
             self.μ_0,
             self.Γ_0,
             self.n_sample,
         )
+        self._gibbs_params_chain = self.gibbs_params_chain_with_burn_in[self.gibbs_burn_in:]
+        self._gibbs_X_chain = self.gibbs_X_chain_with_burn_in[self.gibbs_burn_in:]
 
     # cached parameters from _run_*
 
@@ -818,6 +822,7 @@ class GenericLinearGaussianStateSpaceModel:
         mle_return_chain: bool = False,
         mle_kwargs: dict[Any, Any] = {},
         n_sample: int = 0,
+        gibbs_burn_in: int = 0,
         t: npt.NDArray[Any] | None = None,
         param_names: list[str] | None = None,
     ) -> GeneralLinearGaussianStateSpaceModelFit:
@@ -851,6 +856,7 @@ class GenericLinearGaussianStateSpaceModel:
             mle_return_chain=mle_return_chain,
             mle_kwargs=mle_kwargs,
             n_sample=n_sample,
+            gibbs_burn_in=gibbs_burn_in,
             t=t,
             param_names=param_names or self.param_names,
         )
