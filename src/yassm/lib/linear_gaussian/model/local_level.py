@@ -271,6 +271,84 @@ def kalman_smoothing(
 
 
 @jit(
+    "(f8[:, ::1], f8[::1], f8[::1], f8[::1], f8[::1], f8[::1], i8)",
+    nopython=True,
+    nogil=True,
+    cache=False,
+)
+def _backward_sampling_1d_inplace(
+    samples: npt.NDArray[np.float64],
+    params: npt.NDArray[np.float64],
+    m_t_given_tMinus1: npt.NDArray[np.float64],
+    Q_t_given_tMinus1: npt.NDArray[np.float64],
+    m_t_given_t: npt.NDArray[np.float64],
+    Q_t_given_t: npt.NDArray[np.float64],
+    N: int,
+) -> npt.NDArray[np.float64]:
+    """FFBSampling algorithm.
+
+    :param N: Number of samples to generate.
+
+    Modified from `kalman_smoothing_inplace` as they share
+    the same prerequisites.
+    """
+    size = m_t_given_t.size
+    T = size - 1
+    Σ = params[1]
+
+    # initialize
+    samples[T] = np.random.normal(m_t_given_t[T], np.sqrt(Q_t_given_t[T]), N)
+
+    for t in range(T - 1, -1, -1):
+        tPlus1 = t + 1
+        Γ_tPlus1 = Q_t_given_t[t] / Q_t_given_tMinus1[tPlus1]
+        for i in range(N):
+            # this only stores the offset from m_t_given_t[t]
+            samples[t, i] = Γ_tPlus1 * (samples[tPlus1, i] - m_t_given_tMinus1[tPlus1])
+        # rewrite to minimize floating point error
+        # the general formula as is would result in negative Q_current
+        Q_current = Γ_tPlus1 * Σ
+        samples[t] += np.random.normal(m_t_given_t[t], np.sqrt(Q_current), N)
+    return samples
+
+
+@jit(
+    "f8[:, :, ::1](f8[::1], f8[:, ::1], f8[:, :, ::1], f8[:, ::1], f8[:, :, ::1], i8)",
+    nopython=True,
+    nogil=True,
+    cache=True,
+)
+def backward_sampling(
+    params: npt.NDArray[np.float64],
+    m_t_given_tMinus1_2d: npt.NDArray[np.float64],
+    Q_t_given_tMinus1_3d: npt.NDArray[np.float64],
+    m_t_given_t_2d: npt.NDArray[np.float64],
+    Q_t_given_t_3d: npt.NDArray[np.float64],
+    N: int,
+) -> npt.NDArray[np.float64]:
+    size = m_t_given_t_2d.shape[0]
+    # to 1d
+    m_t_given_tMinus1 = m_t_given_tMinus1_2d.flatten()
+    Q_t_given_tMinus1 = Q_t_given_tMinus1_3d.flatten()
+    m_t_given_t = m_t_given_t_2d.flatten()
+    Q_t_given_t = Q_t_given_t_3d.flatten()
+
+    # memalloc
+    samples = np.empty((size, N))
+
+    _backward_sampling_1d_inplace(
+        samples,
+        params,
+        m_t_given_tMinus1,
+        Q_t_given_tMinus1,
+        m_t_given_t,
+        Q_t_given_t,
+        N,
+    )
+    return samples.reshape((size, N, 1))
+
+
+@jit(
     "Tuple((f8[:, ::1], f8[:, :, ::1]))(f8[::1], f8[:, ::1], f8[:, :, ::1], int64, b1)",
     nopython=True,
     nogil=True,

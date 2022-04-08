@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING
 import numpy as np
 from numba import jit
 
+from ...lib.linear_gaussian.model.local_level import backward_sampling as _backward_sampling
 from ...lib.linear_gaussian.model.local_level import forecast as _forecast
 from ...lib.linear_gaussian.model.local_level import kalman_filtering as _kalman_filtering
 from ...lib.linear_gaussian.model.local_level import kalman_smoothing as _kalman_smoothing
@@ -87,6 +88,10 @@ class LocalLevelModel(GenericLinearGaussianStateSpaceModel):
     @property
     def kalman_smoothing(self) -> KalmanSmoothing:
         return _kalman_smoothing
+
+    @property
+    def backward_sampling(self) -> FFBSampling:
+        return _backward_sampling
 
     @property
     def smoothed_state_to_obs(self) -> SmoothedStateToObs:
