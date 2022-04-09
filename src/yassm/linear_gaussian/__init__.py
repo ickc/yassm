@@ -1269,6 +1269,62 @@ class GeneralLinearGaussianStateSpaceModel(GenericLinearGaussianStateSpaceModel)
         return backward_sampling
 
     @cached_property
+    def gibbs_sampling(self) -> GibbsSampling:
+        kalman_filtering = self.kalman_filtering
+        backward_sampling = self.backward_sampling
+        sampling_parameters = self.sampling_parameters
+        d = self.d
+
+        @jit(
+            "Tuple((f8[:, ::1], f8[:, :, ::1]))(f8[:, ::1], f8[::1], f8[::1], f8[:, ::1], i8)",
+            nopython=True,
+            nogil=True,
+            cache=False,
+        )
+        def gibbs_sampling(
+            y: npt.NDArray[np.float64],
+            params: npt.NDArray[np.float64],
+            μ_0: npt.NDArray[np.float64],
+            Γ_0: npt.NDArray[np.float64],
+            N: int,
+        ) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]]:
+            """Gibbs sampling.
+
+            :return: the parameters chain and the Xs chain.
+            """
+            n_params = params.size
+            size = y.shape[0]
+
+            # memalloc
+            params_chain = np.empty((N, n_params))
+            X_chain = np.empty((N, size, d))
+
+            params_cur = params
+            for i in range(N):
+                (m_t_given_tMinus1, Q_t_given_tMinus1, m_t_given_t, Q_t_given_t,) = kalman_filtering(
+                    y,
+                    params_cur,
+                    μ_0,
+                    Γ_0,
+                )
+                X_chain[i] = backward_sampling(
+                    params_cur,
+                    m_t_given_tMinus1,
+                    Q_t_given_tMinus1,
+                    m_t_given_t,
+                    Q_t_given_t,
+                    1,
+                )[:, 0, :]
+                params_chain[i] = sampling_parameters(
+                    y,
+                    X_chain[i],
+                )
+                params_cur = params_chain[i]
+            return params_chain, X_chain
+
+        return gibbs_sampling
+
+    @cached_property
     def smoothed_state_to_obs(self) -> SmoothedStateToObs:
         B0 = self.B0
         B = self.B

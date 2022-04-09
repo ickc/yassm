@@ -6,14 +6,21 @@ from typing import TYPE_CHECKING
 import numpy as np
 
 from ...lib.linear_gaussian.model.local_linear import A0, B0, R0, Σ0
+from ...lib.linear_gaussian.model.local_linear import sampling_parameters as _sampling_parameters
 from .. import GeneralLinearGaussianStateSpaceModel
 
 if TYPE_CHECKING:
     import numpy.typing as npt
 
+    from .. import SamplingParameters
+
 
 @dataclass
 class LocalLinearModel(GeneralLinearGaussianStateSpaceModel):
+    @property
+    def sampling_parameters(self) -> SamplingParameters:
+        return _sampling_parameters
+
     @staticmethod
     def params_guess(y: npt.NDArray[np.float64]) -> npt.NDArray[np.float64]:
         # law of large number guesstimate

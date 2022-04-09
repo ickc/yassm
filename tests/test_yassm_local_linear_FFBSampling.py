@@ -16,8 +16,7 @@ class TestLocalLinearGaussian(TestCase):
         y = self.y
 
         C = 1e8
-        self.atol = 2e-2
-        n_sample = 1000
+        n_sample = 100
 
         self.μ_0 = np.zeros(2)
         self.Γ_0 = C * np.identity(2)
@@ -46,5 +45,13 @@ class TestLocalLinearGaussian(TestCase):
     def test_FFBSampling(self) -> None:
         fit = self.fit
         np.random.seed(22222)
-        np.testing.assert_allclose(fit.m_t_given_T_from_samples, fit.m_t_given_T, atol=self.atol)
-        np.testing.assert_allclose(fit.Q_t_given_T_from_samples, fit.Q_t_given_T, atol=self.atol)
+        np.testing.assert_allclose(fit.m_t_given_T_from_samples, fit.m_t_given_T, rtol=0.02)
+        np.testing.assert_allclose(fit.Q_t_given_T_from_samples, fit.Q_t_given_T, rtol=0.4)
+
+    def test_gibbs_sampling(self) -> None:
+        fit = self.fit
+        np.random.seed(77777)
+        # the data doesn't fit well so gibbs sampling is not very close to mle
+        # TODO: use better data. Nile data is known to reproduce the MLE well.
+        np.testing.assert_allclose(fit.m_t_given_T_from_gibbs_samples, fit.m_t_given_T, rtol=0.04)
+        np.testing.assert_allclose(fit.Q_t_given_T_from_gibbs_samples, fit.Q_t_given_T, rtol=0.5)
