@@ -61,7 +61,7 @@ def direct_sampling(
         # draw σ_Z_sq
         σ_Z_sq = 1.0 / np.random.gamma(gamma_shape, gamma_scale)
         params_chain[i, 0] = σ_Z_sq
-        with objmode(sample="f8[:, ::1]"):
-            sample = np.random.multivariate_normal(β_hat, Σ * σ_Z_sq, 1)
-        params_chain[i, 1:] = sample[0]
+        with objmode(sample="f8[::1]"):
+            sample = np.random.multivariate_normal(β_hat, Σ * σ_Z_sq)
+        params_chain[i, 1:] = sample
     return params_chain
