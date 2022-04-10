@@ -858,8 +858,58 @@ class GenericLinearGaussianStateSpaceModel:
         """
         raise NotImplementedError
 
-    def mle(self, method: str = "gradient") -> Mle:
-        raise NotImplementedError
+    @property
+    def mle_scipy_minimize(self) -> Mle:
+        neg2_log_likelihood = self.neg2_log_likelihood
+
+        def mle_scipy_minimize(
+            y: npt.NDArray[np.float64],
+            params0: npt.NDArray[np.float64],
+            μ_0: npt.NDArray[np.float64],
+            Γ_0: npt.NDArray[np.float64],
+            n_iter: int,
+            return_chain: bool,
+            **kwargs: dict[str, Any],
+        ) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]]:
+            """Calculate MLE from log-likelihood using scipy.optimize.minimize.
+
+            Tips: include `bounds` for constrainted variables.
+            """
+            from scipy.optimize import minimize
+
+            def _callback(xk: npt.NDArray[np.float64]) -> None:
+                """Store iterations."""
+                chain.append(xk)
+
+            if n_iter:
+                logger.warning("n_iter %s is ignored when using scipy.optimize.minimize.", n_iter)
+
+            chain: list[npt.NDArray[np.float64]] = []
+            callack: Callable[[npt.NDArray[np.float64]], None] | None
+            if return_chain:
+                chain.append(params0)
+                callback = _callback
+            else:
+                callback = None
+
+            opt = minimize(neg2_log_likelihood, params0, args=(y.reshape(-1, 1), μ_0, Γ_0), callback=callback, **kwargs)
+            msg = opt.message
+            if not opt.success:
+                raise RuntimeError(f"MLE unccessful with message: {msg}")
+            logger.info("MLE constructed with message: %s", msg)
+            return opt.x, np.array(chain)
+
+        return mle_scipy_minimize
+
+    def mle(self, method: str = "scipy_minimize") -> Mle:
+        """Return the MLE method."""
+        method_lower = method.lower()
+        if method_lower != "scipy_minimize":
+            logger.warning(
+                "The only implemented MLE method is scipy_minimize for general linear Gaussian model. Using"
+                " scipy_minimize..."
+            )
+        return self.mle_scipy_minimize
 
     @staticmethod
     def params_guess(y: npt.NDArray[np.float64]) -> npt.NDArray[np.float64]:
@@ -1542,51 +1592,3 @@ class GeneralLinearGaussianStateSpaceModel(GenericLinearGaussianStateSpaceModel)
             return res
 
         return neg2_log_likelihood
-
-    def mle(self, method: str = "scipy_minimize") -> Mle:
-        method_lower = method.lower()
-        if method_lower != "scipy_minimize":
-            logger.warning(
-                "The only implemented MLE method is scipy_minimize for general linear Gaussian model. Using"
-                " scipy_minimize..."
-            )
-        neg2_log_likelihood = self.neg2_log_likelihood
-
-        def mle_scipy_minimize(
-            y: npt.NDArray[np.float64],
-            params0: npt.NDArray[np.float64],
-            μ_0: npt.NDArray[np.float64],
-            Γ_0: npt.NDArray[np.float64],
-            n_iter: int,
-            return_chain: bool,
-            **kwargs: dict[str, Any],
-        ) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]]:
-            """Calculate MLE from log-likelihood using scipy.optimize.minimize.
-
-            Tips: include `bounds` for constrainted variables.
-            """
-            from scipy.optimize import minimize
-
-            def _callback(xk: npt.NDArray[np.float64]) -> None:
-                """Store iterations."""
-                chain.append(xk)
-
-            if n_iter:
-                logger.warning("n_iter %s is ignored when using scipy.optimize.minimize.", n_iter)
-
-            chain: list[npt.NDArray[np.float64]] = []
-            callack: Callable[[npt.NDArray[np.float64]], None] | None
-            if return_chain:
-                chain.append(params0)
-                callback = _callback
-            else:
-                callback = None
-
-            opt = minimize(neg2_log_likelihood, params0, args=(y.reshape(-1, 1), μ_0, Γ_0), callback=callback, **kwargs)
-            msg = opt.message
-            if not opt.success:
-                raise RuntimeError(f"MLE unccessful with message: {msg}")
-            logger.info("MLE constructed with message: %s", msg)
-            return opt.x, np.array(chain)
-
-        return mle_scipy_minimize
