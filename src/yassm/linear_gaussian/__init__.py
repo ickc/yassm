@@ -16,7 +16,7 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 import pandas as pd
-from numba import jit, objmode
+from numba import jit, objmode, prange
 from scipy import stats
 
 from ..lib import sqrt_diag
@@ -164,6 +164,15 @@ if TYPE_CHECKING:
             npt.NDArray[np.float64],
         ],
         float,
+    ]
+    Likelihoods = Callable[
+        [
+            npt.NDArray[np.float64],
+            npt.NDArray[np.float64],
+            npt.NDArray[np.float64],
+            npt.NDArray[np.float64],
+        ],
+        npt.NDArray[np.float64],
     ]
 
     class Mle(Protocol):
@@ -586,6 +595,14 @@ class GeneralLinearGaussianStateSpaceModelFit:
     def smoothed_state_cov(self) -> npt.NDArray[np.float64]:
         return self.Q_t_given_T
 
+    # misc
+
+    def log_likelihoods(
+        self,
+        params_chain: npt.NDArray[np.float64],
+    ) -> npt.NDArray[np.float64]:
+        return -0.5 * self.parent.neg2_log_likelihoods(params_chain, self.y, self.μ_0, self.Γ_0)
+
     # CI
 
     def smoothed_obs_CI(
@@ -912,6 +929,48 @@ class GenericLinearGaussianStateSpaceModel:
         Y|θ
         """
         raise NotImplementedError
+
+    @cached_property
+    def neg2_log_likelihoods(self) -> Likelihoods:
+        """Calculate negative 2 times log-likelihood for param-chain.
+
+        Y|θ
+        """
+        neg2_log_likelihood = self.neg2_log_likelihood
+
+        @jit(
+            "f8[::1](f8[:, ::1], f8[:, ::1], f8[::1], f8[:, ::1])",
+            nopython=True,
+            nogil=True,
+            cache=False,
+            parallel=True,
+        )
+        def neg2_log_likelihoods(
+            paramses: npt.NDArray[np.float64],
+            y_2d: npt.NDArray[np.float64],
+            μ_0_1d: npt.NDArray[np.float64],
+            Γ_0_2d: npt.NDArray[np.float64],
+        ) -> npt.NDArray[np.float64]:
+            """Calculate negative 2 times log-likelihood.
+
+                Y|θ
+
+            This is modified from Kalman filtering but not keeping the intermediate terms.
+
+            This skip the first term that uses the prior of X0 as that is typically a defused distribution.
+            """
+            N = paramses.shape[0]
+            res = np.empty(N)
+            for i in prange(N):
+                res[i] = neg2_log_likelihood(
+                    paramses[i],
+                    y_2d,
+                    μ_0_1d,
+                    Γ_0_2d,
+                )
+            return res
+
+        return neg2_log_likelihoods
 
     @property
     def mle_scipy_minimize(self) -> Mle:

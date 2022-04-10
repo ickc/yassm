@@ -557,39 +557,6 @@ def neg2_log_likelihood(
 
 
 @jit(
-    "f8[::1](f8[:, ::1], f8[:, ::1], f8[::1], f8[:, ::1])",
-    nopython=True,
-    nogil=True,
-    cache=True,
-    parallel=True,
-)
-def neg2_log_likelihoods(
-    paramses: npt.NDArray[np.float64],
-    y_2d: npt.NDArray[np.float64],
-    μ_0_1d: npt.NDArray[np.float64],
-    Γ_0_2d: npt.NDArray[np.float64],
-) -> npt.NDArray[np.float64]:
-    """Calculate negative 2 times log-likelihood.
-
-        Y|θ
-
-    This is modified from Kalman filtering but not keeping the intermediate terms.
-
-    This skip the first term that uses the prior of X0 as that is typically a defused distribution.
-    """
-    N = paramses.shape[0]
-    res = np.empty(N)
-    for i in prange(N):
-        res[i] = neg2_log_likelihood(
-            paramses[i],
-            y_2d,
-            μ_0_1d,
-            Γ_0_2d,
-        )
-    return res
-
-
-@jit(
     "(f8[::1], f8[::1], f8[::1], f8[::1], f8[::1], f8[::1], f8[::1], f8[::1])",
     nopython=True,
     nogil=True,
