@@ -605,6 +605,34 @@ class GeneralLinearGaussianStateSpaceModelFit:
             smoothed_obs + ns_std[1] * smoothed_obs_std,
         )
 
+    def smoothed_obs_CI_from_samples(
+        self,
+        α: float,
+    ) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64], npt.NDArray[np.float64]]:
+        smoothed_obs = self.smoothed_obs_from_samples
+        CIs = np.quantile(self.samples, [0.5 * α, 1.0 - 0.5 * α], axis=1)
+        # cov is redundant here but smoothed_state_to_obs requires it...
+        smoothed_obs_low, _ = self.parent.smoothed_state_to_obs(
+            self.params,
+            CIs[0],
+            self.Q_t_given_T,
+            0,
+            False,
+        )
+        smoothed_obs_high, _ = self.parent.smoothed_state_to_obs(
+            self.params,
+            CIs[1],
+            self.Q_t_given_T,
+            0,
+            False,
+        )
+
+        return (
+            smoothed_obs_low,
+            smoothed_obs,
+            smoothed_obs_high,
+        )
+
     def smoothed_obs_CI_from_gibbs_samples(
         self,
         α: float,
@@ -671,6 +699,8 @@ class GeneralLinearGaussianStateSpaceModelFit:
         plot_smoothed: bool = True,
         plot_smoothed_CI: bool = True,
         plot_smoothed_CI_with_obs_cov: bool = True,
+        plot_smoothed_from_samples: bool = False,
+        plot_smoothed_from_samples_CI: bool = False,
         plot_smoothed_from_gibbs_samples: bool = False,
         plot_smoothed_from_gibbs_samples_CI: bool = False,
     ) -> tuple[mpl.figure.Figure, list[mpl.axes._subplots.AxesSubplot]]:
@@ -704,6 +734,8 @@ class GeneralLinearGaussianStateSpaceModelFit:
         color_smooth_alt = color[6]
         color_forecast = color[3]
         color_forecast_alt = color[2]
+        color_smooth_from_samples = color[11]
+        color_smooth_from_samples_alt = color[10]
         color_smooth_from_gibbs_samples = color[9]
         color_smooth_from_gibbs_samples_alt = color[8]
 
@@ -747,6 +779,29 @@ class GeneralLinearGaussianStateSpaceModelFit:
                     smoothed_obs_upper[:, i],
                     alpha=alpha,
                     color=color_smooth_alt,
+                )
+
+        if plot_smoothed_from_samples:
+            smoothed_obs_from_samples = self.smoothed_obs_from_samples
+            label = "Smoothed obseration from FFBSamples"
+            if plot_smoothed_from_samples_CI:
+                label += str_CI
+            for i, ax in enumerate(axes):
+                ax.plot(t, smoothed_obs_from_samples[:, i], label=label, color=color_smooth_from_samples)
+
+        if plot_smoothed_from_samples_CI:
+            (
+                smoothed_obs_lower_from_samples,
+                _,
+                smoothed_obs_upper_from_samples,
+            ) = self.smoothed_obs_CI_from_samples(α)
+            for i, ax in enumerate(axes):
+                ax.fill_between(
+                    t,
+                    smoothed_obs_lower_from_samples[:, i],
+                    smoothed_obs_upper_from_samples[:, i],
+                    alpha=alpha,
+                    color=color_smooth_from_samples_alt,
                 )
 
         if plot_smoothed_from_gibbs_samples:
@@ -892,7 +947,7 @@ class GenericLinearGaussianStateSpaceModel:
             else:
                 callback = None
 
-            opt = minimize(neg2_log_likelihood, params0, args=(y.reshape(-1, 1), μ_0, Γ_0), callback=callback, **kwargs)
+            opt = minimize(neg2_log_likelihood, params0, args=(y, μ_0, Γ_0), callback=callback, **kwargs)
             msg = opt.message
             if not opt.success:
                 raise RuntimeError(f"MLE unccessful with message: {msg}")
