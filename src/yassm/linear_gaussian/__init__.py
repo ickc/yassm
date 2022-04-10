@@ -922,7 +922,7 @@ class GenericLinearGaussianStateSpaceModel:
         params: npt.ArrayLike | None,
         μ_0: npt.ArrayLike,
         Γ_0: npt.ArrayLike,
-        mle_method: str = "scipy_minimize",
+        mle_method: str = "",
         mle_n_iter: int = 0,
         mle_return_chain: bool = False,
         mle_kwargs: dict[Any, Any] = {},
