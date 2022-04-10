@@ -427,7 +427,11 @@ class GeneralLinearGaussianStateSpaceModelFit:
             True,
         )
 
-    def _run_gibbs_sampling(self) -> None:
+    def _run_gibbs_sampling(self, filter_n_std: float | None = None) -> None:
+        """Run Gibbs sampler.
+
+        :param filter_n_std: if not None, the samples are filtered with the given number of standard deviations.
+        """
         logger.info("Running gibbs_sampling...")
         self.gibbs_params_chain_with_burn_in, self.gibbs_X_chain_with_burn_in = self.parent.gibbs_sampling(
             self.y,
@@ -436,6 +440,17 @@ class GeneralLinearGaussianStateSpaceModelFit:
             self.Γ_0,
             self.n_sample,
         )
+        if filter_n_std is not None:
+            mask = (
+                self.log_likelihoods(self.gibbs_params_chain_with_burn_in)
+                > self.log_likelihood - 0.5 * filter_n_std**2
+            )
+            n_sample_used = self.n_sample - self.gibbs_burn_in
+            self.n_sample = mask.sum()
+            self.gibbs_burn_in = self.n_sample - n_sample_used
+            assert self.gibbs_burn_in >= 0
+            self.gibbs_params_chain_with_burn_in = np.ascontiguousarray(self.gibbs_params_chain_with_burn_in[mask])
+            self.gibbs_X_chain_with_burn_in = np.ascontiguousarray(self.gibbs_X_chain_with_burn_in[mask])
         self._gibbs_params_chain = self.gibbs_params_chain_with_burn_in[self.gibbs_burn_in :]
         self._gibbs_X_chain = self.gibbs_X_chain_with_burn_in[self.gibbs_burn_in :]
 
