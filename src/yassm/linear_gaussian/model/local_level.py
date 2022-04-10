@@ -225,11 +225,15 @@ class LocalLevelModel(GenericLinearGaussianStateSpaceModel):
         # now we can cache this
         return self.get_mle_func(_kalman_filtering_1d_inplace, _kalman_smoothing_1d_inplace, param_update_inplace_em)
 
-    def mle(self, method: str = "gradient") -> Mle:
+    def mle(self, method: str = "em") -> Mle:
         method_lower = method.lower()
-        if method_lower != "em":
-            logger.warning("The only implemented MLE method is EM for local level model. Using EM...")
-        return self.mle_em
+        if method_lower == "em":
+            return self.mle_em
+        elif method_lower == "scipy_minimize":
+            return self.mle_scipy_minimize
+        else:
+            logger.warning("method %s not supported, defaulting to EM", method)
+            return self.mle_em
 
     @staticmethod
     def params_guess(y: npt.NDArray[np.float64]) -> npt.NDArray[np.float64]:
