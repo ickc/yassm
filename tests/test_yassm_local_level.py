@@ -57,7 +57,7 @@ class TestLocalLevelGaussian(TestCase):
 
     def setUp(self) -> None:
         C = 1e8
-        self.atol = 1e-5
+        self.rtol = 1e-8
         self.T_predict = 100
 
         self.μ_0 = np.zeros(1)
@@ -96,34 +96,34 @@ class TestLocalLevelGaussian(TestCase):
         np.testing.assert_allclose(
             self.fit.m_t_given_t,
             self.fit_ref.m_t_given_t,
-            atol=self.atol,
+            rtol=self.rtol,
         )
         np.testing.assert_allclose(
             self.fit.Q_t_given_t,
             self.fit_ref.Q_t_given_t,
-            atol=self.atol,
+            rtol=self.rtol,
         )
         np.testing.assert_allclose(
             self.fit.m_t_given_tMinus1,
             self.fit_ref.m_t_given_tMinus1,
-            atol=self.atol,
+            rtol=self.rtol,
         )
         np.testing.assert_allclose(
             self.fit.Q_t_given_tMinus1,
             self.fit_ref.Q_t_given_tMinus1,
-            atol=self.atol,
+            rtol=self.rtol,
         )
 
     def test_kalman_smoothing(self) -> None:
         np.testing.assert_allclose(
             self.fit.m_t_given_T,
             self.fit_ref.m_t_given_T,
-            atol=self.atol,
+            rtol=self.rtol,
         )
         np.testing.assert_allclose(
             self.fit.Q_t_given_T,
             self.fit_ref.Q_t_given_T,
-            atol=self.atol,
+            rtol=self.rtol,
         )
 
     def test_forecast(self) -> None:
@@ -133,46 +133,46 @@ class TestLocalLevelGaussian(TestCase):
         np.testing.assert_allclose(
             forecast,
             forecast_ref,
-            atol=self.atol,
+            rtol=self.rtol,
         )
         np.testing.assert_allclose(
             forecast_cov,
             forecast_cov_ref,
-            atol=self.atol,
+            rtol=self.rtol,
         )
 
     def test_kalman_filtering_local_ratio(self) -> None:
         np.testing.assert_allclose(
             self.fit_ratio.m_t_given_t,
             self.fit.m_t_given_t,
-            atol=self.atol,
+            rtol=self.rtol,
         )
         np.testing.assert_allclose(
             self.fit_ratio.Q_t_given_t,
             self.fit.Q_t_given_t,
-            atol=self.atol,
+            rtol=self.rtol,
         )
         np.testing.assert_allclose(
             self.fit_ratio.m_t_given_tMinus1,
             self.fit.m_t_given_tMinus1,
-            atol=self.atol,
+            rtol=self.rtol,
         )
         np.testing.assert_allclose(
             self.fit_ratio.Q_t_given_tMinus1,
             self.fit.Q_t_given_tMinus1,
-            atol=self.atol,
+            rtol=self.rtol,
         )
 
     def test_kalman_smoothing_local_ratio(self) -> None:
         np.testing.assert_allclose(
             self.fit_ratio.m_t_given_T,
             self.fit.m_t_given_T,
-            atol=self.atol,
+            rtol=self.rtol,
         )
         np.testing.assert_allclose(
             self.fit_ratio.Q_t_given_T,
             self.fit.Q_t_given_T,
-            atol=self.atol,
+            rtol=self.rtol,
         )
 
     def test_forecast_local_ratio(self) -> None:
@@ -182,12 +182,12 @@ class TestLocalLevelGaussian(TestCase):
         np.testing.assert_allclose(
             forecast,
             forecast_ref,
-            atol=self.atol,
+            rtol=self.rtol,
         )
         np.testing.assert_allclose(
             forecast_cov,
             forecast_cov_ref,
-            atol=self.atol,
+            rtol=self.rtol,
         )
 
 

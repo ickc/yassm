@@ -110,7 +110,7 @@ class TestLocalRatioGaussian(TestCase):
 
     def setUp(self) -> None:
         C = 1e8
-        self.atol = 1e-5
+        self.rtol = 1e-7
         self.T_predict = 100
 
         self.μ_0 = np.zeros(1)
@@ -136,22 +136,22 @@ class TestLocalRatioGaussian(TestCase):
         np.testing.assert_allclose(
             self.fit.m_t_given_t,
             res.filtered_state.transpose(),
-            atol=self.atol,
+            rtol=self.rtol,
         )
         np.testing.assert_allclose(
             self.fit.Q_t_given_t,
             res.filtered_state_cov.transpose(2, 0, 1),
-            atol=self.atol,
+            rtol=self.rtol,
         )
         np.testing.assert_allclose(
             self.fit.m_t_given_tMinus1,
             res.predicted_state.transpose()[:-1],
-            atol=self.atol,
+            rtol=self.rtol,
         )
         np.testing.assert_allclose(
             self.fit.Q_t_given_tMinus1,
             res.predicted_state_cov.transpose(2, 0, 1)[:-1],
-            atol=self.atol,
+            rtol=self.rtol,
         )
 
     def test_kalman_smoothing(self) -> None:
@@ -159,12 +159,12 @@ class TestLocalRatioGaussian(TestCase):
         np.testing.assert_allclose(
             self.fit.m_t_given_T,
             res.smoothed_state.transpose(),
-            atol=self.atol,
+            rtol=self.rtol,
         )
         np.testing.assert_allclose(
             self.fit.Q_t_given_T,
             res.smoothed_state_cov.transpose(2, 0, 1),
-            atol=self.atol,
+            rtol=self.rtol,
         )
 
     def test_forecast(self) -> None:
@@ -173,10 +173,10 @@ class TestLocalRatioGaussian(TestCase):
         np.testing.assert_allclose(
             forecast[:, 0],
             forecast_sm.predicted_mean,
-            atol=self.atol,
+            rtol=self.rtol,
         )
         np.testing.assert_allclose(
             np.sqrt(forecast_cov[:, 0, 0]),
             forecast_sm.se_mean,
-            atol=self.atol,
+            rtol=self.rtol,
         )
