@@ -338,11 +338,11 @@ def _sampling_parameters_1d_inplace(
     size = y.size
     T = size - 1
 
-    σ_ε_sq = 1.0 / np.random.gamma(0.5 * size, 2.0 / np.square(y - x).sum(), size=1)[0]
+    σ_ε_sq = 1.0 / np.random.gamma(0.5 * size, 2.0 / np.square(y - x).sum())
     s_0 = np.square(x[:-1]).sum()
     φ_hat = (x[:-1] * x[1:]).sum() / s_0
-    σ_Z_sq = 1.0 / np.random.gamma(0.5 * (T - 1), 2.0 / np.square(φ_hat * x[:-1] - x[1:]).sum(), size=1)[0]
-    φ = np.random.normal(φ_hat, np.sqrt(σ_Z_sq / s_0), size=1)[0]
+    σ_Z_sq = 1.0 / np.random.gamma(0.5 * (T - 1), 2.0 / np.square(φ_hat * x[:-1] - x[1:]).sum())
+    φ = np.random.normal(φ_hat, np.sqrt(σ_Z_sq / s_0))
 
     params[0] = σ_ε_sq
     params[1] = σ_Z_sq
