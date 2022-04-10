@@ -305,7 +305,8 @@ def _backward_sampling_1d_inplace(
         for i in range(N):
             # this only stores the offset from m_t_given_t[t]
             samples[t, i] = Γ_tPlus1 * (samples[tPlus1, i] - m_t_given_tMinus1[tPlus1])
-        # rewrite to minimize floating point error
+        # rewrite using definition of Γ and 1-step ahead formula
+        # to minimize floating point error
         # the general formula as is would result in negative Q_current
         Q_current = Γ_tPlus1 * Σ
         samples[t] += np.random.normal(m_t_given_t[t], np.sqrt(Q_current), N)
