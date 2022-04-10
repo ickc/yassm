@@ -284,7 +284,7 @@ def _backward_sampling_1d_inplace(
     m_t_given_t: npt.NDArray[np.float64],
     Q_t_given_t: npt.NDArray[np.float64],
     N: int,
-) -> npt.NDArray[np.float64]:
+) -> None:
     """FFBSampling algorithm.
 
     :param N: Number of samples to generate.
@@ -310,7 +310,6 @@ def _backward_sampling_1d_inplace(
         # the general formula as is would result in negative Q_current
         Q_current = Γ_tPlus1 * Σ
         samples[t] += np.random.normal(m_t_given_t[t], np.sqrt(Q_current), N)
-    return samples
 
 
 @jit(
