@@ -12,12 +12,15 @@ from . import y
 from .test_yassm_local_ratio_with_sm import LocalRatioModel
 
 if TYPE_CHECKING:
+    from typing import Any
+
     from yassm.linear_gaussian import GeneralLinearGaussianStateSpaceModelFit
 
 
 class TestLinearGaussianLocalRatioEM(TestCase):
     y = y
     method = "em"
+    mle_kwargs: dict[str, Any] = {}
 
     def setUp(self) -> None:
         C = 1e8
@@ -48,10 +51,16 @@ class TestLinearGaussianLocalRatioEM(TestCase):
             self.Γ_0,
             mle_method=self.method,
             mle_n_iter=self.mle_n_iter,
+            mle_kwargs=self.mle_kwargs,
         )
 
     def test_mle(self) -> None:
         np.testing.assert_allclose(self.fit.params, self.sm.params, rtol=self.rtol)
+
+
+class TestLinearGaussianLocalRatioScipyMinimize(TestLinearGaussianLocalRatioEM):
+    method = "scipy_minimize"
+    mle_kwargs = {"bounds": ((0, None), (0, None), (None, None))}
 
 
 # failure if learning rate is too high

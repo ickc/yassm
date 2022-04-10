@@ -5,42 +5,63 @@ from unittest import TestCase
 import numpy as np
 
 from yassm.linear_gaussian.model.local_level import local_level_model
+from yassm.linear_gaussian.model.local_ratio import local_ratio_model
 
-from tests import y
+from tests import set_seed, y
 
 
 class TestLocalLinearGaussian(TestCase):
     y = y
+    model = local_level_model
 
     def setUp(self) -> None:
-        self.rtol = 0.05
-        mle_n_iter = 10
-        n_sample = 10000
-        gibbs_burn_in = 5000
+        self.mle_n_iter = 100
+        self.n_sample = 10000
+        self.gibbs_burn_in = 500
 
         μ_0 = 0.0
-        Γ_0 = 100.0  # np.infty
+        Γ_0 = np.infty
 
-        self.fit = local_level_model.fit(
+        self.fit = self.model.fit(
             self.y,
             None,
             μ_0,
             Γ_0,
-            mle_n_iter=mle_n_iter,
-            n_sample=n_sample,
-            gibbs_burn_in=gibbs_burn_in,
+            mle_n_iter=self.mle_n_iter,
+            n_sample=self.n_sample,
+            gibbs_burn_in=self.gibbs_burn_in,
+        )
+        # allow 2σ
+        self.rtol_sample_m = 2.0 / np.sqrt(self.n_sample)
+        # allow 4σ
+        self.rtol_sample_Q = 4.0 * np.sqrt(2.0 / (self.n_sample - 1))
+        scale = np.max(np.abs(self.y))
+        self.atol_sample_m = scale * 1e-4
+        self.atol_sample_Q = scale**2 * 1e-3
+
+    def test_FFBSampling_m(self) -> None:
+        np.testing.assert_allclose(self.fit.m_t_given_T_from_samples, self.fit.m_t_given_T, rtol=self.rtol_sample_m)
+
+    def test_FFBSampling_Q(self) -> None:
+        np.testing.assert_allclose(self.fit.Q_t_given_T_from_samples, self.fit.Q_t_given_T, rtol=self.rtol_sample_Q)
+
+    def test_gibbs_sampling_m(self) -> None:
+        np.testing.assert_allclose(
+            self.fit.m_t_given_T_from_gibbs_samples,
+            self.fit.m_t_given_T,
+            rtol=self.rtol_sample_m,
+            atol=self.atol_sample_m,
         )
 
-    def test_FFBSampling(self) -> None:
-        fit = self.fit
-        np.random.seed(11111)
-        np.testing.assert_allclose(fit.m_t_given_T_from_samples, fit.m_t_given_T, rtol=self.rtol)
-        np.testing.assert_allclose(fit.Q_t_given_T_from_samples, fit.Q_t_given_T, rtol=self.rtol)
+    def test_gibbs_sampling_Q(self) -> None:
+        np.testing.assert_allclose(
+            self.fit.Q_t_given_T_from_gibbs_samples,
+            self.fit.Q_t_given_T,
+            rtol=self.rtol_sample_Q,
+            atol=self.atol_sample_Q,
+        )
 
-    def test_gibbs_sampling(self) -> None:
-        fit = self.fit
-        np.random.seed(77777)
-        # the data doesn't fit well so gibbs sampling is not very close to mle
-        # TODO: use better data. Nile data is known to reproduce the MLE well.
-        np.testing.assert_allclose(fit.m_t_given_T_from_gibbs_samples, fit.m_t_given_T, rtol=0.5)
-        np.testing.assert_allclose(fit.Q_t_given_T_from_gibbs_samples, fit.Q_t_given_T, rtol=0.7)
+
+class TestLocalRatioGaussian(TestLocalLinearGaussian):
+    y = y
+    model = local_ratio_model
