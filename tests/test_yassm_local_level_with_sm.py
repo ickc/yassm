@@ -41,7 +41,23 @@ class TestLinearGaussian(TestCase):
             self.μ_0,
             self.Γ_0,
             mle_n_iter=self.mle_n_iter,
+            mle_method="EM",
+        )
+
+    def setUpYassm_mle_by_likelihood(self) -> GeneralLinearGaussianStateSpaceModelFit:
+        return local_level_model.fit(
+            self.y,
+            None,
+            self.μ_0,
+            self.Γ_0,
+            mle_n_iter=self.mle_n_iter,
+            mle_method="scipy_minimize",
+            mle_kwargs={"bounds": ((0, None), (0, None))},
         )
 
     def test_mle(self) -> None:
         np.testing.assert_allclose(self.fit.params, self.sm.params, rtol=self.rtol)
+
+    def test_mle_by_likelihood(self) -> None:
+        self.fit_by_likelihood = self.setUpYassm_mle_by_likelihood()
+        np.testing.assert_allclose(self.fit_by_likelihood.params, self.fit.params, rtol=self.rtol)
