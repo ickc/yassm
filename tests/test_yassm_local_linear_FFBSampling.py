@@ -6,7 +6,7 @@ import numpy as np
 
 from yassm.linear_gaussian.model.local_linear import local_linear_model
 
-from tests import y
+from tests import set_seed, y
 
 
 class TestLocalLinearGaussian(TestCase):
@@ -16,7 +16,7 @@ class TestLocalLinearGaussian(TestCase):
         y = self.y
 
         C = 1e8
-        n_sample = 100
+        self.n_sample = 100
 
         self.μ_0 = np.zeros(2)
         self.Γ_0 = C * np.identity(2)
@@ -39,18 +39,22 @@ class TestLocalLinearGaussian(TestCase):
             self.μ_0,
             self.Γ_0,
             mle_n_iter=1,
-            n_sample=n_sample,
+            n_sample=self.n_sample,
         )
 
     def test_FFBSampling(self) -> None:
         fit = self.fit
-        np.random.seed(22222)
-        np.testing.assert_allclose(fit.m_t_given_T_from_samples, fit.m_t_given_T, rtol=0.02)
-        np.testing.assert_allclose(fit.Q_t_given_T_from_samples, fit.Q_t_given_T, rtol=0.4)
+        set_seed(22222)
+        # allow 2σ
+        rtol = 2.0 / np.sqrt(self.n_sample)
+        np.testing.assert_allclose(fit.m_t_given_T_from_samples, fit.m_t_given_T, rtol=rtol)
+        # allow 5σ
+        rtol = 5.0 * np.sqrt(2.0 / (self.n_sample - 1))
+        np.testing.assert_allclose(fit.Q_t_given_T_from_samples, fit.Q_t_given_T, rtol=rtol)
 
     def test_gibbs_sampling(self) -> None:
         fit = self.fit
-        np.random.seed(77777)
+        set_seed(77777)
         # the data doesn't fit well so gibbs sampling is not very close to mle
         # TODO: use better data. Nile data is known to reproduce the MLE well.
         np.testing.assert_allclose(fit.m_t_given_T_from_gibbs_samples, fit.m_t_given_T, rtol=0.04)
