@@ -1111,6 +1111,7 @@ class GeneralLinearGaussianStateSpaceModel(GenericLinearGaussianStateSpaceModel)
     :param R: If None, Numba-jit should optimized this away to have no cost, else, a Numba-jitted function of (out, params, t) updating out as observation coariance, shape of (n, n).
     :param B0_forecast: If None, B0 is used for forecasting, Numba-jit should optimized this away to have no cost, else, a Numba-jitted function of (params) initializing design for forecasting, shape of (n, d).
     :param B_forecast: If not None, B0_forecast should be specified. If None, Numba-jit should optimized this away to have no cost, else, a Numba-jitted function of (out, params, t) updating out as design for forecasting, shape of (n, d).
+    :param X0: If None, Numba-jit should optimized this away to have no cost, else, a Numba-jitted function of (params) generating μ_0, Γ_0, where the μ_0, Γ_0 passed to `fit` will be ignored.
     :param mle_kwargs: pass to self.mle.
     :param param_names: list of names of the parameters.
 
@@ -1136,6 +1137,7 @@ class GeneralLinearGaussianStateSpaceModel(GenericLinearGaussianStateSpaceModel)
     R: Callable[[npt.NDArray[np.float64], npt.NDArray[np.float64], int], npt.NDArray[np.float64]] | None = None
     B0_forecast: Callable[[npt.NDArray[np.float64]], npt.NDArray[np.float64]] | None = None
     B_forecast: Callable[[npt.NDArray[np.float64], npt.NDArray[np.float64], int], npt.NDArray[np.float64]] | None = None
+    X0: Callable[[npt.NDArray[np.float64]], tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]]] | None = None
     mle_kwargs: dict[Any, Any] = field(default_factory=dict)
     param_names: list[str] | None = None
 
@@ -1163,6 +1165,12 @@ class GeneralLinearGaussianStateSpaceModel(GenericLinearGaussianStateSpaceModel)
         assert R0(params).shape == (n, n)
         del params
 
+        if self.X0 is not None:
+            logger.info(
+                "X0 is provided, μ_0 and Γ_0 are ignored in calculation (but you still need to pass them with valid"
+                " type as they will be passed around to functions, albeit not used.)"
+            )
+
     @cached_property
     def kalman_filtering_inplace(self) -> KalmanFilteringInplace:
         A0 = self.A0
@@ -1173,6 +1181,7 @@ class GeneralLinearGaussianStateSpaceModel(GenericLinearGaussianStateSpaceModel)
         B = self.B
         Σ = self.Σ
         R = self.R
+        X0 = self.X0
 
         @jit(
             "(f8[:, ::1], f8[:, :, ::1], f8[:, ::1], f8[:, :, ::1], f8[:, ::1], f8[::1], f8[::1], f8[:, ::1])",
@@ -1206,8 +1215,13 @@ class GeneralLinearGaussianStateSpaceModel(GenericLinearGaussianStateSpaceModel)
             R_t = R0(params)
 
             # initialize
-            m_t_given_tMinus1[0] = μ_0
-            Q_t_given_tMinus1[0] = Γ_0
+            if X0 is None:
+                m_t_given_tMinus1[0] = μ_0
+                Q_t_given_tMinus1[0] = Γ_0
+            else:
+                μ, Γ = X0(params)
+                m_t_given_tMinus1[0] = μ
+                Q_t_given_tMinus1[0] = Γ
 
             t = 0
             if B is not None:
@@ -1624,6 +1638,7 @@ class GeneralLinearGaussianStateSpaceModel(GenericLinearGaussianStateSpaceModel)
         R = self.R
         d = self.d
         n = self.n
+        X0 = self.X0
 
         @jit(
             "f8(f8[::1], f8[:, ::1], f8[::1], f8[:, ::1])",
@@ -1664,8 +1679,13 @@ class GeneralLinearGaussianStateSpaceModel(GenericLinearGaussianStateSpaceModel)
             H_t = temp[d * (2 * d + 2) + n :].reshape((n, n))
 
             # initialize
-            m_t_given_tMinus1[:] = μ_0
-            Q_t_given_tMinus1[:] = Γ_0
+            if X0 is None:
+                m_t_given_tMinus1[:] = μ_0
+                Q_t_given_tMinus1[:] = Γ_0
+            else:
+                μ, Γ = X0(params)
+                m_t_given_tMinus1[:] = μ
+                Q_t_given_tMinus1[:] = Γ
 
             # we don't add t=0 term to res here
             res = T * LOG2Π
