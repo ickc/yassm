@@ -1,13 +1,42 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, overload
 
 import numpy as np
-from numba import jit
+from numba import jit, prange
 from numpy.linalg import solve
 
 if TYPE_CHECKING:
     import numpy.typing as npt
+
+SQRT_2Π_INV = 1.0 / np.sqrt(2.0 * np.pi)
+
+# probaility functions #########################################################
+
+
+@jit("f8[::1](f8[:, ::1], f8[::1], f8[:, ::1], b1)", nopython=True, nogil=True, cache=True, parallel=True)
+def prob_normal(
+    x: npt.NDArray[np.float64],
+    μ: npt.NDArray[np.float64],
+    Σ_inv: npt.NDArray[np.float64],
+    norm_peak_to_1: bool,
+) -> npt.NDArray[np.float64]:
+    """Probability density of normal distribution.
+
+    :param Σ_inv: Inverse of covariance matrix.
+    :param norm_peak_to_1: Normalize peak to 1.
+    """
+    n = x.shape[0]
+    res = np.empty(n)
+    Σ_inv_neg_half = -0.5 * Σ_inv
+    scale = 1.0 if norm_peak_to_1 else SQRT_2Π_INV * np.sqrt(np.linalg.det(Σ_inv))
+    for i in prange(n):
+        d = x[i] - μ
+        res[i] = np.exp(d @ Σ_inv_neg_half @ d) * scale
+    return res
+
+
+# pipelines ####################################################################
 
 
 @jit(
