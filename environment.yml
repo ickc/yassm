@@ -20,6 +20,7 @@ dependencies:
   - matplotlib-base
   - scipy
   - pandas
+  - numdifftools
   # run:
   - defopt >=6,<7
   # run_constrained:

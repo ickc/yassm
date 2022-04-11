@@ -13,7 +13,9 @@ from dataclasses import dataclass, field
 from functools import cached_property
 from logging import getLogger
 from typing import TYPE_CHECKING
+from functools import partial
 
+import numdifftools as nd
 import numpy as np
 import pandas as pd
 from numba import jit, objmode, prange
@@ -617,6 +619,29 @@ class GeneralLinearGaussianStateSpaceModelFit:
         params_chain: npt.NDArray[np.float64],
     ) -> npt.NDArray[np.float64]:
         return -0.5 * self.parent.neg2_log_likelihoods(params_chain, self.y, self.μ_0, self.Γ_0)
+
+    @cached_property
+    def mle_hessian_log_likelihood(self) -> npt.NDArray[np.float64]:
+        """Hessian of the log likelihood at MLE."""
+        logger.info("Computing MLE Hessian, assumes MLE is attained during fit.")
+        return -0.5 * nd.Hessian(
+            partial(
+                self.parent.neg2_log_likelihood,
+                y=self.y,
+                μ_0=self.μ_0,
+                Γ_0=self.Γ_0,
+            )
+        )(self.params)
+
+    @cached_property
+    def posterior_normal_approximation_cov_inv(self) -> npt.NDArray[np.float64]:
+        """Posterior inverse covariance matrix of the normal approximation."""
+        return -self.mle_hessian_log_likelihood
+
+    @cached_property
+    def posterior_normal_approximation_cov(self) -> npt.NDArray[np.float64]:
+        """Posterior covariance matrix of the normal approximation."""
+        return np.linalg.inv(self.posterior_normal_approximation_cov_inv)
 
     # CI
 

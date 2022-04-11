@@ -46,6 +46,7 @@ statsmodels = "*"
 matplotlib = "*"
 scipy = "*"
 pandas = "*"
+numdifftools = "*"
 
 # extras
 coloredlogs = { optional = true, version = ">=14,<16" }
