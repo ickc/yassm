@@ -54,7 +54,7 @@ def direct_sampling(
 
     X_T_X = X.T @ X
     β_hat = np.linalg.solve(X_T_X, X.T @ Y)
-    gamma_shape = 0.5 * (T - 2)
+    gamma_shape = 0.5 * (T - 4)
     gamma_scale = 2.0 / np.square(Y - X @ β_hat).sum()
     Σ = np.linalg.pinv(X_T_X)
     for i in range(N):
