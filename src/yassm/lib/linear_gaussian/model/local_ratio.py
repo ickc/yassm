@@ -675,3 +675,115 @@ def param_update_inplace_em(
         + Q_t_given_T[1:] * (1.0 - 2.0 * φ * φ_old * (Q_t_given_t[:-1] / Q_t_given_tMinus1[1:]))
         + np.square(m_t_given_T[1:] - φ * m_t_given_T[:-1])
     )
+
+
+# these functions is not used anywhere
+# gibbs_sampling_debug is a drop-in replacement for gibbs_sampling
+# for debugging, by adding more intermediate parameters to the output
+# it is because the gibbs sampling here doesn't seem to be stable,
+# and at times it stucks in low likiehood regions.
+
+
+@jit("(f8[::1], f8[::1], f8[::1])", nopython=True, nogil=True, cache=True)
+def _sampling_parameters_1d_inplace_debug(
+    params: npt.NDArray[np.float64],
+    y: npt.NDArray[np.float64],
+    x: npt.NDArray[np.float64],
+) -> None:
+    """Sampling parameters given Xs, Ys.
+
+    Step 2 of Gibbs sampling.
+    """
+    size = y.size
+    T = size - 1
+
+    v = np.square(y - x).sum()
+    # σ_ε_sq = 0.0
+    # while σ_ε_sq < 1.:
+    σ_ε_sq = 1.0 / np.random.gamma(0.5 * size, 2.0 / v)
+    s_0 = np.square(x[:-1]).sum()
+    d = (x[:-1] * x[1:]).sum()
+    φ_hat = d / s_0
+    δ = np.square(φ_hat * x[:-1] - x[1:]).sum()
+    # σ_Z_sq = 0.0
+    # while σ_Z_sq < 0.005 or σ_Z_sq > 0.02:
+    σ_Z_sq = 1.0 / np.random.gamma(0.5 * (T - 1), 2.0 / δ)
+    σ = np.sqrt(σ_Z_sq / s_0)
+    # φ = 0.0
+    # while φ < 0.5:
+    φ = np.random.normal(φ_hat, σ)
+
+    params[0] = σ_ε_sq
+    params[1] = σ_Z_sq
+    params[2] = φ
+    params[3] = v
+    params[4] = s_0
+    params[5] = d
+    params[6] = φ_hat
+    params[7] = δ
+    params[8] = σ
+
+
+@jit(
+    "Tuple((f8[:, ::1], f8[:, :, ::1]))(f8[:, ::1], f8[::1], f8[::1], f8[:, ::1], i8)",
+    nopython=True,
+    nogil=True,
+    cache=True,
+)
+def gibbs_sampling_debug(
+    y_2d: npt.NDArray[np.float64],
+    params: npt.NDArray[np.float64],
+    μ_0_1d: npt.NDArray[np.float64],
+    Γ_0_2d: npt.NDArray[np.float64],
+    N: int,
+) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]]:
+    """Gibbs sampling.
+
+    :return: the parameters chain and the Xs chain.
+
+    Same as `local_level.gibbs_sampling`.
+    """
+    n_params = 10
+    y = y_2d.flatten()
+    μ_0 = μ_0_1d[0]
+    Γ_0 = Γ_0_2d[0, 0]
+    size = y.size
+
+    # memalloc
+    temp = np.empty((4, size))
+    m_t_given_tMinus1 = temp[0]
+    Q_t_given_tMinus1 = temp[1]
+    m_t_given_t = temp[2]
+    Q_t_given_t = temp[3]
+    params_chain = np.empty((N, n_params))
+    X_chain = np.empty((N, size))
+
+    params_cur = params
+    for i in range(N):
+        _kalman_filtering_1d_inplace(
+            m_t_given_tMinus1,
+            Q_t_given_tMinus1,
+            m_t_given_t,
+            Q_t_given_t,
+            y,
+            params_cur,
+            μ_0,
+            Γ_0,
+        )
+        _backward_sampling_1d_inplace(
+            X_chain[i].reshape((size, 1)),
+            params_cur,
+            m_t_given_tMinus1,
+            Q_t_given_tMinus1,
+            m_t_given_t,
+            Q_t_given_t,
+            1,
+        )
+        _sampling_parameters_1d_inplace_debug(
+            params_chain[i],
+            y,
+            X_chain[i],
+        )
+        params_cur = params_chain[i, :3]
+        params_chain[i, 9] = -0.5 * neg2_log_likelihood(params_cur, y_2d, μ_0_1d, Γ_0_2d)
+    return params_chain, X_chain.reshape((N, size, 1))
