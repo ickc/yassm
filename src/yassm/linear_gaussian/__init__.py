@@ -10,10 +10,9 @@ These cannot be cached as they are compiled using closure.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from functools import cached_property
+from functools import cached_property, partial
 from logging import getLogger
 from typing import TYPE_CHECKING
-from functools import partial
 
 import numdifftools as nd
 import numpy as np
