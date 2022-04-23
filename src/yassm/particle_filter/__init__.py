@@ -9,7 +9,7 @@ from logging import getLogger
 from typing import TYPE_CHECKING
 
 import numpy as np
-from numba import jit, objmode, prange
+from numba import jit, objmode
 
 from ..lib import sqrt_diag
 from ..lib.linear_gaussian import cov_from_samples, prob_normal_each
@@ -972,7 +972,6 @@ class GeneralLinearGaussianParticleFilterStateSpaceModel(
             "f8[:, :, ::1](f8[::1], f8[:, :, ::1], int64)",
             nopython=True,
             nogil=True,
-            parallel=True,
             cache=False,
         )
         def smoothed_state_to_obs(
@@ -992,7 +991,7 @@ class GeneralLinearGaussianParticleFilterStateSpaceModel(
                     B(B_t, params, t0 + t)
                 if B0_forecast is not None and B_forecast is not None:
                     B_forecast(B_t_forecast, params, t0 + t)
-                for i in prange(N):
+                for i in range(N):
                     smoothed_obs[t, i] = B_t_forecast @ x_t[t, i]
             return smoothed_obs
 
