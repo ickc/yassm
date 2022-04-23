@@ -227,6 +227,10 @@ class AbstractFit:
 
     # running functions and cache: _run_*
 
+    def _run_filtered_state_to_obs(self) -> None:
+        self._filtered_obs: npt.NDArray[np.float64]
+        raise NotImplementedError
+
     def _run_smoothed_state_to_obs(self) -> None:
         self._smoothed_obs: npt.NDArray[np.float64]
         raise NotImplementedError
@@ -241,6 +245,13 @@ class AbstractFit:
         raise NotImplementedError
 
     # cached parameters from _run_*
+
+    @property
+    def filtered_obs(self) -> npt.NDArray[np.float64]:
+        """Filtered observations of shape (size, n)."""
+        if not hasattr(self, "_filtered_obs"):
+            self._run_filtered_state_to_obs()
+        return self._filtered_obs
 
     @property
     def smoothed_obs(self) -> npt.NDArray[np.float64]:
@@ -264,6 +275,20 @@ class AbstractFit:
         return self._smoothed_obs_from_gibbs_samples
 
     # CI
+
+    def filtered_obs_CI(
+        self,
+        α: float,
+        with_obs_cov: bool = True,
+    ) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64], npt.NDArray[np.float64]]:
+        """Filtered observations confidence intervals.
+
+        :param α: Confidence level.
+        :param with_obs_cov: Whether to include observation covariance.
+        :return: tuple of 3 arrays of shape (size, n).
+            They are the lower, central and upper confidence intervals.
+        """
+        raise NotImplementedError
 
     def smoothed_obs_CI(
         self,
@@ -329,6 +354,8 @@ class AbstractFit:
         alpha: float = 0.2,
         plot_obs: bool = True,
         plot_smoothed_CI_with_obs_cov: bool = True,
+        plot_filtered: bool = False,
+        plot_filtered_CI: bool = False,
         plot_smoothed: bool = True,
         plot_smoothed_CI: bool = True,
         plot_smoothed_from_samples: bool = False,
@@ -406,6 +433,27 @@ class AbstractFit:
                     alpha=alpha,
                     color=colors[1],
                 )
+
+        if plot_filtered or plot_filtered_CI:
+            colors = next(colors_iter)
+            if plot_filtered:
+                filtered_obs = self.filtered_obs
+                label = "Filtered obseration"
+                if plot_filtered_CI:
+                    label += str_CI
+                for i, ax in enumerate(axes):
+                    ax.plot(t, filtered_obs[:, i], label=label, color=colors[0])
+
+            if plot_filtered_CI:
+                filtered_obs_lower, _, filtered_obs_upper = self.filtered_obs_CI(α, with_obs_cov=False)
+                for i, ax in enumerate(axes):
+                    ax.fill_between(
+                        t,
+                        filtered_obs_lower[:, i],
+                        filtered_obs_upper[:, i],
+                        alpha=alpha,
+                        color=colors[1],
+                    )
 
         if plot_smoothed or plot_smoothed_CI:
             colors = next(colors_iter)
@@ -631,6 +679,16 @@ class GeneralLinearGaussianStateSpaceModelFit(AbstractFit):
             self.Q_t_given_t,
         )
 
+    def _run_filtered_state_to_obs(self) -> None:
+        logger.info("Running smoothed_state_to_obs for filtered states...")
+        (self._filtered_obs, self._filtered_obs_cov,) = self.parent.smoothed_state_to_obs(
+            self.params,
+            self.m_t_given_t,
+            self.Q_t_given_t,
+            0,
+            False,
+        )
+
     def _run_smoothed_state_to_obs(self) -> None:
         logger.info("Running smoothed_state_to_obs...")
         (self._smoothed_obs, self._smoothed_obs_cov,) = self.parent.smoothed_state_to_obs(
@@ -639,6 +697,16 @@ class GeneralLinearGaussianStateSpaceModelFit(AbstractFit):
             self.Q_t_given_T,
             0,
             False,
+        )
+
+    def _run_filtered_state_to_obs_with_obs_cov(self) -> None:
+        logger.info("Running smoothed_state_to_obs with obs_cov for filtered states...")
+        (self._filtered_obs, self._filtered_obs_cov_with_obs_cov,) = self.parent.smoothed_state_to_obs(
+            self.params,
+            self.m_t_given_t,
+            self.Q_t_given_t,
+            0,
+            True,
         )
 
     def _run_smoothed_state_to_obs_with_obs_cov(self) -> None:
@@ -778,10 +846,22 @@ class GeneralLinearGaussianStateSpaceModelFit(AbstractFit):
         return self._Q_t_given_T
 
     @property
+    def filtered_obs_cov(self) -> npt.NDArray[np.float64]:
+        if not hasattr(self, "_filtered_obs_cov"):
+            self._run_filtered_state_to_obs()
+        return self._filtered_obs_cov
+
+    @property
     def smoothed_obs_cov(self) -> npt.NDArray[np.float64]:
         if not hasattr(self, "_smoothed_obs_cov"):
             self._run_smoothed_state_to_obs()
         return self._smoothed_obs_cov
+
+    @property
+    def filtered_obs_cov_with_obs_cov(self) -> npt.NDArray[np.float64]:
+        if not hasattr(self, "_filtered_obs_cov_with_obs_cov"):
+            self._run_filtered_state_to_obs_with_obs_cov()
+        return self._filtered_obs_cov_with_obs_cov
 
     @property
     def smoothed_obs_cov_with_obs_cov(self) -> npt.NDArray[np.float64]:
@@ -909,6 +989,23 @@ class GeneralLinearGaussianStateSpaceModelFit(AbstractFit):
         return np.linalg.inv(self.posterior_normal_approximation_cov_inv)
 
     # CI
+
+    def filtered_obs_CI(
+        self,
+        α: float,
+        with_obs_cov: bool = True,
+    ) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64], npt.NDArray[np.float64]]:
+        filtered_obs = self.filtered_obs
+        filtered_obs_cov = self.filtered_obs_cov_with_obs_cov if with_obs_cov else self.filtered_obs_cov
+
+        ns_std = stats.norm.ppf([0.5 * α, 1.0 - 0.5 * α])
+
+        filtered_obs_std = sqrt_diag(filtered_obs_cov)
+        return (
+            filtered_obs + ns_std[0] * filtered_obs_std,
+            filtered_obs,
+            filtered_obs + ns_std[1] * filtered_obs_std,
+        )
 
     def smoothed_obs_CI(
         self,
