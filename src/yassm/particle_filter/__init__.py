@@ -874,7 +874,7 @@ class GeneralLinearGaussianParticleFilterStateSpaceModel(
         neg_log_likelihood_from_w_t = self.neg_log_likelihood_from_w_t
 
         @jit("f8(f8[::1], f8[:, ::1], i8)", nopython=True, nogil=True)
-        def log_likelihood(
+        def neg_log_likelihood(
             params: npt.NDArray[np.float64],
             y: npt.NDArray[np.float64],
             N: int,
@@ -882,7 +882,7 @@ class GeneralLinearGaussianParticleFilterStateSpaceModel(
             x_t_tilde, x_t, w_t = particle_filter(y, params, N)
             return neg_log_likelihood_from_w_t(w_t)
 
-        return log_likelihood
+        return neg_log_likelihood
 
     # TODO: refactor classes
     # We really only need __post_init__ from GeneralLinearGaussianStateSpaceModel
