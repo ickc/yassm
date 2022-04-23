@@ -1086,15 +1086,15 @@ class GenericLinearGaussianStateSpaceModel:
     ) -> GeneralLinearGaussianStateSpaceModelFit:
         """Return a GeneralLinearGaussianStateSpaceModelFit instance.
 
-            :param y: observed data (Y)
-            :param params: parameters of the model
-            :param μ_0: mean of X0
-            :param Γ_0: covariance of X0
-            :param mle_method: method used to estimate MLE
-            :param mle_n_iter: number of iteration run with MLE
-            :param mle_return_chain: if True, return the chain of parameters during MLE
-            :param t: optional time axis
-            :param param_names: optional names of parameters
+        :param y: observed data (Y)
+        :param params: parameters of the model
+        :param μ_0: mean of X0
+        :param Γ_0: covariance of X0
+        :param mle_method: method used to estimate MLE
+        :param mle_n_iter: number of iteration run with MLE
+        :param mle_return_chain: if True, return the chain of parameters during MLE
+        :param t: optional time axis
+        :param param_names: optional names of parameters
         """
         y = np.ascontiguousarray(y, dtype=np.float64)
         if params is None:
