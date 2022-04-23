@@ -858,20 +858,23 @@ class GeneralLinearGaussianParticleFilterStateSpaceModel(
         @jit("f8(f8[:, ::1])", nopython=True, nogil=True)
         def neg_log_likelihood_from_w_t(w_t: npt.NDArray[np.float64]) -> float:
             size, N = w_t.shape
-            res = 0.0
+            res = size * np.log(N)
             for t in range(size):
                 s = w_t[t].sum()
                 if s > 0.0:
                     res -= np.log(s)
-            res += size * np.log(N)
             return res
 
         return neg_log_likelihood_from_w_t
 
     @cached_property
     def neg_log_likelihood(self) -> Likelihood:
-        particle_filter = self.particle_filter
-        neg_log_likelihood_from_w_t = self.neg_log_likelihood_from_w_t
+        d = self.d
+        sampling_X0_tilde_inplace = self.sampling_X0_tilde_inplace
+        sampling_X0_inplace = self.sampling_X0_inplace
+        sampling_q_inplace = self.sampling_q_inplace
+        weights_inplace = self.weights_inplace
+        use_bootstrap = self.particle_filter_method == "bootstrap"
 
         @jit("f8(f8[::1], f8[:, ::1], i8)", nopython=True, nogil=True)
         def neg_log_likelihood(
@@ -879,8 +882,62 @@ class GeneralLinearGaussianParticleFilterStateSpaceModel(
             y: npt.NDArray[np.float64],
             N: int,
         ) -> float:
-            x_t_tilde, x_t, w_t = particle_filter(y, params, N)
-            return neg_log_likelihood_from_w_t(w_t)
+            """Negative log likelihood.
+
+            Modified from particle_filter but simplified
+            for likelihood calculation only.
+
+            This does not speed up comparing to particle_filter,
+            but reduce memory use roughly by a factor of
+            size + 1 / (2 * d + 1).
+            """
+            size = y.shape[0]
+            # initialize, keep the latest only
+            temp = np.empty((2, N, d))
+            # For bootstrap, x_t_tilde is x_t_given_tMinus1
+            x_t_tilde = temp[0]
+            # x_t is x_t_given_t
+            x_t = temp[1]
+            w_t = np.empty(N)
+
+            res = size * np.log(N)
+            t = 0
+            if use_bootstrap:
+                # initial generation
+                sampling_X0_tilde_inplace(x_t_tilde, params)
+                # weights
+                # x_t is not used by weights_inplace_bootstrap
+                weights_inplace(w_t, x_t_tilde, x_t, y[t], params, t)
+                # normalization
+                s = w_t.sum()
+                if s == 0.0:
+                    w_t[:] = 1.0 / N
+                else:
+                    w_t[:] /= s
+                    res -= np.log(s)
+                # resampling
+                with objmode():
+                    x_t[:] = rng.choice(x_t_tilde, size=N, replace=True, p=w_t)
+            else:
+                # initial generation
+                # x_t_tilde not generated in the guided particle filter case
+                sampling_X0_inplace(x_t, y[t], params)
+            for t in range(1, size):
+                # generation
+                sampling_q_inplace(x_t_tilde, x_t, y[t], params, t)
+                # weights
+                weights_inplace(w_t, x_t_tilde, x_t, y[t], params, t)
+                # normalization
+                s = w_t.sum()
+                if s == 0.0:
+                    w_t[:] = 1.0 / N
+                else:
+                    w_t[:] /= s
+                    res -= np.log(s)
+                # resampling
+                with objmode():
+                    x_t[:] = rng.choice(x_t_tilde, size=N, replace=True, p=w_t)
+            return res
 
         return neg_log_likelihood
 
