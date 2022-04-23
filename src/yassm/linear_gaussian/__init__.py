@@ -338,6 +338,7 @@ class AbstractFit:
         self,
         T_forecast: int,
         α: float,
+        n_std: float | None = None,
     ) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64], npt.NDArray[np.float64]]:
         """Forecast with confidence intervals.
 
