@@ -195,7 +195,290 @@ LOG2Π = np.log(2.0 * np.pi)
 
 
 @dataclass
-class GeneralLinearGaussianStateSpaceModelFit:
+class AbstractFit:
+    def __post_init__(self) -> None:
+        self.y: npt.NDArray[np.float64]
+        self.t: npt.NDArray[Any] | None
+
+        self.n: int
+        self.size: int
+        raise NotImplementedError
+
+    # defaults
+
+    @property
+    def t_array(self) -> npt.ArrayLike:
+        return range(self.size) if self.t is None else self.t
+
+    def t_forecast(self, T_forecast: int) -> npt.ArrayLike:
+        size = self.size
+        if self.t is None:
+            return range(size, size + T_forecast)
+        else:
+            dt = self.t[1] - self.t[0]
+            start = self.t[-1] + dt
+            stop = self.t[-1] + T_forecast * dt
+            return (
+                pd.date_range(start, stop, T_forecast)
+                if np.issubdtype(self.t.dtype, np.datetime64)
+                else np.linspace(start, stop, T_forecast)
+            )
+
+    # running functions and cache: _run_*
+
+    def _run_smoothed_state_to_obs(self) -> None:
+        self._smoothed_obs: npt.NDArray[np.float64]
+        raise NotImplementedError
+
+    def _run_smoothed_state_to_obs_from_samples(self) -> None:
+        logger.info("Running smoothed_state_to_obs from samples...")
+        self._smoothed_obs_from_samples: npt.NDArray[np.float64]
+        raise NotImplementedError
+
+    def _run_smoothed_state_to_obs_from_gibbs_samples(self) -> None:
+        self._smoothed_obs_from_gibbs_samples: npt.NDArray[np.float64]
+        raise NotImplementedError
+
+    # cached parameters from _run_*
+
+    @property
+    def smoothed_obs(self) -> npt.NDArray[np.float64]:
+        """Smoothed observations of shape (size, n)."""
+        if not hasattr(self, "_smoothed_obs"):
+            self._run_smoothed_state_to_obs()
+        return self._smoothed_obs
+
+    @property
+    def smoothed_obs_from_samples(self) -> npt.NDArray[np.float64]:
+        """Smoothed observations of shape (size, n) from sampling."""
+        if not hasattr(self, "_smoothed_obs_from_samples"):
+            self._run_smoothed_state_to_obs_from_samples()
+        return self._smoothed_obs_from_samples
+
+    @property
+    def smoothed_obs_from_gibbs_samples(self) -> npt.NDArray[np.float64]:
+        """Smoothed observations of shape (size, n) from Gibbs sampling."""
+        if not hasattr(self, "_smoothed_obs_from_gibbs_samples"):
+            self._run_smoothed_state_to_obs_from_gibbs_samples()
+        return self._smoothed_obs_from_gibbs_samples
+
+    # CI
+
+    def smoothed_obs_CI(
+        self,
+        α: float,
+        with_obs_cov: bool = True,
+    ) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64], npt.NDArray[np.float64]]:
+        """Smoothed observations confidence intervals.
+
+        :param α: Confidence level.
+        :param with_obs_cov: Whether to include observation covariance.
+        :return: tuple of 3 arrays of shape (size, n).
+            They are the lower, central and upper confidence intervals.
+        """
+        raise NotImplementedError
+
+    def smoothed_obs_CI_from_samples(
+        self,
+        α: float,
+    ) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64], npt.NDArray[np.float64]]:
+        """Smoothed observations confidence intervals from sampling.
+
+        :param α: Confidence level.
+        :param with_obs_cov: Whether to include observation covariance.
+        :return: tuple of 3 arrays of shape (size, n).
+            They are the lower, central and upper confidence intervals.
+        """
+        raise NotImplementedError
+
+    def smoothed_obs_CI_from_gibbs_samples(
+        self,
+        α: float,
+    ) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64], npt.NDArray[np.float64]]:
+        """Smoothed observations confidence intervals from Gibbs sampling.
+
+        :param α: Confidence level.
+        :param with_obs_cov: Whether to include observation covariance.
+        :return: tuple of 3 arrays of shape (size, n).
+            They are the lower, central and upper confidence intervals.
+        """
+        raise NotImplementedError
+
+    def forecast_obs_CI(
+        self,
+        T_forecast: int,
+        α: float,
+    ) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64], npt.NDArray[np.float64]]:
+        """Forecast with confidence intervals.
+
+        :param T_forecast: Number of forecast time steps.
+        :param α: Confidence level.
+        :return: tuple of 3 arrays of shape (size, n).
+            They are the lower, central and upper confidence intervals.
+        """
+        raise NotImplementedError
+
+    # plot
+
+    def plot(
+        self,
+        T_forecast: int = 0,
+        α: float = 0.05,
+        axes: list[mpl.axes._subplots.AxesSubplot] | None = None,
+        alpha: float = 0.2,
+        plot_obs: bool = True,
+        plot_smoothed: bool = True,
+        plot_smoothed_CI: bool = True,
+        plot_smoothed_CI_with_obs_cov: bool = True,
+        plot_smoothed_from_samples: bool = False,
+        plot_smoothed_from_samples_CI: bool = False,
+        plot_smoothed_from_gibbs_samples: bool = False,
+        plot_smoothed_from_gibbs_samples_CI: bool = False,
+    ) -> tuple[mpl.figure.Figure, list[mpl.axes._subplots.AxesSubplot]]:
+        """Plotting.
+
+        :param α: α-value for C.I.
+        :param axes: matplotlib axis, no. of rows should match the dimension of observations.
+        :param alpha: transparency level of `ax.fill_between`.
+
+        TODO: refactor to a DataFrame first and plot from its data.
+        """
+        import matplotlib.pyplot as plt
+        import seaborn as sns
+
+        y = self.y
+        n = self.n
+
+        t = self.t_array
+
+        if axes is None:
+            fig, axes = plt.subplots(n)
+            if n == 1:
+                axes = [axes]
+        else:
+            fig = plt.gcf()
+
+        color = sns.color_palette("Paired")
+        color_obs = color[1]
+        color_obs_alt = color[0]
+        color_smooth = color[7]
+        color_smooth_alt = color[6]
+        color_forecast = color[3]
+        color_forecast_alt = color[2]
+        color_smooth_from_samples = color[11]
+        color_smooth_from_samples_alt = color[10]
+        color_smooth_from_gibbs_samples = color[9]
+        color_smooth_from_gibbs_samples_alt = color[8]
+
+        str_CI = f" w/ ${(1. - α) * 100.:.3g} \\%%$ C.I."
+
+        if plot_obs:
+            label = "Observation"
+            if plot_smoothed_CI_with_obs_cov:
+                label += str_CI
+            for i, ax in enumerate(axes):
+                ax.plot(t, y[:, i], label=label, color=color_obs)
+
+        if plot_smoothed_CI_with_obs_cov:
+            smoothed_obs_lower_with_obs_cov, _, smoothed_obs_upper_with_obs_cov = self.smoothed_obs_CI(
+                α,
+                with_obs_cov=True,
+            )
+            for i, ax in enumerate(axes):
+                ax.fill_between(
+                    t,
+                    smoothed_obs_lower_with_obs_cov[:, i],
+                    smoothed_obs_upper_with_obs_cov[:, i],
+                    alpha=alpha,
+                    color=color_obs_alt,
+                )
+
+        if plot_smoothed:
+            smoothed_obs = self.smoothed_obs
+            label = "Smoothed obseration"
+            if plot_smoothed_CI:
+                label += str_CI
+            for i, ax in enumerate(axes):
+                ax.plot(t, smoothed_obs[:, i], label=label, color=color_smooth)
+
+        if plot_smoothed_CI:
+            smoothed_obs_lower, _, smoothed_obs_upper = self.smoothed_obs_CI(α, with_obs_cov=False)
+            for i, ax in enumerate(axes):
+                ax.fill_between(
+                    t,
+                    smoothed_obs_lower[:, i],
+                    smoothed_obs_upper[:, i],
+                    alpha=alpha,
+                    color=color_smooth_alt,
+                )
+
+        if plot_smoothed_from_samples:
+            smoothed_obs_from_samples = self.smoothed_obs_from_samples
+            label = "Smoothed obseration from FFBSamples"
+            if plot_smoothed_from_samples_CI:
+                label += str_CI
+            for i, ax in enumerate(axes):
+                ax.plot(t, smoothed_obs_from_samples[:, i], label=label, color=color_smooth_from_samples)
+
+        if plot_smoothed_from_samples_CI:
+            (
+                smoothed_obs_lower_from_samples,
+                _,
+                smoothed_obs_upper_from_samples,
+            ) = self.smoothed_obs_CI_from_samples(α)
+            for i, ax in enumerate(axes):
+                ax.fill_between(
+                    t,
+                    smoothed_obs_lower_from_samples[:, i],
+                    smoothed_obs_upper_from_samples[:, i],
+                    alpha=alpha,
+                    color=color_smooth_from_samples_alt,
+                )
+
+        if plot_smoothed_from_gibbs_samples:
+            smoothed_obs_from_gibbs_samples = self.smoothed_obs_from_gibbs_samples
+            label = "Smoothed obseration from gibbs samples"
+            if plot_smoothed_from_gibbs_samples_CI:
+                label += str_CI
+            for i, ax in enumerate(axes):
+                ax.plot(t, smoothed_obs_from_gibbs_samples[:, i], label=label, color=color_smooth_from_gibbs_samples)
+
+        if plot_smoothed_from_gibbs_samples_CI:
+            (
+                smoothed_obs_lower_from_gibbs_samples,
+                _,
+                smoothed_obs_upper_from_gibbs_samples,
+            ) = self.smoothed_obs_CI_from_gibbs_samples(α)
+            for i, ax in enumerate(axes):
+                ax.fill_between(
+                    t,
+                    smoothed_obs_lower_from_gibbs_samples[:, i],
+                    smoothed_obs_upper_from_gibbs_samples[:, i],
+                    alpha=alpha,
+                    color=color_smooth_from_gibbs_samples_alt,
+                )
+
+        if T_forecast > 0:
+            t_forecast = self.t_forecast(T_forecast)
+            forecast_obs_lower, forecast_obs, forecast_obs_upper = self.forecast_obs_CI(T_forecast, α)
+            label = "Forecast" + str_CI
+            for i, ax in enumerate(axes):
+                ax.plot(t_forecast, forecast_obs[:, i], label=label, color=color_forecast)
+                ax.fill_between(
+                    t_forecast,
+                    forecast_obs_lower[:, i],
+                    forecast_obs_upper[:, i],
+                    alpha=alpha,
+                    color=color_forecast_alt,
+                )
+
+        for i, ax in enumerate(axes):
+            ax.legend()
+        return fig, axes
+
+
+@dataclass
+class GeneralLinearGaussianStateSpaceModelFit(AbstractFit):
     """A class performing the General linear gaussian state space model pipelines.
 
     :param parent: a GenericLinearGaussianStateSpaceModel instance.
@@ -281,26 +564,6 @@ class GeneralLinearGaussianStateSpaceModelFit:
                 mle_n_iter,
                 mle_return_chain,
                 **self.mle_kwargs,
-            )
-
-    # defaults
-
-    @property
-    def t_array(self) -> npt.ArrayLike:
-        return range(self.size) if self.t is None else self.t
-
-    def t_forecast(self, T_forecast: int) -> npt.ArrayLike:
-        size = self.size
-        if self.t is None:
-            return range(size, size + T_forecast)
-        else:
-            dt = self.t[1] - self.t[0]
-            start = self.t[-1] + dt
-            stop = self.t[-1] + T_forecast * dt
-            return (
-                pd.date_range(start, stop, T_forecast)
-                if np.issubdtype(self.t.dtype, np.datetime64)
-                else np.linspace(start, stop, T_forecast)
             )
 
     # running functions depending on parameters: get_*
@@ -494,12 +757,6 @@ class GeneralLinearGaussianStateSpaceModelFit:
         return self._Q_t_given_T
 
     @property
-    def smoothed_obs(self) -> npt.NDArray[np.float64]:
-        if not hasattr(self, "_smoothed_obs"):
-            self._run_smoothed_state_to_obs()
-        return self._smoothed_obs
-
-    @property
     def smoothed_obs_cov(self) -> npt.NDArray[np.float64]:
         if not hasattr(self, "_smoothed_obs_cov"):
             self._run_smoothed_state_to_obs()
@@ -518,12 +775,6 @@ class GeneralLinearGaussianStateSpaceModelFit:
     @cached_property
     def Q_t_given_T_from_samples(self) -> npt.NDArray[np.float64]:
         return cov_from_samples(self.samples)
-
-    @property
-    def smoothed_obs_from_samples(self) -> npt.NDArray[np.float64]:
-        if not hasattr(self, "_smoothed_obs_from_samples"):
-            self._run_smoothed_state_to_obs_from_samples()
-        return self._smoothed_obs_from_samples
 
     @property
     def smoothed_obs_cov_from_samples(self) -> npt.NDArray[np.float64]:
@@ -556,12 +807,6 @@ class GeneralLinearGaussianStateSpaceModelFit:
     @cached_property
     def Q_t_given_T_from_gibbs_samples(self) -> npt.NDArray[np.float64]:
         return cov_from_gibbs_samples(self.gibbs_X_chain)
-
-    @property
-    def smoothed_obs_from_gibbs_samples(self) -> npt.NDArray[np.float64]:
-        if not hasattr(self, "_smoothed_obs_from_gibbs_samples"):
-            self._run_smoothed_state_to_obs_from_gibbs_samples()
-        return self._smoothed_obs_from_gibbs_samples
 
     @property
     def smoothed_obs_cov_from_gibbs_samples(self) -> npt.NDArray[np.float64]:
@@ -742,164 +987,6 @@ class GeneralLinearGaussianStateSpaceModelFit:
     @property
     def params_to_series(self) -> pd.Series:
         return pd.Series(self.params, index=self.param_names)
-
-    # plot
-
-    def plot(
-        self,
-        T_forecast: int = 0,
-        α: float = 0.05,
-        axes: list[mpl.axes._subplots.AxesSubplot] | None = None,
-        alpha: float = 0.2,
-        plot_obs: bool = True,
-        plot_smoothed: bool = True,
-        plot_smoothed_CI: bool = True,
-        plot_smoothed_CI_with_obs_cov: bool = True,
-        plot_smoothed_from_samples: bool = False,
-        plot_smoothed_from_samples_CI: bool = False,
-        plot_smoothed_from_gibbs_samples: bool = False,
-        plot_smoothed_from_gibbs_samples_CI: bool = False,
-    ) -> tuple[mpl.figure.Figure, list[mpl.axes._subplots.AxesSubplot]]:
-        """Plotting.
-
-        :param α: α-value for C.I.
-        :param axes: matplotlib axis, no. of rows should match the dimension of observations.
-        :param alpha: transparency level of `ax.fill_between`.
-
-        TODO: refactor to a DataFrame first and plot from its data.
-        """
-        import matplotlib.pyplot as plt
-        import seaborn as sns
-
-        y = self.y
-        n = self.n
-
-        t = self.t_array
-
-        if axes is None:
-            fig, axes = plt.subplots(n)
-            if n == 1:
-                axes = [axes]
-        else:
-            fig = plt.gcf()
-
-        color = sns.color_palette("Paired")
-        color_obs = color[1]
-        color_obs_alt = color[0]
-        color_smooth = color[7]
-        color_smooth_alt = color[6]
-        color_forecast = color[3]
-        color_forecast_alt = color[2]
-        color_smooth_from_samples = color[11]
-        color_smooth_from_samples_alt = color[10]
-        color_smooth_from_gibbs_samples = color[9]
-        color_smooth_from_gibbs_samples_alt = color[8]
-
-        str_CI = f" w/ ${(1. - α) * 100.:.3g} \\%%$ C.I."
-
-        if plot_obs:
-            label = "Observation"
-            if plot_smoothed_CI_with_obs_cov:
-                label += str_CI
-            for i, ax in enumerate(axes):
-                ax.plot(t, y[:, i], label=label, color=color_obs)
-
-        if plot_smoothed_CI_with_obs_cov:
-            smoothed_obs_lower_with_obs_cov, _, smoothed_obs_upper_with_obs_cov = self.smoothed_obs_CI(
-                α,
-                with_obs_cov=True,
-            )
-            for i, ax in enumerate(axes):
-                ax.fill_between(
-                    t,
-                    smoothed_obs_lower_with_obs_cov[:, i],
-                    smoothed_obs_upper_with_obs_cov[:, i],
-                    alpha=alpha,
-                    color=color_obs_alt,
-                )
-
-        if plot_smoothed:
-            smoothed_obs = self.smoothed_obs
-            label = "Smoothed obseration"
-            if plot_smoothed_CI:
-                label += str_CI
-            for i, ax in enumerate(axes):
-                ax.plot(t, smoothed_obs[:, i], label=label, color=color_smooth)
-
-        if plot_smoothed_CI:
-            smoothed_obs_lower, _, smoothed_obs_upper = self.smoothed_obs_CI(α, with_obs_cov=False)
-            for i, ax in enumerate(axes):
-                ax.fill_between(
-                    t,
-                    smoothed_obs_lower[:, i],
-                    smoothed_obs_upper[:, i],
-                    alpha=alpha,
-                    color=color_smooth_alt,
-                )
-
-        if plot_smoothed_from_samples:
-            smoothed_obs_from_samples = self.smoothed_obs_from_samples
-            label = "Smoothed obseration from FFBSamples"
-            if plot_smoothed_from_samples_CI:
-                label += str_CI
-            for i, ax in enumerate(axes):
-                ax.plot(t, smoothed_obs_from_samples[:, i], label=label, color=color_smooth_from_samples)
-
-        if plot_smoothed_from_samples_CI:
-            (
-                smoothed_obs_lower_from_samples,
-                _,
-                smoothed_obs_upper_from_samples,
-            ) = self.smoothed_obs_CI_from_samples(α)
-            for i, ax in enumerate(axes):
-                ax.fill_between(
-                    t,
-                    smoothed_obs_lower_from_samples[:, i],
-                    smoothed_obs_upper_from_samples[:, i],
-                    alpha=alpha,
-                    color=color_smooth_from_samples_alt,
-                )
-
-        if plot_smoothed_from_gibbs_samples:
-            smoothed_obs_from_gibbs_samples = self.smoothed_obs_from_gibbs_samples
-            label = "Smoothed obseration from gibbs samples"
-            if plot_smoothed_from_gibbs_samples_CI:
-                label += str_CI
-            for i, ax in enumerate(axes):
-                ax.plot(t, smoothed_obs_from_gibbs_samples[:, i], label=label, color=color_smooth_from_gibbs_samples)
-
-        if plot_smoothed_from_gibbs_samples_CI:
-            (
-                smoothed_obs_lower_from_gibbs_samples,
-                _,
-                smoothed_obs_upper_from_gibbs_samples,
-            ) = self.smoothed_obs_CI_from_gibbs_samples(α)
-            for i, ax in enumerate(axes):
-                ax.fill_between(
-                    t,
-                    smoothed_obs_lower_from_gibbs_samples[:, i],
-                    smoothed_obs_upper_from_gibbs_samples[:, i],
-                    alpha=alpha,
-                    color=color_smooth_from_gibbs_samples_alt,
-                )
-
-        if T_forecast > 0:
-            t_forecast = self.t_forecast(T_forecast)
-            forecast_obs_lower, forecast_obs, forecast_obs_upper = self.forecast_obs_CI(T_forecast, α)
-            label = "Forecast" + str_CI
-            for i, ax in enumerate(axes):
-                ax.plot(t_forecast, forecast_obs[:, i], label=label, color=color_forecast)
-                ax.fill_between(
-                    t_forecast,
-                    forecast_obs_lower[:, i],
-                    forecast_obs_upper[:, i],
-                    alpha=alpha,
-                    color=color_forecast_alt,
-                )
-
-        for i, ax in enumerate(axes):
-            ax.legend()
-        return fig, axes
 
 
 @dataclass
