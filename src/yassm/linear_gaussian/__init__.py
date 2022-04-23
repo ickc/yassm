@@ -11,6 +11,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from functools import cached_property, partial
+from itertools import cycle
 from logging import getLogger
 from typing import TYPE_CHECKING
 
@@ -359,25 +360,38 @@ class AbstractFit:
             fig = plt.gcf()
 
         color = sns.color_palette("Paired")
-        color_obs = color[1]
-        color_obs_alt = color[0]
-        color_smooth = color[7]
-        color_smooth_alt = color[6]
-        color_forecast = color[3]
-        color_forecast_alt = color[2]
-        color_smooth_from_samples = color[11]
-        color_smooth_from_samples_alt = color[10]
-        color_smooth_from_gibbs_samples = color[9]
-        color_smooth_from_gibbs_samples_alt = color[8]
+        # all color pair below are dark-light pairs
+        # blue
+        colors_obs = (color[1], color[0])
+        # green: reserved for forecast
+        colors_forecast = (color[3], color[2])
+        # these colors should contrasts with blue
+        # used for inferences
+        # and ordered to avoid red which is close to orange
+        colors_iter = cycle(
+            iter(
+                (
+                    # orange
+                    (color[7], color[6]),
+                    # brown/yellow
+                    (color[11], color[10]),
+                    # purple
+                    (color[9], color[8]),
+                    # red
+                    (color[5], color[4]),
+                )
+            )
+        )
 
         str_CI = f" w/ ${(1. - α) * 100.:.3g} \\%%$ C.I."
 
+        colors = colors_obs
         if plot_obs:
             label = "Observation"
             if plot_smoothed_CI_with_obs_cov:
                 label += str_CI
             for i, ax in enumerate(axes):
-                ax.plot(t, y[:, i], label=label, color=color_obs)
+                ax.plot(t, y[:, i], label=label, color=colors[0])
 
         if plot_smoothed_CI_with_obs_cov:
             smoothed_obs_lower_with_obs_cov, _, smoothed_obs_upper_with_obs_cov = self.smoothed_obs_CI(
@@ -390,86 +404,93 @@ class AbstractFit:
                     smoothed_obs_lower_with_obs_cov[:, i],
                     smoothed_obs_upper_with_obs_cov[:, i],
                     alpha=alpha,
-                    color=color_obs_alt,
+                    color=colors[1],
                 )
 
-        if plot_smoothed:
-            smoothed_obs = self.smoothed_obs
-            label = "Smoothed obseration"
+        if plot_smoothed or plot_smoothed_CI:
+            colors = next(colors_iter)
+            if plot_smoothed:
+                smoothed_obs = self.smoothed_obs
+                label = "Smoothed obseration"
+                if plot_smoothed_CI:
+                    label += str_CI
+                for i, ax in enumerate(axes):
+                    ax.plot(t, smoothed_obs[:, i], label=label, color=colors[0])
+
             if plot_smoothed_CI:
-                label += str_CI
-            for i, ax in enumerate(axes):
-                ax.plot(t, smoothed_obs[:, i], label=label, color=color_smooth)
+                smoothed_obs_lower, _, smoothed_obs_upper = self.smoothed_obs_CI(α, with_obs_cov=False)
+                for i, ax in enumerate(axes):
+                    ax.fill_between(
+                        t,
+                        smoothed_obs_lower[:, i],
+                        smoothed_obs_upper[:, i],
+                        alpha=alpha,
+                        color=colors[1],
+                    )
 
-        if plot_smoothed_CI:
-            smoothed_obs_lower, _, smoothed_obs_upper = self.smoothed_obs_CI(α, with_obs_cov=False)
-            for i, ax in enumerate(axes):
-                ax.fill_between(
-                    t,
-                    smoothed_obs_lower[:, i],
-                    smoothed_obs_upper[:, i],
-                    alpha=alpha,
-                    color=color_smooth_alt,
-                )
+        if plot_smoothed_from_samples or plot_smoothed_from_samples_CI:
+            colors = next(colors_iter)
+            if plot_smoothed_from_samples:
+                smoothed_obs_from_samples = self.smoothed_obs_from_samples
+                label = "Smoothed obseration from FFBSamples"
+                if plot_smoothed_from_samples_CI:
+                    label += str_CI
+                for i, ax in enumerate(axes):
+                    ax.plot(t, smoothed_obs_from_samples[:, i], label=label, color=colors[0])
 
-        if plot_smoothed_from_samples:
-            smoothed_obs_from_samples = self.smoothed_obs_from_samples
-            label = "Smoothed obseration from FFBSamples"
             if plot_smoothed_from_samples_CI:
-                label += str_CI
-            for i, ax in enumerate(axes):
-                ax.plot(t, smoothed_obs_from_samples[:, i], label=label, color=color_smooth_from_samples)
+                (
+                    smoothed_obs_lower_from_samples,
+                    _,
+                    smoothed_obs_upper_from_samples,
+                ) = self.smoothed_obs_CI_from_samples(α)
+                for i, ax in enumerate(axes):
+                    ax.fill_between(
+                        t,
+                        smoothed_obs_lower_from_samples[:, i],
+                        smoothed_obs_upper_from_samples[:, i],
+                        alpha=alpha,
+                        color=colors[1],
+                    )
 
-        if plot_smoothed_from_samples_CI:
-            (
-                smoothed_obs_lower_from_samples,
-                _,
-                smoothed_obs_upper_from_samples,
-            ) = self.smoothed_obs_CI_from_samples(α)
-            for i, ax in enumerate(axes):
-                ax.fill_between(
-                    t,
-                    smoothed_obs_lower_from_samples[:, i],
-                    smoothed_obs_upper_from_samples[:, i],
-                    alpha=alpha,
-                    color=color_smooth_from_samples_alt,
-                )
+        if plot_smoothed_from_gibbs_samples or plot_smoothed_from_gibbs_samples_CI:
+            colors = next(colors_iter)
+            if plot_smoothed_from_gibbs_samples:
+                smoothed_obs_from_gibbs_samples = self.smoothed_obs_from_gibbs_samples
+                label = "Smoothed obseration from gibbs samples"
+                if plot_smoothed_from_gibbs_samples_CI:
+                    label += str_CI
+                for i, ax in enumerate(axes):
+                    ax.plot(t, smoothed_obs_from_gibbs_samples[:, i], label=label, color=colors[0])
 
-        if plot_smoothed_from_gibbs_samples:
-            smoothed_obs_from_gibbs_samples = self.smoothed_obs_from_gibbs_samples
-            label = "Smoothed obseration from gibbs samples"
             if plot_smoothed_from_gibbs_samples_CI:
-                label += str_CI
-            for i, ax in enumerate(axes):
-                ax.plot(t, smoothed_obs_from_gibbs_samples[:, i], label=label, color=color_smooth_from_gibbs_samples)
-
-        if plot_smoothed_from_gibbs_samples_CI:
-            (
-                smoothed_obs_lower_from_gibbs_samples,
-                _,
-                smoothed_obs_upper_from_gibbs_samples,
-            ) = self.smoothed_obs_CI_from_gibbs_samples(α)
-            for i, ax in enumerate(axes):
-                ax.fill_between(
-                    t,
-                    smoothed_obs_lower_from_gibbs_samples[:, i],
-                    smoothed_obs_upper_from_gibbs_samples[:, i],
-                    alpha=alpha,
-                    color=color_smooth_from_gibbs_samples_alt,
-                )
+                (
+                    smoothed_obs_lower_from_gibbs_samples,
+                    _,
+                    smoothed_obs_upper_from_gibbs_samples,
+                ) = self.smoothed_obs_CI_from_gibbs_samples(α)
+                for i, ax in enumerate(axes):
+                    ax.fill_between(
+                        t,
+                        smoothed_obs_lower_from_gibbs_samples[:, i],
+                        smoothed_obs_upper_from_gibbs_samples[:, i],
+                        alpha=alpha,
+                        color=colors[1],
+                    )
 
         if T_forecast > 0:
+            colors = colors_forecast
             t_forecast = self.t_forecast(T_forecast)
             forecast_obs_lower, forecast_obs, forecast_obs_upper = self.forecast_obs_CI(T_forecast, α)
             label = "Forecast" + str_CI
             for i, ax in enumerate(axes):
-                ax.plot(t_forecast, forecast_obs[:, i], label=label, color=color_forecast)
+                ax.plot(t_forecast, forecast_obs[:, i], label=label, color=colors[0])
                 ax.fill_between(
                     t_forecast,
                     forecast_obs_lower[:, i],
                     forecast_obs_upper[:, i],
                     alpha=alpha,
-                    color=color_forecast_alt,
+                    color=colors[1],
                 )
 
         for i, ax in enumerate(axes):
