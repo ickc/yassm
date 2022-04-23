@@ -12,7 +12,7 @@ import numpy as np
 from numba import jit, objmode, prange
 
 from ..lib import sqrt_diag
-from ..lib.linear_gaussian import cov_from_samples, prob_normal
+from ..lib.linear_gaussian import cov_from_samples, prob_normal_each
 from ..linear_gaussian import AbstractFit, GeneralLinearGaussianStateSpaceModel, GenericLinearGaussianStateSpaceModel
 
 if TYPE_CHECKING:
@@ -693,12 +693,12 @@ class GeneralLinearGaussianParticleFilterStateSpaceModel(
             # somehow by default the pinv return Fortran order
             R_t_inv = np.linalg.pinv(R_t).T
             for i in range(N):
-                w_t[i] = prob_normal(
-                    y_t.reshape(1, -1),
+                w_t[i] = prob_normal_each(
+                    y_t,
                     B_t @ x_t_tilde[i],
                     R_t_inv,
                     False,
-                )[0]
+                )
 
         return weights_inplace_bootstrap
 
@@ -753,12 +753,12 @@ class GeneralLinearGaussianParticleFilterStateSpaceModel(
             # somehow by default the pinv return Fortran order
             BΣB_R_inv = np.linalg.pinv(B_t @ Σ_t @ B_t.T + R_t).T
             for i in range(N):
-                w_t[i] = prob_normal(
-                    y_t.reshape(1, -1),
+                w_t[i] = prob_normal_each(
+                    y_t,
                     BA @ x_tMinus1[i],
                     BΣB_R_inv,
                     False,
-                )[0]
+                )
 
         return weights_inplace_optimal
 
