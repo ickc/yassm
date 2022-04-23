@@ -432,7 +432,7 @@ class AbstractFit:
             colors = next(colors_iter)
             if plot_smoothed_from_samples:
                 smoothed_obs_from_samples = self.smoothed_obs_from_samples
-                label = "Smoothed obseration from FFBSamples"
+                label = "Smoothed obseration from samples"
                 if plot_smoothed_from_samples_CI:
                     label += str_CI
                 for i, ax in enumerate(axes):
@@ -457,7 +457,7 @@ class AbstractFit:
             colors = next(colors_iter)
             if plot_smoothed_from_gibbs_samples:
                 smoothed_obs_from_gibbs_samples = self.smoothed_obs_from_gibbs_samples
-                label = "Smoothed obseration from gibbs samples"
+                label = "Smoothed obseration from Gibbs samples"
                 if plot_smoothed_from_gibbs_samples_CI:
                     label += str_CI
                 for i, ax in enumerate(axes):
