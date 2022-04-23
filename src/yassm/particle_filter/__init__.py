@@ -1,0 +1,1007 @@
+"""General state space model using particle filter.
+"""
+
+from __future__ import annotations
+
+from dataclasses import dataclass, field
+from functools import cached_property
+from logging import getLogger
+from typing import TYPE_CHECKING
+
+import numpy as np
+from numba import jit, objmode, prange
+
+from ..lib import sqrt_diag
+from ..lib.linear_gaussian import cov_from_samples, prob_normal
+from ..linear_gaussian import AbstractFit, GeneralLinearGaussianStateSpaceModel, GenericLinearGaussianStateSpaceModel
+
+if TYPE_CHECKING:
+    from typing import Any, Callable
+
+    import numpy.typing as npt
+    from typing_extensions import Protocol
+
+    SamplingX0Inplace = Callable[
+        [
+            npt.NDArray[np.float64],
+            npt.NDArray[np.float64],
+            npt.NDArray[np.float64],
+        ],
+        None,
+    ]
+    SamplingX0TildeInplace = Callable[
+        [
+            npt.NDArray[np.float64],
+            npt.NDArray[np.float64],
+        ],
+        None,
+    ]
+    SamplingOneStepAheadInplace = Callable[
+        [
+            npt.NDArray[np.float64],
+            npt.NDArray[np.float64],
+            npt.NDArray[np.float64],
+            int,
+        ],
+        None,
+    ]
+    SamplingQInplace = Callable[
+        [
+            npt.NDArray[np.float64],
+            npt.NDArray[np.float64],
+            npt.NDArray[np.float64],
+            npt.NDArray[np.float64],
+            int,
+        ],
+        None,
+    ]
+    WeightsInplace = Callable[
+        [
+            npt.NDArray[np.float64],
+            npt.NDArray[np.float64],
+            npt.NDArray[np.float64],
+            npt.NDArray[np.float64],
+            npt.NDArray[np.float64],
+            int,
+        ],
+        None,
+    ]
+    ParticleFilter = Callable[
+        [
+            npt.NDArray[np.float64],
+            npt.NDArray[np.float64],
+            int,
+        ],
+        tuple[
+            npt.NDArray[np.float64],
+            npt.NDArray[np.float64],
+            npt.NDArray[np.float64],
+        ],
+    ]
+    LikelihoodFromWeights = Callable[
+        [npt.NDArray[np.float64]],
+        float,
+    ]
+    Likelihood = Callable[
+        [
+            npt.NDArray[np.float64],
+            npt.NDArray[np.float64],
+            int,
+        ],
+        float,
+    ]
+    SmoothedStateToObs = Callable[
+        [
+            npt.NDArray[np.float64],
+            npt.NDArray[np.float64],
+            int,
+        ],
+        npt.NDArray[np.float64],
+    ]
+
+    class Mle(Protocol):
+        def __call__(
+            self,
+            y: npt.NDArray[np.float64],
+            params0: npt.NDArray[np.float64],
+            n_iter: int,
+            n_sample: int,
+            return_chain: bool,
+            **kwargs: dict[str, Any],
+        ) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]]:
+            ...
+
+
+logger = getLogger(__name__)
+rng = np.random.default_rng()
+
+
+@dataclass
+class GenericParticleFilterStateSpaceModelFit(AbstractFit):
+    """A class performing the particle filter state space model pipelines.
+
+    :param parent: a GenericParticleFilterStateSpaceModel instance.
+    :param y: observed data (Y)
+    :param params: parameters of the model
+    :param mle_method: method used to estimate MLE
+    :param mle_n_iter: number of iteration run with MLE
+    :param mle_return_chain: if True, return the chain of parameters during MLE
+    :param mle_kwargs: pass to self.parent.mle
+    :param n_sample: number of samples used in FFBSampling algorithm
+    :param t: optional time axis
+    :param param_names: optional names of parameters
+
+    TODO: tailor for particle filter
+    """
+
+    parent: GenericParticleFilterStateSpaceModel
+    _y: npt.ArrayLike
+    _params: npt.ArrayLike
+    mle_method: str = "scipy_minimize"
+    mle_n_iter: int = 0
+    mle_return_chain: bool = False
+    mle_kwargs: dict[Any, Any] = field(default_factory=dict)
+    n_sample: int = 0
+    t: npt.NDArray[Any] | None = None
+    param_names: list[str] | None = None
+
+    def __post_init__(self) -> None:
+        self.y: npt.NDArray[np.float64]
+        self.params: npt.NDArray[np.float64]
+
+        self.d: int = self.parent.d
+        self.n: int = self.parent.n
+        self.N: int = self.parent.N
+
+        d = self.d
+        n = self.n
+        N = self.N
+        t = self.t
+        mle_n_iter = self.mle_n_iter
+        mle_return_chain = self.mle_return_chain
+        n_sample = self.n_sample
+        param_names = self.param_names
+
+        y = np.ascontiguousarray(self._y, dtype=np.float64)
+        params = np.ascontiguousarray(self._params, dtype=np.float64)
+        if n == 1 and y.ndim == 1:
+            y = y.reshape((-1, 1))
+
+        self.y = y
+        self.params = params
+
+        size, n_p = y.shape
+        self.size = size
+        assert n_p == n
+        del n_p
+        assert params.ndim == 1
+        assert N == params.size
+        if t is not None:
+            assert t.shape == (size,)
+        if param_names is None:
+            param_names = [f"param_{i}" for i in range(N)]
+
+        if mle_n_iter:
+            mle: Mle = self.parent.mle(self.mle_method)
+            self.params, self.mle_params_chain = mle(
+                y,
+                params,
+                mle_n_iter,
+                n_sample,
+                mle_return_chain,
+                **self.mle_kwargs,
+            )
+
+    # running functions and cache: _run_*
+
+    def _run_filtered_state_to_obs(self) -> None:
+        filtered_obs_samples = self.filtered_obs_samples
+        self._filtered_obs: npt.NDArray[np.float64] = filtered_obs_samples.mean(axis=1)
+
+    def _run_particle_filter(self) -> None:
+        """Run the particle filter.
+
+        :return: None
+        """
+        logger.info("Running particle_filter")
+        self._x_t_tilde, self._x_t, self._w_t = self.parent.particle_filter(self.y, self.params, self.n_sample)
+
+    # cached parameters from _run_*
+
+    @property
+    def x_t_tilde(self) -> npt.NDArray[np.float64]:
+        """x_t_tilde of shape (size, N, d)."""
+        if not hasattr(self, "_x_t_tilde"):
+            self._run_particle_filter()
+        return self._x_t_tilde
+
+    @property
+    def x_t(self) -> npt.NDArray[np.float64]:
+        """x_t of shape (size, N, d)."""
+        if not hasattr(self, "_x_t"):
+            self._run_particle_filter()
+        return self._x_t
+
+    @property
+    def w_t(self) -> npt.NDArray[np.float64]:
+        """w_t of shape (size, N)."""
+        if not hasattr(self, "_w_t"):
+            self._run_particle_filter()
+        return self._w_t
+
+    # Gassian-like descriptions
+
+    @cached_property
+    def m_t_given_tMinus1(self) -> npt.NDArray[np.float64]:
+        """m_t_given_tMinus1 of shape (size, d)."""
+        if self.parent.particle_filter_method != "bootstrap":
+            raise NotImplementedError("m_t_given_tMinus1 is only implemented for bootstrap")
+        return self.x_t_tilde.mean(axis=1)
+
+    @cached_property
+    def Q_t_given_tMinus1(self) -> npt.NDArray[np.float64]:
+        """Q_t_given_tMinus1 of shape (size, d, d)."""
+        if self.parent.particle_filter_method != "bootstrap":
+            raise NotImplementedError("Q_t_given_tMinus1 is only implemented for bootstrap")
+        return cov_from_samples(self.x_t_tilde)
+
+    @cached_property
+    def m_t_given_t(self) -> npt.NDArray[np.float64]:
+        """m_t_given_t of shape (size, d)."""
+        return self.x_t.mean(axis=1)
+
+    @cached_property
+    def Q_t_given_t(self) -> npt.NDArray[np.float64]:
+        """Q_t_given_t of shape (size, d)."""
+        return cov_from_samples(self.x_t)
+
+    @cached_property
+    def filtered_obs_samples(self) -> npt.NDArray[np.float64]:
+        """Return all samples of filtered states in observation space.
+
+        :return: filtered_obs_samples of shape (size, N, n)
+        """
+        return self.parent.smoothed_state_to_obs(self.params, self.x_t, 0)
+
+    @cached_property
+    def m_t_given_t_obs(self) -> npt.NDArray[np.float64]:
+        """m_t_given_t in observation space of shape (size, n)."""
+        return self.filtered_obs_samples.mean(axis=1)
+
+    @cached_property
+    def Q_t_given_t_obs(self) -> npt.NDArray[np.float64]:
+        """Q_t_given_t in observation space of shape (size, n)."""
+        return cov_from_samples(self.filtered_obs_samples)
+
+    # CI
+
+    def filtered_obs_CI(
+        self,
+        α: float,
+        with_obs_cov: bool = True,
+        n_std: float | None = None,
+    ) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64], npt.NDArray[np.float64]]:
+        """Filtered observations confidence intervals.
+
+        :param α: Confidence level.
+        :param with_obs_cov: Whether to include observation covariance.
+        :return: tuple of 3 arrays of shape (size, n).
+            They are the lower, central and upper confidence intervals.
+        """
+        if with_obs_cov:
+            raise NotImplementedError("with_obs_cov is not implemented in particle filter.")
+        if n_std is None:
+            raise NotImplementedError("CI with α-level is not implemented")
+        else:
+            m_t_given_t_obs = self.m_t_given_t_obs
+            Q_t_given_t_obs = self.Q_t_given_t_obs
+
+            filtered_obs_std = sqrt_diag(Q_t_given_t_obs)
+            Δ = filtered_obs_std * n_std
+            return m_t_given_t_obs - Δ, m_t_given_t_obs, m_t_given_t_obs + Δ
+
+    # misc
+
+    @cached_property
+    def log_likelihood(self) -> float:
+        return -self.parent.neg_log_likelihood_from_w_t(self.w_t)
+
+
+# TODO: refactor s.t. both this and GenericLinearGaussianStateSpaceModel
+# are based on an abstract class
+@dataclass
+class GenericParticleFilterStateSpaceModel(GenericLinearGaussianStateSpaceModel):
+    particle_filter_method: str = "bootstrap"
+
+    # TODO: refactor classes
+
+    @property
+    def neg2_log_likelihoods(self) -> Any:
+        raise NotImplementedError
+
+    @property
+    def neg_log_likelihood(self) -> Any:
+        raise NotImplementedError
+
+    @property
+    def mle_scipy_minimize(self) -> Mle:  # type: ignore[override]  # inheritance issue
+        neg_log_likelihood = self.neg_log_likelihood
+
+        def mle_scipy_minimize(
+            y: npt.NDArray[np.float64],
+            params0: npt.NDArray[np.float64],
+            n_iter: int,
+            n_sample: int,
+            return_chain: bool,
+            **kwargs: dict[str, Any],
+        ) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]]:
+            """Calculate MLE from log-likelihood using scipy.optimize.minimize.
+
+            Tips: include `bounds` for constrainted variables.
+            """
+            from scipy.optimize import minimize
+
+            def _callback(xk: npt.NDArray[np.float64]) -> None:
+                """Store iterations."""
+                chain.append(xk)
+
+            if n_iter:
+                logger.warning("n_iter %s is ignored when using scipy.optimize.minimize.", n_iter)
+
+            chain: list[npt.NDArray[np.float64]] = []
+            callack: Callable[[npt.NDArray[np.float64]], None] | None
+            if return_chain:
+                chain.append(params0)
+                callback = _callback
+            else:
+                callback = None
+
+            opt = minimize(neg_log_likelihood, params0, args=(y, n_sample), callback=callback, **kwargs)
+            msg = opt.message
+            if not opt.success:
+                raise RuntimeError(f"MLE unccessful with message: {msg}")
+            logger.info("MLE constructed with message: %s", msg)
+            return opt.x, np.array(chain)
+
+        return mle_scipy_minimize
+
+    def mle(self, method: str = "scipy_minimize") -> Mle:  # type: ignore[override]  # inheritance issue
+        """Return the MLE method."""
+        method_lower = method.lower()
+        if method_lower != "scipy_minimize":
+            logger.warning(
+                "The only implemented MLE method is scipy_minimize for general linear Gaussian model. Using"
+                " scipy_minimize..."
+            )
+        return self.mle_scipy_minimize
+
+    @staticmethod
+    def params_guess(y: npt.NDArray[np.float64]) -> npt.NDArray[np.float64]:
+        """Estimate initial parameters using the data with law of large number."""
+        raise NotImplementedError
+
+    def fit(  # type: ignore[override]  # inheritance issue
+        self,
+        y: npt.ArrayLike,
+        params: npt.ArrayLike | None,
+        mle_method: str = "",
+        mle_n_iter: int = 0,
+        mle_return_chain: bool = False,
+        mle_kwargs: dict[Any, Any] = {},
+        n_sample: int = 0,
+        t: npt.NDArray[Any] | None = None,
+        param_names: list[str] | None = None,
+    ) -> GenericParticleFilterStateSpaceModelFit:
+        """Return a GenericParticleFilterStateSpaceModelFit instance.
+
+            :param y: observed data (Y)
+            :param params: parameters of the model
+            :param mle_method: method used to estimate MLE
+            :param mle_n_iter: number of iteration run with MLE
+            :param mle_return_chain: if True, return the chain of parameters during MLE
+            :param t: optional time axis
+            :param param_names: optional names of parameters
+
+        TODO: tailor for particle filter
+        """
+        y = np.ascontiguousarray(y, dtype=np.float64)
+        if params is None:
+            logger.info("Estimating initial parameters using the data with law of large number...")
+            params = self.params_guess(y)
+        # using default if exists
+        if not mle_kwargs and hasattr(self, "mle_kwargs"):
+            mle_kwargs = self.mle_kwargs  # type: ignore[attr-defined]
+        return GenericParticleFilterStateSpaceModelFit(
+            self,
+            y,
+            params,
+            mle_method=mle_method,
+            mle_n_iter=mle_n_iter,
+            mle_return_chain=mle_return_chain,
+            mle_kwargs=mle_kwargs,
+            n_sample=n_sample,
+            t=t,
+            param_names=param_names or self.param_names,
+        )
+
+    @property
+    def smoothed_state_to_obs(self) -> SmoothedStateToObs:  # type: ignore[override]  # inheritance issue
+        raise NotImplementedError
+
+    @property
+    def neg_log_likelihood_from_w_t(self) -> LikelihoodFromWeights:
+        raise NotImplementedError
+
+    @property
+    def particle_filter(self) -> ParticleFilter:
+        raise NotImplementedError
+
+
+@dataclass
+class GeneralLinearGaussianParticleFilterStateSpaceModel(
+    GenericParticleFilterStateSpaceModel, GeneralLinearGaussianStateSpaceModel
+):
+    """General particle filter in the special case of linear Gaussian state space model."""
+
+    def __post_init__(self) -> None:
+        super().__post_init__()
+        # in this model X0 is the only way to pass μ_0, Γ_0
+        assert self.X0 is not None
+        self.X0: Callable[[npt.NDArray[np.float64]], tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]]]
+
+    @cached_property
+    def sampling_X0_inplace(self) -> SamplingX0Inplace:
+        B0 = self.B0
+        R0 = self.R0
+        X0 = self.X0
+
+        @jit("(f8[:, ::1], f8[::1], f8[::1])", nopython=True, nogil=True)
+        def sampling_X0_inplace(
+            x_0: npt.NDArray[np.float64],
+            y_0: npt.NDArray[np.float64],
+            params: npt.NDArray[np.float64],
+        ) -> None:
+            """Sampling X_0.
+
+            :param x_0: output buffer of shape (d, N).
+
+            For SIR in general,
+            or bootstrap particle filter
+            when prior of X_0 contains no information (defused.)
+            """
+            N = x_0.shape[0]
+            # initialize
+            μ, Γ = X0(params)
+            B = B0(params)
+            R = R0(params)
+
+            BΓB_R = B @ Γ @ B.T + R
+
+            m = μ + Γ @ B.T @ np.linalg.solve(BΓB_R, y_0 - B @ μ)
+            Q = Γ - Γ @ B.T @ np.linalg.solve(BΓB_R, B @ Γ)
+            with objmode():
+                x_0[:] = np.random.multivariate_normal(m, Q, N)
+
+        return sampling_X0_inplace
+
+    @cached_property
+    def sampling_X0_tilde_inplace(self) -> SamplingX0TildeInplace:
+        X0 = self.X0
+
+        @jit("(f8[:, ::1], f8[::1])", nopython=True, nogil=True)
+        def sampling_X0_tilde_inplace(
+            x_0_tilde: npt.NDArray[np.float64],
+            params: npt.NDArray[np.float64],
+        ) -> None:
+            """Sampling X_0.
+
+            :param x_0_tilde: output buffer.
+
+            This is only used for bootstrap particle filter.
+            """
+            N = x_0_tilde.shape[0]
+            # initialize
+            μ, Γ = X0(params)
+            with objmode():
+                x_0_tilde[:] = np.random.multivariate_normal(μ, Γ, N)
+
+        return sampling_X0_tilde_inplace
+
+    @cached_property
+    def sampling_one_step_ahead_inplace(self) -> SamplingOneStepAheadInplace:
+        A0 = self.A0
+        Σ0 = self.Σ0
+        A = self.A
+        Σ = self.Σ
+        d = self.d
+        # just for passing to multivariate_normal
+        μ_zeros = np.zeros(d)
+
+        @jit("(f8[:, ::1], f8[:, ::1], f8[::1], i8)", nopython=True, nogil=True)
+        def sampling_one_step_ahead_inplace(
+            x_t_given_tMinus1: npt.NDArray[np.float64],
+            x_tMinus1: npt.NDArray[np.float64],
+            params: npt.NDArray[np.float64],
+            t: int,
+        ) -> None:
+            """One-step ahead prediction.
+
+            :param x_t_given_tMinus1: output buffer.
+
+            For forcasting in the case of SIR.
+            For Bootstrap particle filter,
+            same as sampling_q_inplace
+            where x_t_given_tMinus1 is x_t_tilde.
+
+            x_tMinus1 is x_tMinus1_given_tMinus1.
+            """
+            N = x_t_given_tMinus1.shape[0]
+            # initialize
+            A_t = A0(params)
+            if A is not None:
+                A(A_t, params, t)
+            Σ_t = Σ0(params)
+            if Σ is not None:
+                Σ(Σ_t, params, t)
+
+            for i in range(N):
+                # mean
+                x_t_given_tMinus1[i] = A_t @ x_tMinus1[i]
+            with objmode(sample="f8[:, :]"):
+                sample = np.random.multivariate_normal(μ_zeros, Σ_t, N)
+            x_t_given_tMinus1 += sample
+
+        return sampling_one_step_ahead_inplace
+
+    @cached_property
+    def sampling_q_inplace_bootstrap(self) -> SamplingQInplace:
+        sampling_one_step_ahead_inplace = self.sampling_one_step_ahead_inplace
+
+        @jit("(f8[:, ::1], f8[:, ::1], f8[::1], f8[::1], i8)", nopython=True, nogil=True)
+        def sampling_q_inplace_bootstrap(
+            x_t_tilde: npt.NDArray[np.float64],
+            x_tMinus1: npt.NDArray[np.float64],
+            y_t: npt.NDArray[np.float64],
+            params: npt.NDArray[np.float64],
+            t: int,
+        ) -> None:
+            """Sampling from q distribution.
+
+            :param x_t_tilde: output buffer.
+
+            For SIR in general,
+            or in the case of
+            bootstrap particle filter,
+            y_t is ignored.
+            """
+            sampling_one_step_ahead_inplace(x_t_tilde, x_tMinus1, params, t)
+
+        return sampling_q_inplace_bootstrap
+
+    @cached_property
+    def sampling_q_inplace_optimal(self) -> SamplingQInplace:
+        A0 = self.A0
+        B0 = self.B0
+        Σ0 = self.Σ0
+        R0 = self.R0
+        A = self.A
+        B = self.B
+        Σ = self.Σ
+        R = self.R
+        d = self.d
+        # just for passing to multivariate_normal
+        μ_zeros = np.zeros(d)
+
+        @jit("(f8[:, ::1], f8[:, ::1], f8[::1], f8[::1], i8)", nopython=True, nogil=True)
+        def sampling_q_inplace_optimal(
+            x_t_tilde: npt.NDArray[np.float64],
+            x_tMinus1: npt.NDArray[np.float64],
+            y_t: npt.NDArray[np.float64],
+            params: npt.NDArray[np.float64],
+            t: int,
+        ) -> None:
+            """Sampling from q distribution.
+
+            :param x_t_tilde: output buffer.
+
+            For SIR in general,
+            or in the case of
+            bootstrap particle filter,
+            y_t is ignored.
+            """
+            N = x_t_tilde.shape[0]
+            # initialize
+            A_t = A0(params)
+            if A is not None:
+                A(A_t, params, t)
+            B_t = B0(params)
+            if B is not None:
+                B(B_t, params, t)
+            Σ_t = Σ0(params)
+            if Σ is not None:
+                Σ(Σ_t, params, t)
+            R_t = R0(params)
+            if R is not None:
+                R(R_t, params, t)
+
+            BA = B_t @ A_t
+            BΣB_R = B_t @ Σ_t @ B_t.T + R_t
+            ΣB = Σ_t @ B_t.T
+            BΣ = ΣB.T
+
+            for i in range(N):
+                x_t_tilde[i] = A_t @ x_tMinus1[i] + ΣB @ np.linalg.solve(BΣB_R, y_t - BA @ x_tMinus1[i])
+            Q = Σ_t - ΣB @ np.linalg.solve(BΣB_R, BΣ)
+            with objmode(sample="f8[:, :]"):
+                sample = np.random.multivariate_normal(μ_zeros, Q, N)
+            x_t_tilde += sample
+
+        return sampling_q_inplace_optimal
+
+    @property
+    def sampling_q_inplace(self) -> SamplingQInplace:
+        """Sampling from q distribution.
+
+        :param x_t_tilde: output buffer.
+
+        For SIR in general,
+        or in the case of
+        bootstrap particle filter,
+        y_t is ignored.
+        """
+        return {
+            "bootstrap": self.sampling_q_inplace_bootstrap,
+            "optimal": self.sampling_q_inplace_optimal,
+        }[self.particle_filter_method]
+
+    @cached_property
+    def weights_inplace_bootstrap(self) -> WeightsInplace:
+        B0 = self.B0
+        R0 = self.R0
+        B = self.B
+        R = self.R
+
+        @jit("(f8[::1], f8[:, ::1], f8[:, ::1], f8[::1], f8[::1], i8)", nopython=True, nogil=True)
+        def weights_inplace_bootstrap(
+            w_t: npt.NDArray[np.float64],
+            x_t_tilde: npt.NDArray[np.float64],
+            x_tMinus1: npt.NDArray[np.float64],
+            y_t: npt.NDArray[np.float64],
+            params: npt.NDArray[np.float64],
+            t: int,
+        ) -> None:
+            """Calculate unnormalized weights.
+
+            :param w_t: output buffer.
+
+            For SIR in general.
+            In the case of
+            bootstrap particle filter,
+            x_tMinus1 is ignored.
+            In the case of
+            optimal guided particle filter,
+            x_t_tilde is ignored.
+            """
+            N = w_t.shape[0]
+            # initialize
+            B_t = B0(params)
+            if B is not None:
+                B(B_t, params, t)
+            R_t = R0(params)
+            if R is not None:
+                R(R_t, params, t)
+            # somehow by default the pinv return Fortran order
+            R_t_inv = np.linalg.pinv(R_t).T
+            for i in range(N):
+                w_t[i] = prob_normal(
+                    y_t.reshape(1, -1),
+                    B_t @ x_t_tilde[i],
+                    R_t_inv,
+                    False,
+                )[0]
+
+        return weights_inplace_bootstrap
+
+    @cached_property
+    def weights_inplace_optimal(self) -> WeightsInplace:
+        A0 = self.A0
+        B0 = self.B0
+        Σ0 = self.Σ0
+        R0 = self.R0
+        A = self.A
+        B = self.B
+        Σ = self.Σ
+        R = self.R
+
+        @jit("(f8[::1], f8[:, ::1], f8[:, ::1], f8[::1], f8[::1], i8)", nopython=True, nogil=True)
+        def weights_inplace_optimal(
+            w_t: npt.NDArray[np.float64],
+            x_t_tilde: npt.NDArray[np.float64],
+            x_tMinus1: npt.NDArray[np.float64],
+            y_t: npt.NDArray[np.float64],
+            params: npt.NDArray[np.float64],
+            t: int,
+        ) -> None:
+            """Calculate unnormalized weights.
+
+            :param w_t: output buffer.
+
+            For SIR in general.
+            In the case of
+            bootstrap particle filter,
+            x_tMinus1 is ignored.
+            In the case of
+            optimal guided particle filter,
+            x_t_tilde is ignored.
+            """
+            N = w_t.shape[0]
+            # initialize
+            A_t = A0(params)
+            if A is not None:
+                A(A_t, params, t)
+            B_t = B0(params)
+            if B is not None:
+                B(B_t, params, t)
+            Σ_t = Σ0(params)
+            if Σ is not None:
+                Σ(Σ_t, params, t)
+            R_t = R0(params)
+            if R is not None:
+                R(R_t, params, t)
+
+            BA = B_t @ A_t
+            # somehow by default the pinv return Fortran order
+            BΣB_R_inv = np.linalg.pinv(B_t @ Σ_t @ B_t.T + R_t).T
+            for i in range(N):
+                w_t[i] = prob_normal(
+                    y_t.reshape(1, -1),
+                    BA @ x_tMinus1[i],
+                    BΣB_R_inv,
+                    False,
+                )[0]
+
+        return weights_inplace_optimal
+
+    @property
+    def weights_inplace(self) -> WeightsInplace:
+        """Calculate unnormalized weights.
+
+        :param w_t: output buffer.
+
+        For SIR in general.
+        In the case of
+        bootstrap particle filter,
+        x_tMinus1 is ignored.
+        In the case of
+        optimal guided particle filter,
+        x_t_tilde is ignored.
+        """
+        return {
+            "bootstrap": self.weights_inplace_bootstrap,
+            "optimal": self.weights_inplace_optimal,
+        }[self.particle_filter_method]
+
+    @cached_property
+    def bootstrap_particle_filter(self) -> ParticleFilter:
+        d = self.d
+        sampling_X0_tilde_inplace = self.sampling_X0_tilde_inplace
+        sampling_one_step_ahead_inplace = self.sampling_one_step_ahead_inplace
+        weights_inplace_bootstrap = self.weights_inplace_bootstrap
+
+        @jit("Tuple((f8[:, :, ::1], f8[:, :, ::1], f8[:, ::1]))(f8[:, ::1], f8[::1], i8)", nopython=True, nogil=True)
+        def bootstrap_particle_filter(
+            y: npt.NDArray[np.float64],
+            params: npt.NDArray[np.float64],
+            N: int,
+        ) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64], npt.NDArray[np.float64]]:
+            """Bootstrap particle filter.
+
+            :param N: number of particles.
+            """
+            size = y.shape[0]
+            # initialize
+            temp = np.empty((2, size, N, d))
+            # x_t_tilde is x_t_given_tMinus1
+            x_t_tilde = temp[0]
+            # x_t is x_t_given_t
+            x_t = temp[1]
+            w_t = np.empty((size, N))
+            W_t = np.empty(N)
+
+            t = 0
+            # initial generation
+            sampling_X0_tilde_inplace(x_t_tilde[t], params)
+            # weights
+            # x_t[t-1] is not used by weights_inplace_bootstrap
+            weights_inplace_bootstrap(w_t[t], x_t_tilde[t], x_t[t - 1], y[t], params, t)
+            # normalization
+            s = w_t[t].sum()
+            if s == 0.0:
+                W_t[:] = 1.0 / N
+            else:
+                W_t[:] = w_t[t] / s
+            # resampling
+            x_current = x_t_tilde[t]
+            with objmode(sample="f8[:, :]"):
+                sample = rng.choice(x_current, size=N, replace=True, p=W_t)
+            x_t[t] = sample
+            for t in range(1, size):
+                # generation
+                sampling_one_step_ahead_inplace(x_t_tilde[t], x_t[t - 1], params, t)
+                # weights
+                weights_inplace_bootstrap(w_t[t], x_t_tilde[t], x_t[t - 1], y[t], params, t)
+                # normalization
+                s = w_t[t].sum()
+                if s == 0.0:
+                    W_t[:] = 1.0 / N
+                else:
+                    W_t[:] = w_t[t] / s
+                # resampling
+                x_current = x_t_tilde[t]
+                with objmode(sample="f8[:, :]"):
+                    sample = rng.choice(x_current, size=N, replace=True, p=W_t)
+                x_t[t] = sample
+            return x_t_tilde, x_t, w_t
+
+        return bootstrap_particle_filter
+
+    @cached_property
+    def guided_particle_filter(self) -> ParticleFilter:
+        d = self.d
+        sampling_X0_inplace = self.sampling_X0_inplace
+        sampling_q_inplace = self.sampling_q_inplace
+        weights_inplace = self.weights_inplace
+
+        @jit("Tuple((f8[:, :, ::1], f8[:, :, ::1], f8[:, ::1]))(f8[:, ::1], f8[::1], i8)", nopython=True, nogil=True)
+        def guided_particle_filter(
+            y: npt.NDArray[np.float64],
+            params: npt.NDArray[np.float64],
+            N: int,
+        ) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64], npt.NDArray[np.float64]]:
+            """Guided particle filter.
+
+            :param N: number of particles.
+            """
+            size = y.shape[0]
+            # initialize
+            temp = np.empty((2, size, N, d))
+            x_t_tilde = temp[0]
+            # x_t is x_t_given_t
+            x_t = temp[1]
+            w_t = np.empty((size, N))
+            W_t = np.empty(N)
+
+            t = 0
+            # initial generation
+            # x_t_tilde not generated in the guided particle filter case
+            x_t_tilde[t] = np.nan
+            sampling_X0_inplace(x_t[t], y[t], params)
+            for t in range(1, size):
+                # generation
+                sampling_q_inplace(x_t_tilde[t], x_t[t - 1], y[t], params, t)
+                # weights
+                weights_inplace(w_t[t], x_t_tilde[t], x_t[t - 1], y[t], params, t)
+                # normalization and resampling
+                s = w_t[t].sum()
+                if s == 0.0:
+                    W_t[:] = 1.0 / N
+                else:
+                    W_t[:] = w_t[t] / s
+                x_current = x_t_tilde[t]
+                with objmode(sample="f8[:, :]"):
+                    sample = rng.choice(x_current, size=N, replace=True, p=W_t)
+                x_t[t] = sample
+            return x_t_tilde, x_t, w_t
+
+        return guided_particle_filter
+
+    @property
+    def particle_filter(self) -> ParticleFilter:
+        return {
+            "bootstrap": self.bootstrap_particle_filter,
+            "optimal": self.guided_particle_filter,
+        }[self.particle_filter_method]
+
+    @cached_property
+    def neg_log_likelihood_from_w_t(self) -> LikelihoodFromWeights:
+        @jit("f8(f8[:, ::1])", nopython=True, nogil=True)
+        def neg_log_likelihood_from_w_t(w_t: npt.NDArray[np.float64]) -> float:
+            size, N = w_t.shape
+            res = 0.0
+            for t in range(size):
+                s = w_t[t].sum()
+                if s > 0.0:
+                    res -= np.log(s)
+            res += size * np.log(N)
+            return res
+
+        return neg_log_likelihood_from_w_t
+
+    @cached_property
+    def neg_log_likelihood(self) -> Likelihood:
+        particle_filter = self.particle_filter
+        neg_log_likelihood_from_w_t = self.neg_log_likelihood_from_w_t
+
+        @jit("f8(f8[::1], f8[:, ::1], i8)", nopython=True, nogil=True)
+        def log_likelihood(
+            params: npt.NDArray[np.float64],
+            y: npt.NDArray[np.float64],
+            N: int,
+        ) -> float:
+            x_t_tilde, x_t, w_t = particle_filter(y, params, N)
+            return neg_log_likelihood_from_w_t(w_t)
+
+        return log_likelihood
+
+    # TODO: refactor classes
+    # We really only need __post_init__ from GeneralLinearGaussianStateSpaceModel
+
+    @cached_property
+    def kalman_filtering_inplace(self) -> Any:
+        raise NotImplementedError
+
+    @cached_property
+    def kalman_filtering(self) -> Any:
+        raise NotImplementedError
+
+    @cached_property
+    def kalman_smoothing_inplace(self) -> Any:
+        raise NotImplementedError
+
+    @cached_property
+    def kalman_smoothing(self) -> Any:
+        raise NotImplementedError
+
+    @cached_property
+    def backward_sampling(self) -> Any:
+        raise NotImplementedError
+
+    @cached_property
+    def gibbs_sampling(self) -> Any:
+        raise NotImplementedError
+
+    @cached_property
+    def smoothed_state_to_obs(self) -> SmoothedStateToObs:  # type: ignore[override]  # inheritance issue
+        B0 = self.B0
+        B = self.B
+        B0_forecast = self.B0_forecast
+        B_forecast = self.B_forecast
+        n = self.n
+
+        @jit(
+            "f8[:, :, ::1](f8[::1], f8[:, :, ::1], int64)",
+            nopython=True,
+            nogil=True,
+            parallel=True,
+            cache=False,
+        )
+        def smoothed_state_to_obs(
+            params: npt.NDArray[np.float64],
+            x_t: npt.NDArray[np.float64],
+            t0: int,
+        ) -> npt.NDArray[np.float64]:
+            size, N, _ = x_t.shape
+
+            # memalloc
+            B_t = B0(params)
+            B_t_forecast = B_t if B0_forecast is None else B0_forecast(params)
+            smoothed_obs = np.empty((size, N, n))
+
+            for t in range(size):
+                if B is not None:
+                    B(B_t, params, t0 + t)
+                if B0_forecast is not None and B_forecast is not None:
+                    B_forecast(B_t_forecast, params, t0 + t)
+                for i in prange(N):
+                    smoothed_obs[t, i] = B_t_forecast @ x_t[t, i]
+            return smoothed_obs
+
+        return smoothed_state_to_obs
+
+    @cached_property
+    def forecast(self) -> Any:
+        raise NotImplementedError
+
+    @cached_property
+    def neg2_log_likelihood(self) -> Any:
+        raise NotImplementedError
