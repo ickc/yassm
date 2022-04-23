@@ -782,26 +782,28 @@ class GeneralLinearGaussianParticleFilterStateSpaceModel(
         }[self.particle_filter_method]
 
     @cached_property
-    def bootstrap_particle_filter(self) -> ParticleFilter:
+    def particle_filter(self) -> ParticleFilter:
         d = self.d
         sampling_X0_tilde_inplace = self.sampling_X0_tilde_inplace
-        sampling_one_step_ahead_inplace = self.sampling_one_step_ahead_inplace
-        weights_inplace_bootstrap = self.weights_inplace_bootstrap
+        sampling_X0_inplace = self.sampling_X0_inplace
+        sampling_q_inplace = self.sampling_q_inplace
+        weights_inplace = self.weights_inplace
+        use_bootstrap = self.particle_filter_method == "bootstrap"
 
         @jit("Tuple((f8[:, :, ::1], f8[:, :, ::1], f8[:, ::1]))(f8[:, ::1], f8[::1], i8)", nopython=True, nogil=True)
-        def bootstrap_particle_filter(
+        def particle_filter(
             y: npt.NDArray[np.float64],
             params: npt.NDArray[np.float64],
             N: int,
         ) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64], npt.NDArray[np.float64]]:
-            """Bootstrap particle filter.
+            """Guided particle filter.
 
             :param N: number of particles.
             """
             size = y.shape[0]
             # initialize
             temp = np.empty((2, size, N, d))
-            # x_t_tilde is x_t_given_tMinus1
+            # For bootstrap, x_t_tilde is x_t_given_tMinus1
             x_t_tilde = temp[0]
             # x_t is x_t_given_t
             x_t = temp[1]
@@ -809,27 +811,33 @@ class GeneralLinearGaussianParticleFilterStateSpaceModel(
             W_t = np.empty(N)
 
             t = 0
-            # initial generation
-            sampling_X0_tilde_inplace(x_t_tilde[t], params)
-            # weights
-            # x_t[t-1] is not used by weights_inplace_bootstrap
-            weights_inplace_bootstrap(w_t[t], x_t_tilde[t], x_t[t - 1], y[t], params, t)
-            # normalization
-            s = w_t[t].sum()
-            if s == 0.0:
-                W_t[:] = 1.0 / N
+            if use_bootstrap:
+                # initial generation
+                sampling_X0_tilde_inplace(x_t_tilde[t], params)
+                # weights
+                # x_t[t-1] is not used by weights_inplace_bootstrap
+                weights_inplace(w_t[t], x_t_tilde[t], x_t[t - 1], y[t], params, t)
+                # normalization
+                s = w_t[t].sum()
+                if s == 0.0:
+                    W_t[:] = 1.0 / N
+                else:
+                    W_t[:] = w_t[t] / s
+                # resampling
+                x_current = x_t_tilde[t]
+                with objmode(sample="f8[:, :]"):
+                    sample = rng.choice(x_current, size=N, replace=True, p=W_t)
+                x_t[t] = sample
             else:
-                W_t[:] = w_t[t] / s
-            # resampling
-            x_current = x_t_tilde[t]
-            with objmode(sample="f8[:, :]"):
-                sample = rng.choice(x_current, size=N, replace=True, p=W_t)
-            x_t[t] = sample
+                # initial generation
+                # x_t_tilde not generated in the guided particle filter case
+                x_t_tilde[t] = np.nan
+                sampling_X0_inplace(x_t[t], y[t], params)
             for t in range(1, size):
                 # generation
-                sampling_one_step_ahead_inplace(x_t_tilde[t], x_t[t - 1], params, t)
+                sampling_q_inplace(x_t_tilde[t], x_t[t - 1], y[t], params, t)
                 # weights
-                weights_inplace_bootstrap(w_t[t], x_t_tilde[t], x_t[t - 1], y[t], params, t)
+                weights_inplace(w_t[t], x_t_tilde[t], x_t[t - 1], y[t], params, t)
                 # normalization
                 s = w_t[t].sum()
                 if s == 0.0:
@@ -843,64 +851,7 @@ class GeneralLinearGaussianParticleFilterStateSpaceModel(
                 x_t[t] = sample
             return x_t_tilde, x_t, w_t
 
-        return bootstrap_particle_filter
-
-    @cached_property
-    def guided_particle_filter(self) -> ParticleFilter:
-        d = self.d
-        sampling_X0_inplace = self.sampling_X0_inplace
-        sampling_q_inplace = self.sampling_q_inplace
-        weights_inplace = self.weights_inplace
-
-        @jit("Tuple((f8[:, :, ::1], f8[:, :, ::1], f8[:, ::1]))(f8[:, ::1], f8[::1], i8)", nopython=True, nogil=True)
-        def guided_particle_filter(
-            y: npt.NDArray[np.float64],
-            params: npt.NDArray[np.float64],
-            N: int,
-        ) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64], npt.NDArray[np.float64]]:
-            """Guided particle filter.
-
-            :param N: number of particles.
-            """
-            size = y.shape[0]
-            # initialize
-            temp = np.empty((2, size, N, d))
-            x_t_tilde = temp[0]
-            # x_t is x_t_given_t
-            x_t = temp[1]
-            w_t = np.empty((size, N))
-            W_t = np.empty(N)
-
-            t = 0
-            # initial generation
-            # x_t_tilde not generated in the guided particle filter case
-            x_t_tilde[t] = np.nan
-            sampling_X0_inplace(x_t[t], y[t], params)
-            for t in range(1, size):
-                # generation
-                sampling_q_inplace(x_t_tilde[t], x_t[t - 1], y[t], params, t)
-                # weights
-                weights_inplace(w_t[t], x_t_tilde[t], x_t[t - 1], y[t], params, t)
-                # normalization and resampling
-                s = w_t[t].sum()
-                if s == 0.0:
-                    W_t[:] = 1.0 / N
-                else:
-                    W_t[:] = w_t[t] / s
-                x_current = x_t_tilde[t]
-                with objmode(sample="f8[:, :]"):
-                    sample = rng.choice(x_current, size=N, replace=True, p=W_t)
-                x_t[t] = sample
-            return x_t_tilde, x_t, w_t
-
-        return guided_particle_filter
-
-    @property
-    def particle_filter(self) -> ParticleFilter:
-        return {
-            "bootstrap": self.bootstrap_particle_filter,
-            "optimal": self.guided_particle_filter,
-        }[self.particle_filter_method]
+        return particle_filter
 
     @cached_property
     def neg_log_likelihood_from_w_t(self) -> LikelihoodFromWeights:
