@@ -51,6 +51,7 @@ def direct_sampling(
         X[t, 0] = 1.0
         X[t, 1] = y[t + 1]
         X[t, 2] = y[t]
+    Σ_σ_Z_sq = np.empty((3, 3))
 
     X_T_X = X.T @ X
     β_hat = np.linalg.solve(X_T_X, X.T @ Y)
@@ -61,7 +62,8 @@ def direct_sampling(
         # draw σ_Z_sq
         σ_Z_sq = 1.0 / np.random.gamma(gamma_shape, gamma_scale)
         params_chain[i, 0] = σ_Z_sq
+        Σ_σ_Z_sq[:] = Σ * σ_Z_sq
         with objmode(sample="f8[::1]"):
-            sample = np.random.multivariate_normal(β_hat, Σ * σ_Z_sq)
+            sample = np.random.multivariate_normal(β_hat, Σ_σ_Z_sq)
         params_chain[i, 1:] = sample
     return params_chain

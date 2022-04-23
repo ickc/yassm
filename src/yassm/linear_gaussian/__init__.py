@@ -1683,9 +1683,11 @@ class GeneralLinearGaussianStateSpaceModel(GenericLinearGaussianStateSpaceModel)
             Γ_tPlus1_transpose = np.empty((d, d))
             Q_current = np.empty((d, d))
 
+            m_current = m_t_given_t[T]
+            Q_T = Q_t_given_t[T]
             # initialize
             with objmode(sample="f8[:, :]"):
-                sample = np.random.multivariate_normal(m_t_given_t[T], Q_t_given_t[T], N)
+                sample = np.random.multivariate_normal(m_current, Q_T, N)
             samples[T] = sample
 
             for t in range(T - 1, -1, -1):
@@ -1699,8 +1701,9 @@ class GeneralLinearGaussianStateSpaceModel(GenericLinearGaussianStateSpaceModel)
                 Q_current[:] = (
                     Q_t_given_t[t] - Γ_tPlus1_transpose.transpose() @ Q_t_given_tMinus1[tPlus1] @ Γ_tPlus1_transpose
                 )
+                m_current = m_t_given_t[t]
                 with objmode(sample="f8[:, :]"):
-                    sample = np.random.multivariate_normal(m_t_given_t[t], Q_current, N)
+                    sample = np.random.multivariate_normal(m_current, Q_current, N)
                 samples[t] += sample
             return samples
 
