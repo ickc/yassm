@@ -280,6 +280,7 @@ class AbstractFit:
         self,
         α: float,
         with_obs_cov: bool = True,
+        n_std: float | None = None,
     ) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64], npt.NDArray[np.float64]]:
         """Filtered observations confidence intervals.
 
@@ -294,6 +295,7 @@ class AbstractFit:
         self,
         α: float,
         with_obs_cov: bool = True,
+        n_std: float | None = None,
     ) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64], npt.NDArray[np.float64]]:
         """Smoothed observations confidence intervals.
 
@@ -307,6 +309,7 @@ class AbstractFit:
     def smoothed_obs_CI_from_samples(
         self,
         α: float,
+        n_std: float | None = None,
     ) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64], npt.NDArray[np.float64]]:
         """Smoothed observations confidence intervals from sampling.
 
@@ -320,6 +323,7 @@ class AbstractFit:
     def smoothed_obs_CI_from_gibbs_samples(
         self,
         α: float,
+        n_std: float | None = None,
     ) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64], npt.NDArray[np.float64]]:
         """Smoothed observations confidence intervals from Gibbs sampling.
 
@@ -362,6 +366,7 @@ class AbstractFit:
         plot_smoothed_from_samples_CI: bool = False,
         plot_smoothed_from_gibbs_samples: bool = False,
         plot_smoothed_from_gibbs_samples_CI: bool = False,
+        n_std: float | None = None,
     ) -> tuple[mpl.figure.Figure, list[mpl.axes._subplots.AxesSubplot]]:
         """Plotting.
 
@@ -410,7 +415,7 @@ class AbstractFit:
             )
         )
 
-        str_CI = f" w/ ${(1. - α) * 100.:.3g} \\%%$ C.I."
+        str_CI = f" w/ ${(1. - α) * 100.:.3g} \\%%$ C.I." if n_std is None else f" w/ {n_std:.3g}σ C.I."
 
         colors = colors_obs
         if plot_obs:
@@ -424,6 +429,7 @@ class AbstractFit:
             smoothed_obs_lower_with_obs_cov, _, smoothed_obs_upper_with_obs_cov = self.smoothed_obs_CI(
                 α,
                 with_obs_cov=True,
+                n_std=n_std,
             )
             for i, ax in enumerate(axes):
                 ax.fill_between(
@@ -445,7 +451,7 @@ class AbstractFit:
                     ax.plot(t, filtered_obs[:, i], label=label, color=colors[0])
 
             if plot_filtered_CI:
-                filtered_obs_lower, _, filtered_obs_upper = self.filtered_obs_CI(α, with_obs_cov=False)
+                filtered_obs_lower, _, filtered_obs_upper = self.filtered_obs_CI(α, with_obs_cov=False, n_std=n_std)
                 for i, ax in enumerate(axes):
                     ax.fill_between(
                         t,
@@ -466,7 +472,7 @@ class AbstractFit:
                     ax.plot(t, smoothed_obs[:, i], label=label, color=colors[0])
 
             if plot_smoothed_CI:
-                smoothed_obs_lower, _, smoothed_obs_upper = self.smoothed_obs_CI(α, with_obs_cov=False)
+                smoothed_obs_lower, _, smoothed_obs_upper = self.smoothed_obs_CI(α, with_obs_cov=False, n_std=n_std)
                 for i, ax in enumerate(axes):
                     ax.fill_between(
                         t,
@@ -491,7 +497,7 @@ class AbstractFit:
                     smoothed_obs_lower_from_samples,
                     _,
                     smoothed_obs_upper_from_samples,
-                ) = self.smoothed_obs_CI_from_samples(α)
+                ) = self.smoothed_obs_CI_from_samples(α, n_std=n_std)
                 for i, ax in enumerate(axes):
                     ax.fill_between(
                         t,
@@ -516,7 +522,7 @@ class AbstractFit:
                     smoothed_obs_lower_from_gibbs_samples,
                     _,
                     smoothed_obs_upper_from_gibbs_samples,
-                ) = self.smoothed_obs_CI_from_gibbs_samples(α)
+                ) = self.smoothed_obs_CI_from_gibbs_samples(α, n_std=n_std)
                 for i, ax in enumerate(axes):
                     ax.fill_between(
                         t,
@@ -529,7 +535,7 @@ class AbstractFit:
         if T_forecast > 0:
             colors = colors_forecast
             t_forecast = self.t_forecast(T_forecast)
-            forecast_obs_lower, forecast_obs, forecast_obs_upper = self.forecast_obs_CI(T_forecast, α)
+            forecast_obs_lower, forecast_obs, forecast_obs_upper = self.forecast_obs_CI(T_forecast, α, n_std=n_std)
             label = "Forecast" + str_CI
             for i, ax in enumerate(axes):
                 ax.plot(t_forecast, forecast_obs[:, i], label=label, color=colors[0])
@@ -994,11 +1000,12 @@ class GeneralLinearGaussianStateSpaceModelFit(AbstractFit):
         self,
         α: float,
         with_obs_cov: bool = True,
+        n_std: float | None = None,
     ) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64], npt.NDArray[np.float64]]:
         filtered_obs = self.filtered_obs
         filtered_obs_cov = self.filtered_obs_cov_with_obs_cov if with_obs_cov else self.filtered_obs_cov
 
-        ns_std = stats.norm.ppf([0.5 * α, 1.0 - 0.5 * α])
+        ns_std = stats.norm.ppf([0.5 * α, 1.0 - 0.5 * α]) if n_std is None else (-n_std, n_std)
 
         filtered_obs_std = sqrt_diag(filtered_obs_cov)
         return (
@@ -1011,11 +1018,12 @@ class GeneralLinearGaussianStateSpaceModelFit(AbstractFit):
         self,
         α: float,
         with_obs_cov: bool = True,
+        n_std: float | None = None,
     ) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64], npt.NDArray[np.float64]]:
         smoothed_obs = self.smoothed_obs
         smoothed_obs_cov = self.smoothed_obs_cov_with_obs_cov if with_obs_cov else self.smoothed_obs_cov
 
-        ns_std = stats.norm.ppf([0.5 * α, 1.0 - 0.5 * α])
+        ns_std = stats.norm.ppf([0.5 * α, 1.0 - 0.5 * α]) if n_std is None else (-n_std, n_std)
 
         smoothed_obs_std = sqrt_diag(smoothed_obs_cov)
         return (
@@ -1027,8 +1035,11 @@ class GeneralLinearGaussianStateSpaceModelFit(AbstractFit):
     def smoothed_obs_CI_from_samples(
         self,
         α: float,
+        n_std: float | None = None,
     ) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64], npt.NDArray[np.float64]]:
         smoothed_obs = self.smoothed_obs_from_samples
+        if n_std is not None:
+            raise NotImplementedError("n_std not implemented")
         CIs = np.quantile(self.samples, [0.5 * α, 1.0 - 0.5 * α], axis=1)
         # cov is redundant here but smoothed_state_to_obs requires it...
         smoothed_obs_low, _ = self.parent.smoothed_state_to_obs(
@@ -1055,7 +1066,10 @@ class GeneralLinearGaussianStateSpaceModelFit(AbstractFit):
     def smoothed_obs_CI_from_gibbs_samples(
         self,
         α: float,
+        n_std: float | None = None,
     ) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64], npt.NDArray[np.float64]]:
+        if n_std is not None:
+            raise NotImplementedError("n_std not implemented")
         smoothed_obs = self.smoothed_obs_from_gibbs_samples
         CIs = np.quantile(self.gibbs_X_chain, [0.5 * α, 1.0 - 0.5 * α], axis=0)
         # cov is redundant here but smoothed_state_to_obs requires it...
@@ -1084,10 +1098,11 @@ class GeneralLinearGaussianStateSpaceModelFit(AbstractFit):
         self,
         T_forecast: int,
         α: float,
+        n_std: float | None = None,
     ) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64], npt.NDArray[np.float64]]:
         forecast_obs, forecast_obs_cov = self.get_forecast_obs(T_forecast)
 
-        ns_std = stats.norm.ppf([0.5 * α, 1.0 - 0.5 * α])
+        ns_std = stats.norm.ppf([0.5 * α, 1.0 - 0.5 * α]) if n_std is None else (-n_std, n_std)
 
         forecast_obs_std = sqrt_diag(forecast_obs_cov)
         return (
