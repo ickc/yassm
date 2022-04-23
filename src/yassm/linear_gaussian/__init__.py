@@ -31,6 +31,7 @@ from ..lib.linear_gaussian import (
 )
 
 if TYPE_CHECKING:
+    from collections.abc import Sequence
     from typing import Any, Callable
 
     import matplotlib as mpl
@@ -199,10 +200,14 @@ LOG2Π = np.log(2.0 * np.pi)
 class AbstractFit:
     def __post_init__(self) -> None:
         self.y: npt.NDArray[np.float64]
+        self.params: npt.NDArray[np.float64]
         self.t: npt.NDArray[Any] | None
+        self.param_names: list[str] | None
 
         self.n: int
         self.size: int
+
+        self.mle_params_chain: npt.NDArray[np.float64]
         raise NotImplementedError
 
     # defaults
@@ -349,6 +354,16 @@ class AbstractFit:
         """
         raise NotImplementedError
 
+    # pandas
+
+    @property
+    def mle_params_chain_to_frame(self) -> pd.DataFrame:
+        return pd.DataFrame(self.mle_params_chain, columns=self.param_names)
+
+    @property
+    def params_to_series(self) -> pd.Series:
+        return pd.Series(self.params, index=self.param_names)
+
     # plot
 
     def plot(
@@ -368,12 +383,15 @@ class AbstractFit:
         plot_smoothed_from_gibbs_samples: bool = False,
         plot_smoothed_from_gibbs_samples_CI: bool = False,
         n_std: float | None = None,
+        color: Sequence[tuple[float, float, float]] | None = None,
     ) -> tuple[mpl.figure.Figure, list[mpl.axes._subplots.AxesSubplot]]:
         """Plotting.
 
         :param α: α-value for C.I.
         :param axes: matplotlib axis, no. of rows should match the dimension of observations.
         :param alpha: transparency level of `ax.fill_between`.
+        :param color: a sequence of color of at least 12 elements. Every 2 colors must be pair of light and dark.
+            If None, `sns.color_palette("Paired")` is used.
 
         TODO: refactor to a DataFrame first and plot from its data.
         """
@@ -392,7 +410,12 @@ class AbstractFit:
         else:
             fig = plt.gcf()
 
-        color = sns.color_palette("Paired")
+        # default colors
+        if color is not None and len(color) < 12:
+            logger.warning("Too few colors, using default.")
+            color = None
+        if color is None:
+            color = sns.color_palette("Paired")
         # all color pair below are dark-light pairs
         # blue
         colors_obs = (color[1], color[0])
@@ -1111,16 +1134,6 @@ class GeneralLinearGaussianStateSpaceModelFit(AbstractFit):
             forecast_obs,
             forecast_obs + ns_std[1] * forecast_obs_std,
         )
-
-    # pandas
-
-    @property
-    def mle_params_chain_to_frame(self) -> pd.DataFrame:
-        return pd.DataFrame(self.mle_params_chain, columns=self.param_names)
-
-    @property
-    def params_to_series(self) -> pd.Series:
-        return pd.Series(self.params, index=self.param_names)
 
 
 @dataclass
