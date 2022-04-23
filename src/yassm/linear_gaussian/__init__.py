@@ -373,10 +373,10 @@ class AbstractFit:
                 (
                     # orange
                     (color[7], color[6]),
-                    # brown/yellow
-                    (color[11], color[10]),
                     # purple
                     (color[9], color[8]),
+                    # brown/yellow
+                    (color[11], color[10]),
                     # red
                     (color[5], color[4]),
                 )
