@@ -15,7 +15,6 @@ from itertools import cycle
 from logging import getLogger
 from typing import TYPE_CHECKING
 
-import numdifftools as nd
 import numpy as np
 import pandas as pd
 from numba import jit, objmode, prange
@@ -998,6 +997,8 @@ class GeneralLinearGaussianStateSpaceModelFit(AbstractFit):
     @cached_property
     def mle_hessian_log_likelihood(self) -> npt.NDArray[np.float64]:
         """Hessian of the log likelihood at MLE."""
+        import numdifftools as nd
+
         logger.info("Computing MLE Hessian, assumes MLE is attained during fit.")
         return -0.5 * nd.Hessian(
             partial(
