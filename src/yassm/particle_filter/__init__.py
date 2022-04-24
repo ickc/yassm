@@ -190,15 +190,23 @@ class GenericParticleFilterStateSpaceModelFit(AbstractFit):
             param_names = [f"param_{i}" for i in range(N)]
 
         if mle_n_iter:
-            mle: Mle = self.parent.mle(self.mle_method)
-            self.params, self.mle_params_chain = mle(
-                y,
-                params,
-                mle_n_iter,
-                n_sample,
-                mle_return_chain,
-                **self.mle_kwargs,
-            )
+            logger.info("Using %s for MLE.", self.mle_method)
+            logger.warning("n_iter is ignored.")
+            if self.mle_method == "grid_search":
+                params_grid = self.mle_kwargs["params_grid"]
+                ls = self.parent.neg_log_likelihoods(params_grid, y, n_sample)
+                idx = np.argmin(ls)
+                self.params = params_grid[idx]
+                self.neg_log_likelihoods_grid = ls
+            elif self.mle_method == "scipy_minimize":
+                self.params, self.mle_params_chain = self.parent.mle_scipy_minimize(
+                    y,
+                    params,
+                    mle_n_iter,
+                    n_sample,
+                    mle_return_chain,
+                    **self.mle_kwargs,
+                )
 
     # running functions and cache: _run_*
 
@@ -430,16 +438,6 @@ class GenericParticleFilterStateSpaceModel(GenericLinearGaussianStateSpaceModel)
             return opt.x, np.array(chain)
 
         return mle_scipy_minimize
-
-    def mle(self, method: str = "scipy_minimize") -> Mle:  # type: ignore[override]  # inheritance issue
-        """Return the MLE method."""
-        method_lower = method.lower()
-        if method_lower != "scipy_minimize":
-            logger.warning(
-                "The only implemented MLE method is scipy_minimize for general linear Gaussian model. Using"
-                " scipy_minimize..."
-            )
-        return self.mle_scipy_minimize
 
     @staticmethod
     def params_guess(y: npt.NDArray[np.float64]) -> npt.NDArray[np.float64]:
