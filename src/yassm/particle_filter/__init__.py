@@ -98,6 +98,7 @@ if TYPE_CHECKING:
         ],
         npt.NDArray[np.float64],
     ]
+    TransformFunc = Callable[[npt.NDArray[np.float64]], npt.NDArray[np.float64]]
 
     class Mle(Protocol):
         def __call__(
@@ -310,7 +311,26 @@ class GenericParticleFilterStateSpaceModelFit(AbstractFit):
 # are based on an abstract class
 @dataclass
 class GenericParticleFilterStateSpaceModel(GenericLinearGaussianStateSpaceModel):
+    """Generic particle filter state space model.
+
+    :param particle_filter_method: Method to use for particle filter, valid options are
+        bootstrap, particle_filter.
+    :param transform_params: For MLE, function from unconstrainted to constrainted space
+        i.e. from optimzation space to parameter space.
+    :param untransform_params: For MLE, function from constrainted to unconstrainted space
+        i.e. from parameter space to optimization space.
+    """
+
     particle_filter_method: str = "bootstrap"
+    transform_params: TransformFunc | None = None
+    untransform_params: TransformFunc | None = None
+
+    def __post_init__(self) -> None:
+        super().__post_init__()
+        if self.particle_filter_method not in ["bootstrap", "optimal"]:
+            raise ValueError(f"Unknown particle filter method {self.particle_filter_method}")
+        if (self.transform_params is None) is not (self.untransform_params is None):
+            raise ValueError("transform_params and untransform_params has to be either both None or both not None")
 
     # TODO: refactor classes
 
@@ -325,6 +345,27 @@ class GenericParticleFilterStateSpaceModel(GenericLinearGaussianStateSpaceModel)
     @property
     def mle_scipy_minimize(self) -> Mle:  # type: ignore[override]  # inheritance issue
         neg_log_likelihood = self.neg_log_likelihood
+        transform_params = self.transform_params
+        untransform_params = self.untransform_params
+
+        if transform_params is not None:
+            logger.info("Calculating MLE using transformed parameter space, possibly for unconstrainted optimization.")
+
+            @jit("f8(f8[::1], f8[:, ::1], i8)", nopython=True, nogil=True, cache=False)
+            def minimization_func(
+                unconstrained: npt.NDArray[np.float64],
+                y: npt.NDArray[np.float64],
+                N: int,
+            ) -> float:
+                """Minimization function for scipy.optimize.minimize.
+
+                :param unconstrained: unconstrained parameters in optimization space.
+                """
+                constrained = transform_params(unconstrained)  # type: ignore[misc]  # type limitation
+                return neg_log_likelihood(constrained, y, N)
+
+        else:
+            minimization_func = neg_log_likelihood
 
         def mle_scipy_minimize(
             y: npt.NDArray[np.float64],
@@ -340,9 +381,9 @@ class GenericParticleFilterStateSpaceModel(GenericLinearGaussianStateSpaceModel)
             """
             from scipy.optimize import minimize
 
-            def _callback(xk: npt.NDArray[np.float64]) -> None:
+            def _callback(unconstrained: npt.NDArray[np.float64]) -> None:
                 """Store iterations."""
-                chain.append(xk)
+                chain.append(unconstrained if transform_params is None else transform_params(unconstrained))
 
             if n_iter:
                 logger.warning("n_iter %s is ignored when using scipy.optimize.minimize.", n_iter)
@@ -355,7 +396,13 @@ class GenericParticleFilterStateSpaceModel(GenericLinearGaussianStateSpaceModel)
             else:
                 callback = None
 
-            opt = minimize(neg_log_likelihood, params0, args=(y, n_sample), callback=callback, **kwargs)
+            opt = minimize(
+                minimization_func,
+                params0 if untransform_params is None else untransform_params(params0),
+                args=(y, n_sample),
+                callback=callback,
+                **kwargs,
+            )
             msg = opt.message
             if not opt.success:
                 raise RuntimeError(f"MLE unccessful with message: {msg}")
