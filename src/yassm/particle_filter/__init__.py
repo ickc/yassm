@@ -90,6 +90,14 @@ if TYPE_CHECKING:
         ],
         float,
     ]
+    Likelihoods = Callable[
+        [
+            npt.NDArray[np.float64],
+            npt.NDArray[np.float64],
+            int,
+        ],
+        npt.NDArray[np.float64],
+    ]
     SmoothedStateToObs = Callable[
         [
             npt.NDArray[np.float64],
@@ -273,6 +281,14 @@ class GenericParticleFilterStateSpaceModelFit(AbstractFit):
         """Q_t_given_t in observation space of shape (size, n)."""
         return cov_from_samples(self.filtered_obs_samples)
 
+    # misc
+
+    def log_likelihoods(
+        self,
+        params_chain: npt.NDArray[np.float64],
+    ) -> npt.NDArray[np.float64]:
+        return -self.parent.neg_log_likelihoods(params_chain, self.y, self.n_sample)
+
     # CI
 
     def filtered_obs_CI(
@@ -339,7 +355,11 @@ class GenericParticleFilterStateSpaceModel(GenericLinearGaussianStateSpaceModel)
         raise NotImplementedError
 
     @property
-    def neg_log_likelihood(self) -> Any:
+    def neg_log_likelihood(self) -> Likelihood:
+        raise NotImplementedError
+
+    @property
+    def neg_log_likelihoods(self) -> Likelihoods:
         raise NotImplementedError
 
     @property
@@ -1005,6 +1025,93 @@ class GeneralLinearGaussianParticleFilterStateSpaceModel(
             return size * np.log(N) - np.log(s_i_t.sum(axis=0)).sum()
 
         return neg_log_likelihood
+
+    @cached_property
+    def neg_log_likelihoods(self) -> Likelihoods:
+        d = self.d
+        sampling_X0_tilde_inplace = self.sampling_X0_tilde_inplace
+        sampling_X0_inplace = self.sampling_X0_inplace
+        sampling_q_inplace = self.sampling_q_inplace
+        weights_inplace = self.weights_inplace
+        use_bootstrap = self.particle_filter_method == "bootstrap"
+
+        @jit("f8(f8[::1], f8[:, ::1], i8)", nopython=True, nogil=True)
+        def neg_log_likelihood(
+            params: npt.NDArray[np.float64],
+            y: npt.NDArray[np.float64],
+            N: int,
+        ) -> float:
+            """Negative log likelihood.
+
+            Modified from particle_filter but simplified
+            for likelihood calculation only.
+
+            This does not speed up comparing to particle_filter,
+            but reduce memory use roughly by a factor of
+            size + 1 / (2 * d + 1).
+            """
+            size = y.shape[0]
+            # initialize, keep the latest only
+            temp = np.empty((2, N, d))
+            # For bootstrap, x_t_tilde is x_t_given_tMinus1
+            x_t_tilde = temp[0]
+            # x_t is x_t_given_t
+            x_t = temp[1]
+            w_t = np.empty(N)
+
+            res = size * np.log(N)
+            t = 0
+            if use_bootstrap:
+                # initial generation
+                sampling_X0_tilde_inplace(x_t_tilde, params)
+                # weights
+                # x_t is not used by weights_inplace_bootstrap
+                weights_inplace(w_t, x_t_tilde, x_t, y[t], params, t)
+                s = w_t.sum()
+                # special case: when it is very diffused
+                if s == 0.0:
+                    w_t[:] = 1.0 / N
+                else:
+                    res -= np.log(s)
+                # resampling
+                random_choice_weighted_inplace(x_t, x_t_tilde, N, w_t)
+            else:
+                # initial generation
+                # x_t_tilde not generated in the guided particle filter case
+                # guided particle filter does not have initial weights
+                # as X0 is not resampled from some weights
+                sampling_X0_inplace(x_t, y[t], params)
+            for t in range(1, size):
+                # generation
+                sampling_q_inplace(x_t_tilde, x_t, y[t], params, t)
+                # weights
+                weights_inplace(w_t, x_t_tilde, x_t, y[t], params, t)
+                s = w_t.sum()
+                # special case: when it is very diffused
+                if s == 0.0:
+                    w_t[:] = 1.0 / N
+                else:
+                    res -= np.log(s)
+                # resampling
+                random_choice_weighted_inplace(x_t, x_t_tilde, N, w_t)
+
+            return res
+
+        @jit("f8[::1](f8[:, ::1], f8[:, ::1], i8)", nopython=True, nogil=True, cache=False, parallel=True)
+        def neg_log_likelihoods(
+            params: npt.NDArray[np.float64],
+            y: npt.NDArray[np.float64],
+            N: int,
+        ) -> npt.NDArray[np.float64]:
+            n_params = params.shape[0]
+
+            # memalloc
+            ls = np.empty(n_params)
+            for i in prange(n_params):
+                ls[i] = neg_log_likelihood(params[i], y, N)
+            return ls
+
+        return neg_log_likelihoods
 
     # TODO: refactor classes
     # We really only need __post_init__ from GeneralLinearGaussianStateSpaceModel
