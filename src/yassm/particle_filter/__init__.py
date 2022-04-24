@@ -836,6 +836,9 @@ class GeneralLinearGaussianParticleFilterStateSpaceModel(
                 # initial generation
                 # x_t_tilde not generated in the guided particle filter case
                 x_t_tilde[t] = np.nan
+                # guided particle filter does not have initial weights
+                # as X0 is not resampled from some weights
+                w_t[t] = 1.0 / N
                 sampling_X0_inplace(x_t[t], y[t], params)
             for t in range(1, size):
                 # generation
@@ -915,6 +918,9 @@ class GeneralLinearGaussianParticleFilterStateSpaceModel(
             else:
                 # initial generation
                 # x_t_tilde not generated in the guided particle filter case
+                # guided particle filter does not have initial weights
+                # as X0 is not resampled from some weights
+                s_t[t] = 1.0
                 sampling_X0_inplace(x_t, y[t], params)
             for t in range(1, size):
                 # generation
