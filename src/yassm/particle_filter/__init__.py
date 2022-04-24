@@ -9,9 +9,9 @@ from logging import getLogger
 from typing import TYPE_CHECKING
 
 import numpy as np
-from numba import jit, objmode
+from numba import get_num_threads, jit, objmode, prange
 
-from ..lib import sqrt_diag
+from ..lib import random_choice_weighted_inplace, sqrt_diag
 from ..lib.linear_gaussian import cov_from_samples, prob_normal_each
 from ..linear_gaussian import AbstractFit, GeneralLinearGaussianStateSpaceModel, GenericLinearGaussianStateSpaceModel
 
@@ -113,7 +113,6 @@ if TYPE_CHECKING:
 
 
 logger = getLogger(__name__)
-rng = np.random.default_rng()
 
 
 @dataclass
@@ -454,6 +453,7 @@ class GeneralLinearGaussianParticleFilterStateSpaceModel(
         B0 = self.B0
         R0 = self.R0
         X0 = self.X0
+        d = self.d
 
         @jit("(f8[:, ::1], f8[::1], f8[::1])", nopython=True, nogil=True)
         def sampling_X0_inplace(
@@ -479,14 +479,18 @@ class GeneralLinearGaussianParticleFilterStateSpaceModel(
 
             m = μ + Γ @ B.T @ np.linalg.solve(BΓB_R, y_0 - B @ μ)
             Q = Γ - Γ @ B.T @ np.linalg.solve(BΓB_R, B @ Γ)
-            with objmode():
-                x_0[:] = np.random.multivariate_normal(m, Q, N)
+            if d == 1:
+                x_0[:] = np.random.normal(m[0], np.sqrt(Q[0, 0]), N).reshape(N, 1)
+            else:
+                with objmode():
+                    x_0[:] = np.random.multivariate_normal(m, Q, N)
 
         return sampling_X0_inplace
 
     @cached_property
     def sampling_X0_tilde_inplace(self) -> SamplingX0TildeInplace:
         X0 = self.X0
+        d = self.d
 
         @jit("(f8[:, ::1], f8[::1])", nopython=True, nogil=True)
         def sampling_X0_tilde_inplace(
@@ -502,8 +506,11 @@ class GeneralLinearGaussianParticleFilterStateSpaceModel(
             N = x_0_tilde.shape[0]
             # initialize
             μ, Γ = X0(params)
-            with objmode():
-                x_0_tilde[:] = np.random.multivariate_normal(μ, Γ, N)
+            if d == 1:
+                x_0_tilde[:] = np.random.normal(μ[0], np.sqrt(Γ[0, 0]), N).reshape(N, 1)
+            else:
+                with objmode():
+                    x_0_tilde[:] = np.random.multivariate_normal(μ, Γ, N)
 
         return sampling_X0_tilde_inplace
 
@@ -547,9 +554,11 @@ class GeneralLinearGaussianParticleFilterStateSpaceModel(
             for i in range(N):
                 # mean
                 x_t_given_tMinus1[i] = A_t @ x_tMinus1[i]
-            with objmode(sample="f8[:, :]"):
-                sample = np.random.multivariate_normal(μ_zeros, Σ_t, N)
-            x_t_given_tMinus1 += sample
+            if d == 1:
+                x_t_given_tMinus1 += np.random.normal(0.0, np.sqrt(Σ_t[0, 0]), N).reshape(N, 1)
+            else:
+                with objmode():
+                    x_t_given_tMinus1 += np.random.multivariate_normal(μ_zeros, Σ_t, N)
 
         return sampling_one_step_ahead_inplace
 
@@ -632,9 +641,11 @@ class GeneralLinearGaussianParticleFilterStateSpaceModel(
             for i in range(N):
                 x_t_tilde[i] = A_t @ x_tMinus1[i] + ΣB @ np.linalg.solve(BΣB_R, y_t - BA @ x_tMinus1[i])
             Q = Σ_t - ΣB @ np.linalg.solve(BΣB_R, BΣ)
-            with objmode(sample="f8[:, :]"):
-                sample = np.random.multivariate_normal(μ_zeros, Q, N)
-            x_t_tilde += sample
+            if d == 1:
+                x_t_tilde += np.random.normal(0.0, np.sqrt(Q[0, 0]), N).reshape(N, 1)
+            else:
+                with objmode():
+                    x_t_tilde += np.random.multivariate_normal(μ_zeros, Q, N)
 
         return sampling_q_inplace_optimal
 
@@ -808,7 +819,6 @@ class GeneralLinearGaussianParticleFilterStateSpaceModel(
             # x_t is x_t_given_t
             x_t = temp[1]
             w_t = np.empty((size, N))
-            W_t = np.empty(N)
 
             t = 0
             if use_bootstrap:
@@ -817,17 +827,11 @@ class GeneralLinearGaussianParticleFilterStateSpaceModel(
                 # weights
                 # x_t[t-1] is not used by weights_inplace_bootstrap
                 weights_inplace(w_t[t], x_t_tilde[t], x_t[t - 1], y[t], params, t)
-                # normalization
-                s = w_t[t].sum()
-                if s == 0.0:
-                    W_t[:] = 1.0 / N
-                else:
-                    W_t[:] = w_t[t] / s
+                # special case: when it is very diffused
+                if np.count_nonzero(w_t[t]) == 0:
+                    w_t[t] = 1.0 / N
                 # resampling
-                x_current = x_t_tilde[t]
-                with objmode(sample="f8[:, :]"):
-                    sample = rng.choice(x_current, size=N, replace=True, p=W_t)
-                x_t[t] = sample
+                random_choice_weighted_inplace(x_t[t], x_t_tilde[t], N, w_t[t])
             else:
                 # initial generation
                 # x_t_tilde not generated in the guided particle filter case
@@ -838,17 +842,11 @@ class GeneralLinearGaussianParticleFilterStateSpaceModel(
                 sampling_q_inplace(x_t_tilde[t], x_t[t - 1], y[t], params, t)
                 # weights
                 weights_inplace(w_t[t], x_t_tilde[t], x_t[t - 1], y[t], params, t)
-                # normalization
-                s = w_t[t].sum()
-                if s == 0.0:
-                    W_t[:] = 1.0 / N
-                else:
-                    W_t[:] = w_t[t] / s
+                # special case: when it is very diffused
+                if np.count_nonzero(w_t[t]) == 0:
+                    w_t[t] = 1.0 / N
                 # resampling
-                x_current = x_t_tilde[t]
-                with objmode(sample="f8[:, :]"):
-                    sample = rng.choice(x_current, size=N, replace=True, p=W_t)
-                x_t[t] = sample
+                random_choice_weighted_inplace(x_t[t], x_t_tilde[t], N, w_t[t])
             return x_t_tilde, x_t, w_t
 
         return particle_filter
@@ -858,12 +856,7 @@ class GeneralLinearGaussianParticleFilterStateSpaceModel(
         @jit("f8(f8[:, ::1])", nopython=True, nogil=True)
         def neg_log_likelihood_from_w_t(w_t: npt.NDArray[np.float64]) -> float:
             size, N = w_t.shape
-            res = size * np.log(N)
-            for t in range(size):
-                s = w_t[t].sum()
-                if s > 0.0:
-                    res -= np.log(s)
-            return res
+            return size * np.log(N) - np.log(w_t.sum(axis=1)).sum()
 
         return neg_log_likelihood_from_w_t
 
@@ -875,13 +868,16 @@ class GeneralLinearGaussianParticleFilterStateSpaceModel(
         sampling_q_inplace = self.sampling_q_inplace
         weights_inplace = self.weights_inplace
         use_bootstrap = self.particle_filter_method == "bootstrap"
+        n_processes = get_num_threads()
+        logger.info("Using %d processes for the calculation of log-likelihood", n_processes)
 
-        @jit("f8(f8[::1], f8[:, ::1], i8)", nopython=True, nogil=True)
-        def neg_log_likelihood(
+        @jit("(f8[::1], f8[::1], f8[:, ::1], i8)", nopython=True, nogil=True)
+        def sum_w_inplace(
+            s_t: npt.NDArray[np.float64],
             params: npt.NDArray[np.float64],
             y: npt.NDArray[np.float64],
             N: int,
-        ) -> float:
+        ) -> None:
             """Negative log likelihood.
 
             Modified from particle_filter but simplified
@@ -900,7 +896,6 @@ class GeneralLinearGaussianParticleFilterStateSpaceModel(
             x_t = temp[1]
             w_t = np.empty(N)
 
-            res = size * np.log(N)
             t = 0
             if use_bootstrap:
                 # initial generation
@@ -908,16 +903,15 @@ class GeneralLinearGaussianParticleFilterStateSpaceModel(
                 # weights
                 # x_t is not used by weights_inplace_bootstrap
                 weights_inplace(w_t, x_t_tilde, x_t, y[t], params, t)
-                # normalization
                 s = w_t.sum()
+                # special case: when it is very diffused
                 if s == 0.0:
                     w_t[:] = 1.0 / N
+                    s_t[t] = 1.0
                 else:
-                    w_t[:] /= s
-                    res -= np.log(s)
+                    s_t[t] = s
                 # resampling
-                with objmode():
-                    x_t[:] = rng.choice(x_t_tilde, size=N, replace=True, p=w_t)
+                random_choice_weighted_inplace(x_t, x_t_tilde, N, w_t)
             else:
                 # initial generation
                 # x_t_tilde not generated in the guided particle filter case
@@ -927,17 +921,35 @@ class GeneralLinearGaussianParticleFilterStateSpaceModel(
                 sampling_q_inplace(x_t_tilde, x_t, y[t], params, t)
                 # weights
                 weights_inplace(w_t, x_t_tilde, x_t, y[t], params, t)
-                # normalization
                 s = w_t.sum()
+                # special case: when it is very diffused
                 if s == 0.0:
                     w_t[:] = 1.0 / N
+                    s_t[t] = 1.0
                 else:
-                    w_t[:] /= s
-                    res -= np.log(s)
+                    s_t[t] = s
                 # resampling
-                with objmode():
-                    x_t[:] = rng.choice(x_t_tilde, size=N, replace=True, p=w_t)
-            return res
+                random_choice_weighted_inplace(x_t, x_t_tilde, N, w_t)
+
+        @jit("f8(f8[::1], f8[:, ::1], i8)", nopython=True, nogil=True, cache=False, parallel=True)
+        def neg_log_likelihood(
+            params: npt.NDArray[np.float64],
+            y: npt.NDArray[np.float64],
+            N: int,
+        ) -> float:
+            size = y.shape[0]
+
+            # memalloc
+            s_i_t = np.empty((n_processes, size))
+
+            # ceil
+            n_sample_per_process = (N + n_processes - 1) // n_processes
+            # this would be slightly larger than N if N is not divisible by n_processes
+            N = n_sample_per_process * n_processes
+
+            for i in prange(n_processes):
+                sum_w_inplace(s_i_t[i], params, y, n_sample_per_process)
+            return size * np.log(N) - np.log(s_i_t.sum(axis=0)).sum()
 
         return neg_log_likelihood
 
