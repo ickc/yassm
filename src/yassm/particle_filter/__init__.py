@@ -106,6 +106,14 @@ if TYPE_CHECKING:
         ],
         npt.NDArray[np.float64],
     ]
+    Forecast = Callable[
+        [
+            npt.NDArray[np.float64],
+            npt.NDArray[np.float64],
+            int,
+        ],
+        npt.NDArray[np.float64],
+    ]
     TransformFunc = Callable[[npt.NDArray[np.float64]], npt.NDArray[np.float64]]
 
     class Mle(Protocol):
@@ -207,6 +215,26 @@ class GenericParticleFilterStateSpaceModelFit(AbstractFit):
                     mle_return_chain,
                     **self.mle_kwargs,
                 )
+
+    # running functions depending on parameters: get_*
+
+    def get_forecast_state(self, T_forecast: int) -> npt.NDArray[np.float64]:
+        forecast: Forecast = self.parent.forecast  # type: ignore[assignment]  # inheritance issues
+        return forecast(
+            self.params,
+            self.x_t,
+            T_forecast,
+        )
+
+    def get_forecast_obs(
+        self,
+        T_forecast: int,
+        with_obs_cov: bool = True,
+    ) -> npt.NDArray[np.float64]:
+        if with_obs_cov:
+            raise NotImplementedError("with_obs_cov is not implemented yet.")
+        forecast_state = self.get_forecast_state(T_forecast)
+        return self.parent.smoothed_state_to_obs(self.params, forecast_state, self.size)
 
     # running functions and cache: _run_*
 
@@ -323,6 +351,35 @@ class GenericParticleFilterStateSpaceModelFit(AbstractFit):
             filtered_obs_std = sqrt_diag(Q_t_given_t_obs)
             Δ = filtered_obs_std * n_std
             return m_t_given_t_obs - Δ, m_t_given_t_obs, m_t_given_t_obs + Δ
+
+    def forecast_obs_CI(
+        self,
+        T_forecast: int,
+        α: float,
+        n_std: float | None = None,
+        with_obs_cov: bool = True,
+    ) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64], npt.NDArray[np.float64]]:
+        """Forecast with confidence intervals.
+
+        :param T_forecast: Number of forecast time steps.
+        :param α: Confidence level.
+        :return: tuple of 3 arrays of shape (size, n).
+            They are the lower, central and upper confidence intervals.
+        """
+        # (size, N, n)
+        x_t_forecast = self.get_forecast_obs(T_forecast, with_obs_cov=with_obs_cov)
+
+        if n_std is None:
+            raise NotImplementedError("CI with α-level is not implemented")
+        else:
+            forecast_obs = x_t_forecast.mean(axis=1)
+            forecast_obs_cov = cov_from_samples(x_t_forecast)
+            forecast_obs_std = sqrt_diag(forecast_obs_cov)
+            return (
+                forecast_obs - n_std * forecast_obs_std,
+                forecast_obs,
+                forecast_obs + n_std * forecast_obs_std,
+            )
 
     # misc
 
@@ -1176,8 +1233,36 @@ class GeneralLinearGaussianParticleFilterStateSpaceModel(
         return smoothed_state_to_obs
 
     @cached_property
-    def forecast(self) -> Any:
-        raise NotImplementedError
+    def forecast(self) -> Forecast:  # type: ignore[override]  # inheritance issue
+        sampling_one_step_ahead_inplace = self.sampling_one_step_ahead_inplace
+
+        @jit(
+            "f8[:, :, ::1](f8[::1], f8[:, :, ::1], int64)",
+            nopython=True,
+            nogil=True,
+            cache=False,
+        )
+        def forecast(
+            params: npt.NDArray[np.float64],
+            x_t: npt.NDArray[np.float64],
+            T_forecast: int,
+        ) -> npt.NDArray[np.float64]:
+            size, N, d = x_t.shape
+
+            # memalloc
+            x_s_forecast = np.empty((T_forecast, N, d))
+
+            # initialize
+            x_prev = x_t[-1]
+            # s from 0 to T_forecast - 1
+            for s in range(T_forecast):
+                # t from T + 1 to T + T_forecast
+                t = s + size
+                sampling_one_step_ahead_inplace(x_s_forecast[s], x_prev, params, t)
+                x_prev = x_s_forecast[s]
+            return x_s_forecast
+
+        return forecast
 
     @cached_property
     def neg2_log_likelihood(self) -> Any:
