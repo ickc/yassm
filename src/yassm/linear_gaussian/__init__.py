@@ -343,6 +343,7 @@ class AbstractFit:
         T_forecast: int,
         α: float,
         n_std: float | None = None,
+        with_obs_cov: bool = True,
     ) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64], npt.NDArray[np.float64]]:
         """Forecast with confidence intervals.
 
@@ -381,6 +382,7 @@ class AbstractFit:
         plot_smoothed_from_samples_CI: bool = False,
         plot_smoothed_from_gibbs_samples: bool = False,
         plot_smoothed_from_gibbs_samples_CI: bool = False,
+        forecast_CI_with_obs_cov: bool = True,
         n_std: float | None = None,
         color: Sequence[tuple[float, float, float]] | None = None,
     ) -> tuple[mpl.figure.Figure, list[mpl.axes._subplots.AxesSubplot]]:
@@ -558,7 +560,12 @@ class AbstractFit:
         if T_forecast > 0:
             colors = colors_forecast
             t_forecast = self.t_forecast(T_forecast)
-            forecast_obs_lower, forecast_obs, forecast_obs_upper = self.forecast_obs_CI(T_forecast, α, n_std=n_std)
+            forecast_obs_lower, forecast_obs, forecast_obs_upper = self.forecast_obs_CI(
+                T_forecast,
+                α,
+                n_std=n_std,
+                with_obs_cov=forecast_CI_with_obs_cov,
+            )
             label = "Forecast" + str_CI
             for i, ax in enumerate(axes):
                 ax.plot(t_forecast, forecast_obs[:, i], label=label, color=colors[0])
@@ -1124,8 +1131,9 @@ class GeneralLinearGaussianStateSpaceModelFit(AbstractFit):
         T_forecast: int,
         α: float,
         n_std: float | None = None,
+        with_obs_cov: bool = True,
     ) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64], npt.NDArray[np.float64]]:
-        forecast_obs, forecast_obs_cov = self.get_forecast_obs(T_forecast)
+        forecast_obs, forecast_obs_cov = self.get_forecast_obs(T_forecast, with_obs_cov=with_obs_cov)
 
         ns_std = stats.norm.ppf([0.5 * α, 1.0 - 0.5 * α]) if n_std is None else (-n_std, n_std)
 
