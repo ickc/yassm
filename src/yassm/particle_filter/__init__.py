@@ -955,10 +955,11 @@ class GeneralLinearGaussianParticleFilterStateSpaceModel(  # type: ignore[misc] 
             B = B0(params)
             R = R0(params)
 
-            BΓB_R = B @ Γ @ B.T + R
+            ΓB = Γ @ B.T
+            BΓB_R = B @ ΓB + R
 
-            m = μ + Γ @ B.T @ np.linalg.solve(BΓB_R, y_0 - B @ μ)
-            Q = Γ - Γ @ B.T @ np.linalg.solve(BΓB_R, B @ Γ)
+            m = μ + ΓB @ np.linalg.solve(BΓB_R, y_0 - B @ μ)
+            Q = Γ - ΓB @ np.linalg.solve(BΓB_R, ΓB.T)
             if d == 1:
                 x_0[:] = np.random.normal(m[0], np.sqrt(Q[0, 0]), N).reshape(N, 1)
             else:
@@ -1088,9 +1089,8 @@ class GeneralLinearGaussianParticleFilterStateSpaceModel(  # type: ignore[misc] 
                 R(R_t, params, t)
 
             BA = B_t @ A_t
-            BΣB_R = B_t @ Σ_t @ B_t.T + R_t
             ΣB = Σ_t @ B_t.T
-            BΣ = ΣB.T
+            BΣB_R = B_t @ ΣB + R_t
 
             # mean
             x_t_tilde[:] = (
@@ -1103,7 +1103,7 @@ class GeneralLinearGaussianParticleFilterStateSpaceModel(  # type: ignore[misc] 
                     )
                 ).T
             )
-            Q = Σ_t - ΣB @ np.linalg.solve(BΣB_R, BΣ)
+            Q = Σ_t - ΣB @ np.linalg.solve(BΣB_R, ΣB.T)
             if d == 1:
                 x_t_tilde += np.random.normal(0.0, np.sqrt(Q[0, 0]), N).reshape(N, 1)
             else:
@@ -1156,7 +1156,6 @@ class GeneralLinearGaussianParticleFilterStateSpaceModel(  # type: ignore[misc] 
             optimal guided particle filter,
             x_t_tilde is ignored.
             """
-            N = w_t.shape[0]
             # initialize
             B_t = B0(params)
             if B is not None:
@@ -1164,6 +1163,7 @@ class GeneralLinearGaussianParticleFilterStateSpaceModel(  # type: ignore[misc] 
             R_t = R0(params)
             if R is not None:
                 R(R_t, params, t)
+
             temp = y_t.reshape(-1, 1) - B_t @ x_t_tilde.T
             w_t[:] = (SQRT_2Π_INV / np.sqrt(np.linalg.det(R_t))) * np.exp(
                 -0.5 * (np.linalg.solve(R_t, temp) * temp).sum(axis=0)
@@ -1203,7 +1203,6 @@ class GeneralLinearGaussianParticleFilterStateSpaceModel(  # type: ignore[misc] 
             optimal guided particle filter,
             x_t_tilde is ignored.
             """
-            N = w_t.shape[0]
             # initialize
             A_t = A0(params)
             if A is not None:
@@ -1218,8 +1217,7 @@ class GeneralLinearGaussianParticleFilterStateSpaceModel(  # type: ignore[misc] 
             if R is not None:
                 R(R_t, params, t)
 
-            BA = B_t @ A_t
-            temp = y_t.reshape(-1, 1) - BA @ x_tMinus1.T
+            temp = y_t.reshape(-1, 1) - (B_t @ A_t) @ x_tMinus1.T
             BΣB_R = B_t @ Σ_t @ B_t.T + R_t
             w_t[:] = (SQRT_2Π_INV / np.sqrt(np.linalg.det(BΣB_R))) * np.exp(
                 -0.5 * (np.linalg.solve(BΣB_R, temp) * temp).sum(axis=0)
