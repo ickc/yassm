@@ -64,7 +64,7 @@ def state_to_obs(
 class TestGeneralLinearGaussianParticleFilterStateSpaceModelBootstrap(TestCase):
     def setUp(self) -> None:
         n_sample = 5000
-        self.rtol = 0.1
+        self.rtol = 0.2
         # test starting from this t-step
         # as particle filter can be inaccurate in early t.
         self.t_min = 100

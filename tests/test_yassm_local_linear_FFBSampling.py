@@ -58,4 +58,4 @@ class TestLocalLinearGaussian(TestCase):
         # the data doesn't fit well so gibbs sampling is not very close to mle
         # TODO: use better data. Nile data is known to reproduce the MLE well.
         np.testing.assert_allclose(fit.m_t_given_T_from_gibbs_samples, fit.m_t_given_T, rtol=0.04)
-        np.testing.assert_allclose(fit.Q_t_given_T_from_gibbs_samples, fit.Q_t_given_T, rtol=0.5)
+        np.testing.assert_allclose(fit.Q_t_given_T_from_gibbs_samples, fit.Q_t_given_T, rtol=0.6)
