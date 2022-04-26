@@ -12,7 +12,7 @@ import numpy as np
 from numba import get_num_threads, jit, objmode, prange
 
 from ..lib import random_choice_weighted_inplace, sqrt_diag
-from ..lib.linear_gaussian import cov_from_samples, prob_normal_each
+from ..lib.linear_gaussian import cov_from_samples
 from ..linear_gaussian import AbstractFit, GeneralLinearGaussianStateSpaceModel, GenericLinearGaussianStateSpaceModel
 
 if TYPE_CHECKING:
@@ -130,6 +130,7 @@ if TYPE_CHECKING:
 
 
 logger = getLogger(__name__)
+SQRT_2Π_INV = 1.0 / np.sqrt(2.0 * np.pi)
 
 
 @dataclass
@@ -1030,9 +1031,8 @@ class GeneralLinearGaussianParticleFilterStateSpaceModel(  # type: ignore[misc] 
             if Σ is not None:
                 Σ(Σ_t, params, t)
 
-            for i in range(N):
-                # mean
-                x_t_given_tMinus1[i] = A_t @ x_tMinus1[i]
+            # mean
+            x_t_given_tMinus1[:] = x_tMinus1 @ A_t.T
             if d == 1:
                 x_t_given_tMinus1 += np.random.normal(0.0, np.sqrt(Σ_t[0, 0]), N).reshape(N, 1)
             else:
@@ -1092,8 +1092,17 @@ class GeneralLinearGaussianParticleFilterStateSpaceModel(  # type: ignore[misc] 
             ΣB = Σ_t @ B_t.T
             BΣ = ΣB.T
 
-            for i in range(N):
-                x_t_tilde[i] = A_t @ x_tMinus1[i] + ΣB @ np.linalg.solve(BΣB_R, y_t - BA @ x_tMinus1[i])
+            # mean
+            x_t_tilde[:] = (
+                x_tMinus1 @ A_t.T
+                + (
+                    ΣB
+                    @ np.linalg.solve(
+                        BΣB_R,
+                        y_t.reshape(-1, 1) - BA @ x_tMinus1.T,
+                    )
+                ).T
+            )
             Q = Σ_t - ΣB @ np.linalg.solve(BΣB_R, BΣ)
             if d == 1:
                 x_t_tilde += np.random.normal(0.0, np.sqrt(Q[0, 0]), N).reshape(N, 1)
@@ -1155,15 +1164,10 @@ class GeneralLinearGaussianParticleFilterStateSpaceModel(  # type: ignore[misc] 
             R_t = R0(params)
             if R is not None:
                 R(R_t, params, t)
-            # somehow by default the pinv return Fortran order
-            R_t_inv = np.linalg.pinv(R_t).T
-            for i in range(N):
-                w_t[i] = prob_normal_each(
-                    y_t,
-                    B_t @ x_t_tilde[i],
-                    R_t_inv,
-                    False,
-                )
+            temp = y_t.reshape(-1, 1) - B_t @ x_t_tilde.T
+            w_t[:] = (SQRT_2Π_INV / np.sqrt(np.linalg.det(R_t))) * np.exp(
+                -0.5 * (np.linalg.solve(R_t, temp) * temp).sum(axis=0)
+            )
 
         return weights_inplace_bootstrap
 
@@ -1215,15 +1219,11 @@ class GeneralLinearGaussianParticleFilterStateSpaceModel(  # type: ignore[misc] 
                 R(R_t, params, t)
 
             BA = B_t @ A_t
-            # somehow by default the pinv return Fortran order
-            BΣB_R_inv = np.linalg.pinv(B_t @ Σ_t @ B_t.T + R_t).T
-            for i in range(N):
-                w_t[i] = prob_normal_each(
-                    y_t,
-                    BA @ x_tMinus1[i],
-                    BΣB_R_inv,
-                    False,
-                )
+            temp = y_t.reshape(-1, 1) - BA @ x_tMinus1.T
+            BΣB_R = B_t @ Σ_t @ B_t.T + R_t
+            w_t[:] = (SQRT_2Π_INV / np.sqrt(np.linalg.det(BΣB_R))) * np.exp(
+                -0.5 * (np.linalg.solve(BΣB_R, temp) * temp).sum(axis=0)
+            )
 
         return weights_inplace_optimal
 
@@ -1304,8 +1304,7 @@ class GeneralLinearGaussianParticleFilterStateSpaceModel(  # type: ignore[misc] 
                     B(B_t, params, t0 + t)
                 if B0_forecast is not None and B_forecast is not None:
                     B_forecast(B_t_forecast, params, t0 + t)
-                for i in range(N):
-                    smoothed_obs[t, i] = B_t_forecast @ x_t[t, i]
+                smoothed_obs[t] = x_t[t] @ B_t_forecast.T
             return smoothed_obs
 
         return smoothed_state_to_obs

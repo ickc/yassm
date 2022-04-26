@@ -45,24 +45,6 @@ def prob_normal_1d(
     return scale * np.exp(-0.5 * cov_inv * np.square(x - μ))
 
 
-@jit("f8(f8[::1], f8[::1], f8[:, ::1], b1)", nopython=True, nogil=True, cache=True)
-def prob_normal_each(
-    x: npt.NDArray[np.float64],
-    μ: npt.NDArray[np.float64],
-    Σ_inv: npt.NDArray[np.float64],
-    norm_peak_to_1: bool,
-) -> npt.NDArray[np.float64]:
-    """Probability density of normal distribution.
-
-    :param Σ_inv: Inverse of covariance matrix.
-    :param norm_peak_to_1: Normalize peak to 1.
-    """
-    Σ_inv_neg_half = -0.5 * Σ_inv
-    scale = 1.0 if norm_peak_to_1 else SQRT_2Π_INV * np.sqrt(np.linalg.det(Σ_inv))
-    d = x - μ
-    return np.exp(d @ Σ_inv_neg_half @ d) * scale
-
-
 @jit("f8[::1](f8[:, ::1], f8[::1], f8[:, ::1], b1)", nopython=True, nogil=True, cache=True, parallel=True)
 def prob_normal(
     x: npt.NDArray[np.float64],
