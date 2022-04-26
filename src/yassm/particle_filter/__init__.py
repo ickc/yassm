@@ -753,7 +753,7 @@ class GenericParticleFilterStateSpaceModel(GenericLinearGaussianStateSpaceModel)
             if not opt.success:
                 raise RuntimeError(f"MLE unccessful with message: {msg}")
             logger.info("MLE constructed with message: %s", msg)
-            return opt.x, np.array(chain)
+            return opt.x if transform_params is None else transform_params(opt.x), np.array(chain)
 
         return mle_scipy_minimize
 
