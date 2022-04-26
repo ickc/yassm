@@ -382,6 +382,7 @@ class AbstractFit:
         plot_smoothed_from_samples_CI: bool = False,
         plot_smoothed_from_gibbs_samples: bool = False,
         plot_smoothed_from_gibbs_samples_CI: bool = False,
+        plot_forecast_CI: bool = True,
         forecast_CI_with_obs_cov: bool = True,
         n_std: float | None = None,
         color: Sequence[tuple[float, float, float]] | None = None,
@@ -558,6 +559,7 @@ class AbstractFit:
                     )
 
         if T_forecast > 0:
+            label = "Forecast"
             colors = colors_forecast
             t_forecast = self.t_forecast(T_forecast)
             forecast_obs_lower, forecast_obs, forecast_obs_upper = self.forecast_obs_CI(
@@ -566,16 +568,18 @@ class AbstractFit:
                 n_std=n_std,
                 with_obs_cov=forecast_CI_with_obs_cov,
             )
-            label = "Forecast" + str_CI
+            if plot_forecast_CI:
+                label += str_CI
             for i, ax in enumerate(axes):
                 ax.plot(t_forecast, forecast_obs[:, i], label=label, color=colors[0])
-                ax.fill_between(
-                    t_forecast,
-                    forecast_obs_lower[:, i],
-                    forecast_obs_upper[:, i],
-                    alpha=alpha,
-                    color=colors[1],
-                )
+                if plot_forecast_CI:
+                    ax.fill_between(
+                        t_forecast,
+                        forecast_obs_lower[:, i],
+                        forecast_obs_upper[:, i],
+                        alpha=alpha,
+                        color=colors[1],
+                    )
 
         for i, ax in enumerate(axes):
             ax.legend()
