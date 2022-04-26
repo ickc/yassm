@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 import numpy as np
-from numba import jit, prange
+from numba import jit, prange, vectorize
 from numpy.linalg import solve
 
 if TYPE_CHECKING:
@@ -12,6 +12,37 @@ if TYPE_CHECKING:
 SQRT_2Π_INV = 1.0 / np.sqrt(2.0 * np.pi)
 
 # probaility functions #########################################################
+
+
+@vectorize("f8(f8, f8, f8, b1)", nopython=True)
+def prob_cauchy(
+    x: npt.NDArray[np.float64],
+    x_0: float,
+    τ_sq: float,
+    norm_peak_to_1: bool,
+) -> npt.NDArray[np.float64]:
+    """Probability of a Cauchy distribution."""
+    return (
+        τ_sq / (τ_sq + np.square((x - x_0)))
+        if norm_peak_to_1
+        else (np.sqrt(τ_sq) / np.pi) / (τ_sq + np.square((x - x_0)))
+    )
+
+
+@vectorize("f8(f8, f8, f8, b1)", nopython=True)
+def prob_normal_1d(
+    x: npt.NDArray[np.float64],
+    μ: float,
+    cov_inv: float,
+    norm_peak_to_1: bool,
+) -> npt.NDArray[np.float64]:
+    """Probability density of normal distribution.
+
+    :param cov_inv: inverse covariance.
+    :param norm_peak_to_1: Normalize peak to 1.
+    """
+    scale = 1.0 if norm_peak_to_1 else SQRT_2Π_INV * np.sqrt(cov_inv)
+    return scale * np.exp(-0.5 * cov_inv * np.square(x - μ))
 
 
 @jit("f8(f8[::1], f8[::1], f8[:, ::1], b1)", nopython=True, nogil=True, cache=True)
