@@ -61,7 +61,7 @@ def X0(params: npt.NDArray[np.float64]) -> npt.NDArray[np.float64]:
 class TestGeneralLinearGaussianParticleFilterStateSpaceModelBootstrap(TestCase):
     def setUp(self) -> None:
         n_sample = 5000
-        self.rtol = 0.2
+        self.rtol = 0.1
         # test starting from this t-step
         # as particle filter can be inaccurate in early t.
         self.t_min = 100
