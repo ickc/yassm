@@ -219,7 +219,7 @@ class GenericParticleFilterStateSpaceModelFit(AbstractFit):
     # running functions depending on parameters: get_*
 
     def get_forecast_state(self, T_forecast: int) -> npt.NDArray[np.float64]:
-        forecast: Forecast = self.parent.forecast  # type: ignore[assignment]  # inheritance issues
+        forecast: Forecast = self.parent.forecast
         return forecast(
             self.params,
             self.x_t,
@@ -407,25 +407,286 @@ class GenericParticleFilterStateSpaceModel(GenericLinearGaussianStateSpaceModel)
     untransform_params: TransformFunc | None = None
 
     def __post_init__(self) -> None:
-        super().__post_init__()
         if self.particle_filter_method not in ["bootstrap", "optimal"]:
             raise ValueError(f"Unknown particle filter method {self.particle_filter_method}")
         if (self.transform_params is None) is not (self.untransform_params is None):
             raise ValueError("transform_params and untransform_params has to be either both None or both not None")
 
-    # TODO: refactor classes
+    @cached_property
+    def sampling_X0_inplace(self) -> SamplingX0Inplace:
+        """In case it is not implemented and particle_filter need it in an if-clause that this is not executed anyway."""
+
+        @jit("(f8[:, ::1], f8[::1], f8[::1])", nopython=True, nogil=True)
+        def sampling_X0_inplace(
+            x_0: npt.NDArray[np.float64],
+            y_0: npt.NDArray[np.float64],
+            params: npt.NDArray[np.float64],
+        ) -> None:
+            raise NotImplementedError
+
+        return sampling_X0_inplace
+
+    @cached_property
+    def sampling_X0_tilde_inplace(self) -> SamplingX0TildeInplace:
+        """In case it is not implemented and particle_filter need it in an if-clause that this is not executed anyway."""
+
+        @jit("(f8[:, ::1], f8[::1])", nopython=True, nogil=True)
+        def sampling_X0_tilde_inplace(
+            x_0_tilde: npt.NDArray[np.float64],
+            params: npt.NDArray[np.float64],
+        ) -> None:
+            raise NotImplementedError
+
+        return sampling_X0_tilde_inplace
+
+    @property
+    def sampling_one_step_ahead_inplace(self) -> SamplingOneStepAheadInplace:
+        raise NotImplementedError
+
+    @cached_property
+    def sampling_q_inplace_bootstrap(self) -> SamplingQInplace:
+        sampling_one_step_ahead_inplace = self.sampling_one_step_ahead_inplace
+
+        @jit("(f8[:, ::1], f8[:, ::1], f8[::1], f8[::1], i8)", nopython=True, nogil=True)
+        def sampling_q_inplace_bootstrap(
+            x_t_tilde: npt.NDArray[np.float64],
+            x_tMinus1: npt.NDArray[np.float64],
+            y_t: npt.NDArray[np.float64],
+            params: npt.NDArray[np.float64],
+            t: int,
+        ) -> None:
+            """Sampling from q distribution.
+
+            :param x_t_tilde: output buffer.
+
+            For SIR in general,
+            or in the case of
+            bootstrap particle filter,
+            y_t is ignored.
+            """
+            sampling_one_step_ahead_inplace(x_t_tilde, x_tMinus1, params, t)
+
+        return sampling_q_inplace_bootstrap
+
+    @property
+    def sampling_q_inplace_optimal(self) -> SamplingQInplace:
+        raise NotImplementedError
+
+    @property
+    def sampling_q_inplace(self) -> SamplingQInplace:
+        """Sampling from q distribution.
+
+        :param x_t_tilde: output buffer.
+
+        For SIR in general,
+        or in the case of
+        bootstrap particle filter,
+        y_t is ignored.
+        """
+        return {
+            "bootstrap": self.sampling_q_inplace_bootstrap,
+        }[self.particle_filter_method]
+
+    @property
+    def weights_inplace_bootstrap(self) -> WeightsInplace:
+        raise NotImplementedError
+
+    @property
+    def weights_inplace_optimal(self) -> WeightsInplace:
+        raise NotImplementedError
+
+    @property
+    def weights_inplace(self) -> WeightsInplace:
+        raise NotImplementedError
 
     @property
     def neg2_log_likelihoods(self) -> Any:
         raise NotImplementedError
 
-    @property
+    @cached_property
     def neg_log_likelihood(self) -> Likelihood:
-        raise NotImplementedError
+        d = self.d
+        sampling_X0_tilde_inplace = self.sampling_X0_tilde_inplace
+        sampling_X0_inplace = self.sampling_X0_inplace
+        sampling_q_inplace = self.sampling_q_inplace
+        weights_inplace = self.weights_inplace
+        use_bootstrap = self.particle_filter_method == "bootstrap"
+        n_processes = get_num_threads()
+        logger.info("Using %d processes for the calculation of log-likelihood", n_processes)
 
-    @property
+        @jit("(f8[::1], f8[::1], f8[:, ::1], i8)", nopython=True, nogil=True)
+        def sum_w_inplace(
+            s_t: npt.NDArray[np.float64],
+            params: npt.NDArray[np.float64],
+            y: npt.NDArray[np.float64],
+            N: int,
+        ) -> None:
+            """Negative log likelihood.
+
+            Modified from particle_filter but simplified
+            for likelihood calculation only.
+
+            This does not speed up comparing to particle_filter,
+            but reduce memory use roughly by a factor of
+            size + 1 / (2 * d + 1).
+            """
+            size = y.shape[0]
+            # initialize, keep the latest only
+            temp = np.empty((2, N, d))
+            # For bootstrap, x_t_tilde is x_t_given_tMinus1
+            x_t_tilde = temp[0]
+            # x_t is x_t_given_t
+            x_t = temp[1]
+            w_t = np.empty(N)
+
+            t = 0
+            if use_bootstrap:
+                # initial generation
+                sampling_X0_tilde_inplace(x_t_tilde, params)
+                # weights
+                # x_t is not used by weights_inplace_bootstrap
+                weights_inplace(w_t, x_t_tilde, x_t, y[t], params, t)
+                s = w_t.sum()
+                # special case: when it is very diffused
+                if s == 0.0:
+                    w_t[:] = 1.0 / N
+                    s_t[t] = 1.0
+                else:
+                    s_t[t] = s
+                # resampling
+                random_choice_weighted_inplace(x_t, x_t_tilde, N, w_t)
+            else:
+                # initial generation
+                # x_t_tilde not generated in the guided particle filter case
+                # guided particle filter does not have initial weights
+                # as X0 is not resampled from some weights
+                s_t[t] = 1.0
+                sampling_X0_inplace(x_t, y[t], params)
+            for t in range(1, size):
+                # generation
+                sampling_q_inplace(x_t_tilde, x_t, y[t], params, t)
+                # weights
+                weights_inplace(w_t, x_t_tilde, x_t, y[t], params, t)
+                s = w_t.sum()
+                # special case: when it is very diffused
+                if s == 0.0:
+                    w_t[:] = 1.0 / N
+                    s_t[t] = 1.0
+                else:
+                    s_t[t] = s
+                # resampling
+                random_choice_weighted_inplace(x_t, x_t_tilde, N, w_t)
+
+        @jit("f8(f8[::1], f8[:, ::1], i8)", nopython=True, nogil=True, cache=False, parallel=True)
+        def neg_log_likelihood(
+            params: npt.NDArray[np.float64],
+            y: npt.NDArray[np.float64],
+            N: int,
+        ) -> float:
+            size = y.shape[0]
+
+            # memalloc
+            s_i_t = np.empty((n_processes, size))
+
+            # ceil
+            n_sample_per_process = (N + n_processes - 1) // n_processes
+            # this would be slightly larger than N if N is not divisible by n_processes
+            N = n_sample_per_process * n_processes
+
+            for i in prange(n_processes):
+                sum_w_inplace(s_i_t[i], params, y, n_sample_per_process)
+            return size * np.log(N) - np.log(s_i_t.sum(axis=0)).sum()
+
+        return neg_log_likelihood
+
+    @cached_property
     def neg_log_likelihoods(self) -> Likelihoods:
-        raise NotImplementedError
+        d = self.d
+        sampling_X0_tilde_inplace = self.sampling_X0_tilde_inplace
+        sampling_X0_inplace = self.sampling_X0_inplace
+        sampling_q_inplace = self.sampling_q_inplace
+        weights_inplace = self.weights_inplace
+        use_bootstrap = self.particle_filter_method == "bootstrap"
+
+        @jit("f8(f8[::1], f8[:, ::1], i8)", nopython=True, nogil=True)
+        def neg_log_likelihood(
+            params: npt.NDArray[np.float64],
+            y: npt.NDArray[np.float64],
+            N: int,
+        ) -> float:
+            """Negative log likelihood.
+
+            Modified from particle_filter but simplified
+            for likelihood calculation only.
+
+            This does not speed up comparing to particle_filter,
+            but reduce memory use roughly by a factor of
+            size + 1 / (2 * d + 1).
+            """
+            size = y.shape[0]
+            # initialize, keep the latest only
+            temp = np.empty((2, N, d))
+            # For bootstrap, x_t_tilde is x_t_given_tMinus1
+            x_t_tilde = temp[0]
+            # x_t is x_t_given_t
+            x_t = temp[1]
+            w_t = np.empty(N)
+
+            res = size * np.log(N)
+            t = 0
+            if use_bootstrap:
+                # initial generation
+                sampling_X0_tilde_inplace(x_t_tilde, params)
+                # weights
+                # x_t is not used by weights_inplace_bootstrap
+                weights_inplace(w_t, x_t_tilde, x_t, y[t], params, t)
+                s = w_t.sum()
+                # special case: when it is very diffused
+                if s == 0.0:
+                    w_t[:] = 1.0 / N
+                else:
+                    res -= np.log(s)
+                # resampling
+                random_choice_weighted_inplace(x_t, x_t_tilde, N, w_t)
+            else:
+                # initial generation
+                # x_t_tilde not generated in the guided particle filter case
+                # guided particle filter does not have initial weights
+                # as X0 is not resampled from some weights
+                sampling_X0_inplace(x_t, y[t], params)
+            for t in range(1, size):
+                # generation
+                sampling_q_inplace(x_t_tilde, x_t, y[t], params, t)
+                # weights
+                weights_inplace(w_t, x_t_tilde, x_t, y[t], params, t)
+                s = w_t.sum()
+                # special case: when it is very diffused
+                if s == 0.0:
+                    w_t[:] = 1.0 / N
+                else:
+                    res -= np.log(s)
+                # resampling
+                random_choice_weighted_inplace(x_t, x_t_tilde, N, w_t)
+
+            return res
+
+        @jit("f8[::1](f8[:, ::1], f8[:, ::1], i8)", nopython=True, nogil=True, cache=False, parallel=True)
+        def neg_log_likelihoods(
+            params: npt.NDArray[np.float64],
+            y: npt.NDArray[np.float64],
+            N: int,
+        ) -> npt.NDArray[np.float64]:
+            n_params = params.shape[0]
+
+            # memalloc
+            ls = np.empty(n_params)
+            for i in prange(n_params):
+                ls[i] = neg_log_likelihood(params[i], y, N)
+            return ls
+
+        return neg_log_likelihoods
+
+    # TODO: refactor classes
 
     @property
     def mle_scipy_minimize(self) -> Mle:  # type: ignore[override]  # inheritance issue
@@ -549,23 +810,119 @@ class GenericParticleFilterStateSpaceModel(GenericLinearGaussianStateSpaceModel)
     def smoothed_state_to_obs(self) -> SmoothedStateToObs:  # type: ignore[override]  # inheritance issue
         raise NotImplementedError
 
-    @property
-    def neg_log_likelihood_from_w_t(self) -> LikelihoodFromWeights:
-        raise NotImplementedError
+    @cached_property
+    def forecast(self) -> Forecast:  # type: ignore[override]  # inheritance issue
+        sampling_one_step_ahead_inplace = self.sampling_one_step_ahead_inplace
 
-    @property
+        @jit(
+            "f8[:, :, ::1](f8[::1], f8[:, :, ::1], int64)",
+            nopython=True,
+            nogil=True,
+            cache=False,
+        )
+        def forecast(
+            params: npt.NDArray[np.float64],
+            x_t: npt.NDArray[np.float64],
+            T_forecast: int,
+        ) -> npt.NDArray[np.float64]:
+            size, N, d = x_t.shape
+
+            # memalloc
+            x_s_forecast = np.empty((T_forecast, N, d))
+
+            # initialize
+            x_prev = x_t[-1]
+            # s from 0 to T_forecast - 1
+            for s in range(T_forecast):
+                # t from T + 1 to T + T_forecast
+                t = s + size
+                sampling_one_step_ahead_inplace(x_s_forecast[s], x_prev, params, t)
+                x_prev = x_s_forecast[s]
+            return x_s_forecast
+
+        return forecast
+
+    @cached_property
+    def neg_log_likelihood_from_w_t(self) -> LikelihoodFromWeights:
+        @jit("f8(f8[:, ::1])", nopython=True, nogil=True)
+        def neg_log_likelihood_from_w_t(w_t: npt.NDArray[np.float64]) -> float:
+            size, N = w_t.shape
+            return size * np.log(N) - np.log(w_t.sum(axis=1)).sum()
+
+        return neg_log_likelihood_from_w_t
+
+    @cached_property
     def particle_filter(self) -> ParticleFilter:
-        raise NotImplementedError
+        d = self.d
+        sampling_X0_tilde_inplace = self.sampling_X0_tilde_inplace
+        sampling_X0_inplace = self.sampling_X0_inplace
+        sampling_q_inplace = self.sampling_q_inplace
+        weights_inplace = self.weights_inplace
+        use_bootstrap = self.particle_filter_method == "bootstrap"
+
+        @jit("Tuple((f8[:, :, ::1], f8[:, :, ::1], f8[:, ::1]))(f8[:, ::1], f8[::1], i8)", nopython=True, nogil=True)
+        def particle_filter(
+            y: npt.NDArray[np.float64],
+            params: npt.NDArray[np.float64],
+            N: int,
+        ) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64], npt.NDArray[np.float64]]:
+            """Guided particle filter.
+
+            :param N: number of particles.
+            """
+            size = y.shape[0]
+            # initialize
+            temp = np.empty((2, size, N, d))
+            # For bootstrap, x_t_tilde is x_t_given_tMinus1
+            x_t_tilde = temp[0]
+            # x_t is x_t_given_t
+            x_t = temp[1]
+            w_t = np.empty((size, N))
+
+            t = 0
+            if use_bootstrap:
+                # initial generation
+                sampling_X0_tilde_inplace(x_t_tilde[t], params)
+                # weights
+                # x_t[t-1] is not used by weights_inplace_bootstrap
+                weights_inplace(w_t[t], x_t_tilde[t], x_t[t - 1], y[t], params, t)
+                # special case: when it is very diffused
+                if np.count_nonzero(w_t[t]) == 0:
+                    w_t[t] = 1.0 / N
+                # resampling
+                random_choice_weighted_inplace(x_t[t], x_t_tilde[t], N, w_t[t])
+            else:
+                # initial generation
+                # x_t_tilde not generated in the guided particle filter case
+                x_t_tilde[t] = np.nan
+                # guided particle filter does not have initial weights
+                # as X0 is not resampled from some weights
+                w_t[t] = 1.0 / N
+                sampling_X0_inplace(x_t[t], y[t], params)
+            for t in range(1, size):
+                # generation
+                sampling_q_inplace(x_t_tilde[t], x_t[t - 1], y[t], params, t)
+                # weights
+                weights_inplace(w_t[t], x_t_tilde[t], x_t[t - 1], y[t], params, t)
+                # special case: when it is very diffused
+                if np.count_nonzero(w_t[t]) == 0:
+                    w_t[t] = 1.0 / N
+                # resampling
+                random_choice_weighted_inplace(x_t[t], x_t_tilde[t], N, w_t[t])
+            return x_t_tilde, x_t, w_t
+
+        return particle_filter
 
 
 @dataclass
-class GeneralLinearGaussianParticleFilterStateSpaceModel(
+class GeneralLinearGaussianParticleFilterStateSpaceModel(  # type: ignore[misc]  # inheritance issue in method forecast
     GenericParticleFilterStateSpaceModel, GeneralLinearGaussianStateSpaceModel
 ):
     """General particle filter in the special case of linear Gaussian state space model."""
 
     def __post_init__(self) -> None:
-        super().__post_init__()
+        GeneralLinearGaussianStateSpaceModel.__post_init__(self)
+        GenericParticleFilterStateSpaceModel.__post_init__(self)
         # in this model X0 is the only way to pass μ_0, Γ_0
         assert self.X0 is not None
         self.X0: Callable[[npt.NDArray[np.float64]], tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]]]
@@ -683,31 +1040,6 @@ class GeneralLinearGaussianParticleFilterStateSpaceModel(
                     x_t_given_tMinus1 += np.random.multivariate_normal(μ_zeros, Σ_t, N)
 
         return sampling_one_step_ahead_inplace
-
-    @cached_property
-    def sampling_q_inplace_bootstrap(self) -> SamplingQInplace:
-        sampling_one_step_ahead_inplace = self.sampling_one_step_ahead_inplace
-
-        @jit("(f8[:, ::1], f8[:, ::1], f8[::1], f8[::1], i8)", nopython=True, nogil=True)
-        def sampling_q_inplace_bootstrap(
-            x_t_tilde: npt.NDArray[np.float64],
-            x_tMinus1: npt.NDArray[np.float64],
-            y_t: npt.NDArray[np.float64],
-            params: npt.NDArray[np.float64],
-            t: int,
-        ) -> None:
-            """Sampling from q distribution.
-
-            :param x_t_tilde: output buffer.
-
-            For SIR in general,
-            or in the case of
-            bootstrap particle filter,
-            y_t is ignored.
-            """
-            sampling_one_step_ahead_inplace(x_t_tilde, x_tMinus1, params, t)
-
-        return sampling_q_inplace_bootstrap
 
     @cached_property
     def sampling_q_inplace_optimal(self) -> SamplingQInplace:
@@ -914,260 +1246,6 @@ class GeneralLinearGaussianParticleFilterStateSpaceModel(
             "optimal": self.weights_inplace_optimal,
         }[self.particle_filter_method]
 
-    @cached_property
-    def particle_filter(self) -> ParticleFilter:
-        d = self.d
-        sampling_X0_tilde_inplace = self.sampling_X0_tilde_inplace
-        sampling_X0_inplace = self.sampling_X0_inplace
-        sampling_q_inplace = self.sampling_q_inplace
-        weights_inplace = self.weights_inplace
-        use_bootstrap = self.particle_filter_method == "bootstrap"
-
-        @jit("Tuple((f8[:, :, ::1], f8[:, :, ::1], f8[:, ::1]))(f8[:, ::1], f8[::1], i8)", nopython=True, nogil=True)
-        def particle_filter(
-            y: npt.NDArray[np.float64],
-            params: npt.NDArray[np.float64],
-            N: int,
-        ) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64], npt.NDArray[np.float64]]:
-            """Guided particle filter.
-
-            :param N: number of particles.
-            """
-            size = y.shape[0]
-            # initialize
-            temp = np.empty((2, size, N, d))
-            # For bootstrap, x_t_tilde is x_t_given_tMinus1
-            x_t_tilde = temp[0]
-            # x_t is x_t_given_t
-            x_t = temp[1]
-            w_t = np.empty((size, N))
-
-            t = 0
-            if use_bootstrap:
-                # initial generation
-                sampling_X0_tilde_inplace(x_t_tilde[t], params)
-                # weights
-                # x_t[t-1] is not used by weights_inplace_bootstrap
-                weights_inplace(w_t[t], x_t_tilde[t], x_t[t - 1], y[t], params, t)
-                # special case: when it is very diffused
-                if np.count_nonzero(w_t[t]) == 0:
-                    w_t[t] = 1.0 / N
-                # resampling
-                random_choice_weighted_inplace(x_t[t], x_t_tilde[t], N, w_t[t])
-            else:
-                # initial generation
-                # x_t_tilde not generated in the guided particle filter case
-                x_t_tilde[t] = np.nan
-                # guided particle filter does not have initial weights
-                # as X0 is not resampled from some weights
-                w_t[t] = 1.0 / N
-                sampling_X0_inplace(x_t[t], y[t], params)
-            for t in range(1, size):
-                # generation
-                sampling_q_inplace(x_t_tilde[t], x_t[t - 1], y[t], params, t)
-                # weights
-                weights_inplace(w_t[t], x_t_tilde[t], x_t[t - 1], y[t], params, t)
-                # special case: when it is very diffused
-                if np.count_nonzero(w_t[t]) == 0:
-                    w_t[t] = 1.0 / N
-                # resampling
-                random_choice_weighted_inplace(x_t[t], x_t_tilde[t], N, w_t[t])
-            return x_t_tilde, x_t, w_t
-
-        return particle_filter
-
-    @cached_property
-    def neg_log_likelihood_from_w_t(self) -> LikelihoodFromWeights:
-        @jit("f8(f8[:, ::1])", nopython=True, nogil=True)
-        def neg_log_likelihood_from_w_t(w_t: npt.NDArray[np.float64]) -> float:
-            size, N = w_t.shape
-            return size * np.log(N) - np.log(w_t.sum(axis=1)).sum()
-
-        return neg_log_likelihood_from_w_t
-
-    @cached_property
-    def neg_log_likelihood(self) -> Likelihood:
-        d = self.d
-        sampling_X0_tilde_inplace = self.sampling_X0_tilde_inplace
-        sampling_X0_inplace = self.sampling_X0_inplace
-        sampling_q_inplace = self.sampling_q_inplace
-        weights_inplace = self.weights_inplace
-        use_bootstrap = self.particle_filter_method == "bootstrap"
-        n_processes = get_num_threads()
-        logger.info("Using %d processes for the calculation of log-likelihood", n_processes)
-
-        @jit("(f8[::1], f8[::1], f8[:, ::1], i8)", nopython=True, nogil=True)
-        def sum_w_inplace(
-            s_t: npt.NDArray[np.float64],
-            params: npt.NDArray[np.float64],
-            y: npt.NDArray[np.float64],
-            N: int,
-        ) -> None:
-            """Negative log likelihood.
-
-            Modified from particle_filter but simplified
-            for likelihood calculation only.
-
-            This does not speed up comparing to particle_filter,
-            but reduce memory use roughly by a factor of
-            size + 1 / (2 * d + 1).
-            """
-            size = y.shape[0]
-            # initialize, keep the latest only
-            temp = np.empty((2, N, d))
-            # For bootstrap, x_t_tilde is x_t_given_tMinus1
-            x_t_tilde = temp[0]
-            # x_t is x_t_given_t
-            x_t = temp[1]
-            w_t = np.empty(N)
-
-            t = 0
-            if use_bootstrap:
-                # initial generation
-                sampling_X0_tilde_inplace(x_t_tilde, params)
-                # weights
-                # x_t is not used by weights_inplace_bootstrap
-                weights_inplace(w_t, x_t_tilde, x_t, y[t], params, t)
-                s = w_t.sum()
-                # special case: when it is very diffused
-                if s == 0.0:
-                    w_t[:] = 1.0 / N
-                    s_t[t] = 1.0
-                else:
-                    s_t[t] = s
-                # resampling
-                random_choice_weighted_inplace(x_t, x_t_tilde, N, w_t)
-            else:
-                # initial generation
-                # x_t_tilde not generated in the guided particle filter case
-                # guided particle filter does not have initial weights
-                # as X0 is not resampled from some weights
-                s_t[t] = 1.0
-                sampling_X0_inplace(x_t, y[t], params)
-            for t in range(1, size):
-                # generation
-                sampling_q_inplace(x_t_tilde, x_t, y[t], params, t)
-                # weights
-                weights_inplace(w_t, x_t_tilde, x_t, y[t], params, t)
-                s = w_t.sum()
-                # special case: when it is very diffused
-                if s == 0.0:
-                    w_t[:] = 1.0 / N
-                    s_t[t] = 1.0
-                else:
-                    s_t[t] = s
-                # resampling
-                random_choice_weighted_inplace(x_t, x_t_tilde, N, w_t)
-
-        @jit("f8(f8[::1], f8[:, ::1], i8)", nopython=True, nogil=True, cache=False, parallel=True)
-        def neg_log_likelihood(
-            params: npt.NDArray[np.float64],
-            y: npt.NDArray[np.float64],
-            N: int,
-        ) -> float:
-            size = y.shape[0]
-
-            # memalloc
-            s_i_t = np.empty((n_processes, size))
-
-            # ceil
-            n_sample_per_process = (N + n_processes - 1) // n_processes
-            # this would be slightly larger than N if N is not divisible by n_processes
-            N = n_sample_per_process * n_processes
-
-            for i in prange(n_processes):
-                sum_w_inplace(s_i_t[i], params, y, n_sample_per_process)
-            return size * np.log(N) - np.log(s_i_t.sum(axis=0)).sum()
-
-        return neg_log_likelihood
-
-    @cached_property
-    def neg_log_likelihoods(self) -> Likelihoods:
-        d = self.d
-        sampling_X0_tilde_inplace = self.sampling_X0_tilde_inplace
-        sampling_X0_inplace = self.sampling_X0_inplace
-        sampling_q_inplace = self.sampling_q_inplace
-        weights_inplace = self.weights_inplace
-        use_bootstrap = self.particle_filter_method == "bootstrap"
-
-        @jit("f8(f8[::1], f8[:, ::1], i8)", nopython=True, nogil=True)
-        def neg_log_likelihood(
-            params: npt.NDArray[np.float64],
-            y: npt.NDArray[np.float64],
-            N: int,
-        ) -> float:
-            """Negative log likelihood.
-
-            Modified from particle_filter but simplified
-            for likelihood calculation only.
-
-            This does not speed up comparing to particle_filter,
-            but reduce memory use roughly by a factor of
-            size + 1 / (2 * d + 1).
-            """
-            size = y.shape[0]
-            # initialize, keep the latest only
-            temp = np.empty((2, N, d))
-            # For bootstrap, x_t_tilde is x_t_given_tMinus1
-            x_t_tilde = temp[0]
-            # x_t is x_t_given_t
-            x_t = temp[1]
-            w_t = np.empty(N)
-
-            res = size * np.log(N)
-            t = 0
-            if use_bootstrap:
-                # initial generation
-                sampling_X0_tilde_inplace(x_t_tilde, params)
-                # weights
-                # x_t is not used by weights_inplace_bootstrap
-                weights_inplace(w_t, x_t_tilde, x_t, y[t], params, t)
-                s = w_t.sum()
-                # special case: when it is very diffused
-                if s == 0.0:
-                    w_t[:] = 1.0 / N
-                else:
-                    res -= np.log(s)
-                # resampling
-                random_choice_weighted_inplace(x_t, x_t_tilde, N, w_t)
-            else:
-                # initial generation
-                # x_t_tilde not generated in the guided particle filter case
-                # guided particle filter does not have initial weights
-                # as X0 is not resampled from some weights
-                sampling_X0_inplace(x_t, y[t], params)
-            for t in range(1, size):
-                # generation
-                sampling_q_inplace(x_t_tilde, x_t, y[t], params, t)
-                # weights
-                weights_inplace(w_t, x_t_tilde, x_t, y[t], params, t)
-                s = w_t.sum()
-                # special case: when it is very diffused
-                if s == 0.0:
-                    w_t[:] = 1.0 / N
-                else:
-                    res -= np.log(s)
-                # resampling
-                random_choice_weighted_inplace(x_t, x_t_tilde, N, w_t)
-
-            return res
-
-        @jit("f8[::1](f8[:, ::1], f8[:, ::1], i8)", nopython=True, nogil=True, cache=False, parallel=True)
-        def neg_log_likelihoods(
-            params: npt.NDArray[np.float64],
-            y: npt.NDArray[np.float64],
-            N: int,
-        ) -> npt.NDArray[np.float64]:
-            n_params = params.shape[0]
-
-            # memalloc
-            ls = np.empty(n_params)
-            for i in prange(n_params):
-                ls[i] = neg_log_likelihood(params[i], y, N)
-            return ls
-
-        return neg_log_likelihoods
-
     # TODO: refactor classes
     # We really only need __post_init__ from GeneralLinearGaussianStateSpaceModel
 
@@ -1233,37 +1311,116 @@ class GeneralLinearGaussianParticleFilterStateSpaceModel(
         return smoothed_state_to_obs
 
     @cached_property
-    def forecast(self) -> Forecast:  # type: ignore[override]  # inheritance issue
-        sampling_one_step_ahead_inplace = self.sampling_one_step_ahead_inplace
-
-        @jit(
-            "f8[:, :, ::1](f8[::1], f8[:, :, ::1], int64)",
-            nopython=True,
-            nogil=True,
-            cache=False,
-        )
-        def forecast(
-            params: npt.NDArray[np.float64],
-            x_t: npt.NDArray[np.float64],
-            T_forecast: int,
-        ) -> npt.NDArray[np.float64]:
-            size, N, d = x_t.shape
-
-            # memalloc
-            x_s_forecast = np.empty((T_forecast, N, d))
-
-            # initialize
-            x_prev = x_t[-1]
-            # s from 0 to T_forecast - 1
-            for s in range(T_forecast):
-                # t from T + 1 to T + T_forecast
-                t = s + size
-                sampling_one_step_ahead_inplace(x_s_forecast[s], x_prev, params, t)
-                x_prev = x_s_forecast[s]
-            return x_s_forecast
-
-        return forecast
-
-    @cached_property
     def neg2_log_likelihood(self) -> Any:
         raise NotImplementedError
+
+
+@dataclass
+class GeneralNonLinearBootstrapParticleFitlerStateSpaceModel(GenericParticleFilterStateSpaceModel):
+    r"""General non-linear bootstrap particle filter state space model.
+
+    :param pdf_Y_inplace: `pdf_Y_inplace(pdf, y, x, params, t)` writes the probability density of `y` given `x` at time `t` to `pdf`.
+    :param K_t_inplace: `K_t_inplace(x_t, x_tMinus1, u_t, params, t)` computes and write to `x_t` in terms of `x_tMinus1` and `u_t`, where `u_t` is generated below.
+    :param sampling_X0_tilde_inplace: `sampling_X0_tilde_inplace(x_0_tilde, params)` writes samples from `X_0` to `x_0_tilde`.
+    :param sampling_U_t: `sampling_U_t(params, t, N)` returns samples from `U_t` to `u_t` as `u_t`.
+    : param smoothed_state_to_obs: `state_to_obs(params, x_t, t0)` returns the state in observation space.
+
+    This implements general non-linear bootstrap particle filter state space model
+    according to the specification, w.r.t. the four callable above respectively.
+
+    .. math::
+
+        Y_t | X_t = x_t \sim f_{V_t}(\cdotp; x_t)
+
+        X_t = K_t(X_{t-1}, U_t)
+
+        X_0 \sim f_{X_0}
+
+        U_t \sim f_{U_t}
+    """
+    mle_kwargs: dict[Any, Any] = field(default_factory=dict)
+    param_names: list[str] | None = None
+    d: int = 1
+    n: int = 1
+    pdf_Y_inplace: Callable[
+        [npt.NDArray[np.float64], npt.NDArray[np.float64], npt.NDArray[np.float64], npt.NDArray[np.float64], int], None
+    ] = None  # type:ignore[assignment]  # we don't really allow None here
+    K_t_inplace: Callable[
+        [npt.NDArray[np.float64], npt.NDArray[np.float64], npt.NDArray[np.float64], npt.NDArray[np.float64], int], None
+    ] = None  # type:ignore[assignment]  # we don't really allow None here
+    sampling_X0_tilde_inplace: Callable[
+        [npt.NDArray[np.float64], npt.NDArray[np.float64]], None
+    ] = None  # type:ignore[assignment]  # we don't really allow None here
+    sampling_U_t: Callable[
+        [npt.NDArray[np.float64], int, int], npt.NDArray[np.float64]
+    ] = None  # type:ignore[assignment]  # we don't really allow None here
+    state_to_obs: Callable[
+        [npt.NDArray[np.float64], npt.NDArray[np.float64], int], npt.NDArray[np.float64]
+    ] = None  # type:ignore[assignment]  # we don't really allow None here
+
+    @cached_property
+    def sampling_one_step_ahead_inplace(self) -> SamplingOneStepAheadInplace:
+        K_t_inplace = self.K_t_inplace
+        sampling_U_t = self.sampling_U_t
+
+        @jit("(f8[:, ::1], f8[:, ::1], f8[::1], i8)", nopython=True, nogil=True)
+        def sampling_one_step_ahead_inplace(
+            x_t_given_tMinus1: npt.NDArray[np.float64],
+            x_tMinus1: npt.NDArray[np.float64],
+            params: npt.NDArray[np.float64],
+            t: int,
+        ) -> None:
+            """One-step ahead prediction.
+
+            :param x_t_given_tMinus1: output buffer.
+            """
+            N = x_t_given_tMinus1.shape[0]
+            u_t = sampling_U_t(params, t, N)
+            K_t_inplace(x_t_given_tMinus1, x_tMinus1, u_t, params, t)
+
+        return sampling_one_step_ahead_inplace
+
+    @cached_property
+    def weights_inplace_bootstrap(self) -> WeightsInplace:
+        pdf_Y_inplace = self.pdf_Y_inplace
+
+        @jit("(f8[::1], f8[:, ::1], f8[:, ::1], f8[::1], f8[::1], i8)", nopython=True, nogil=True)
+        def weights_inplace_bootstrap(
+            w_t: npt.NDArray[np.float64],
+            x_t_tilde: npt.NDArray[np.float64],
+            x_tMinus1: npt.NDArray[np.float64],
+            y_t: npt.NDArray[np.float64],
+            params: npt.NDArray[np.float64],
+            t: int,
+        ) -> None:
+            """Calculate unnormalized weights.
+
+            :param w_t: output buffer.
+
+            x_tMinus1 is ignored.
+            """
+            pdf_Y_inplace(w_t, y_t, x_t_tilde, params, t)
+
+        return weights_inplace_bootstrap
+
+    @property
+    def weights_inplace(self) -> WeightsInplace:
+        """Calculate unnormalized weights.
+
+        :param w_t: output buffer.
+
+        For SIR in general.
+        In the case of
+        bootstrap particle filter,
+        x_tMinus1 is ignored.
+        In the case of
+        optimal guided particle filter,
+        x_t_tilde is ignored.
+        """
+        return {
+            "bootstrap": self.weights_inplace_bootstrap,
+        }[self.particle_filter_method]
+
+    @property
+    def smoothed_state_to_obs(self) -> SmoothedStateToObs:  # type: ignore[override]  # inheritance issue
+        return self.state_to_obs
