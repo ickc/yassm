@@ -110,7 +110,7 @@ class TestLocalRatioGaussian(TestCase):
 
     def setUp(self) -> None:
         C = 1e8
-        self.rtol = 1e-7
+        self.rtol = 5e-7
         self.T_predict = 100
 
         self.μ_0 = np.zeros(1)

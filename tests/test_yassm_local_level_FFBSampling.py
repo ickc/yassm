@@ -33,8 +33,8 @@ class TestLocalLinearGaussian(TestCase):
         )
         # allow 2σ
         self.rtol_sample_m = 2.0 / np.sqrt(self.n_sample)
-        # allow 4σ
-        self.rtol_sample_Q = 4.0 * np.sqrt(2.0 / (self.n_sample - 1))
+        # allow 5σ
+        self.rtol_sample_Q = 5.0 * np.sqrt(2.0 / (self.n_sample - 1))
         scale = np.max(np.abs(self.y))
         self.atol_sample_m = scale * 1e-4
         self.atol_sample_Q = scale**2 * 1e-3
