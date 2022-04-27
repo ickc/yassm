@@ -19,7 +19,7 @@ api: docs/api/
 html: dist/docs/
 
 test:
-	pytest \
+	OMP_NUM_THREADS=1 NUMBA_NUM_THREADS=1 pytest \
 		--cov \
 		--cov-config=pyproject.toml \
 		-vv $(PYTESTARGS) \
