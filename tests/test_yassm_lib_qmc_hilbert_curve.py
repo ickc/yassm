@@ -41,9 +41,17 @@ def test_hilbert_sort() -> None:
     )
 
 
-def test_hilbert_sort_float() -> None:
-    N = 1000
-    array = np.random.uniform(size=(N, 2))
+@pytest.mark.parametrize(
+    "N, d",
+    (
+        (1000, 2),
+        (1000, 3),
+        (1000, 4),
+        (1000, 5),
+    ),
+)
+def test_hilbert_sort_float(N, d) -> None:
+    array = np.random.uniform(size=(N, d))
     h = HilbertCurveFloat(array)
     hed = h.sorted()
     h.sort()
