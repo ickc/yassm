@@ -98,7 +98,7 @@ def _bitset_flip(bits: int, position: int) -> int:
     cache=False,
 )
 def _partition_inplace(
-    array: npt.NDArray[np.int64],
+    array: npt.NDArray[np.uint64],
     i_start: int,
     i_end: int,
     order: int,
@@ -151,7 +151,7 @@ def _partition_inplace(
     cache=False,
 )
 def _hilbert_sort_inplace(
-    array: npt.NDArray[np.int64],
+    array: npt.NDArray[np.uint64],
     i_start: int,
     i_end: int,
     order: int,
@@ -268,7 +268,7 @@ def _hilbert_sort_inplace(
     cache=False,
 )
 def hilbert_sort_inplace(
-    array: npt.NDArray[np.int64],
+    array: npt.NDArray[np.uint64],
     order: int,
 ) -> None:
     """Perform Hilbert sort on the array inplace.
