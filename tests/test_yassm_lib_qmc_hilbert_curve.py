@@ -3,7 +3,7 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from yassm.qmc.hilbert_curve import hilbert_sort_inplace
+from yassm.lib.qmc.hilbert_curve import hilbert_sort_inplace
 
 
 def test_hilbert_sort() -> None:
