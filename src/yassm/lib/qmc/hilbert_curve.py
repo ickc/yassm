@@ -49,10 +49,16 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 import numpy as np
-from numba import jit
+from numba import generated_jit, jit, types
 
 if TYPE_CHECKING:
+    from typing import Any, Callable
+
     import numpy.typing as npt
+
+#: Hilbert used for floating point numbers.
+#: float64 has 53 significant bits.
+FLOAT_ORDER: int = 53
 
 
 @jit(
@@ -97,7 +103,7 @@ def _bitset_flip(bits: int, position: int) -> int:
     nogil=True,
     cache=False,
 )
-def _partition_inplace(
+def _partition_inplace_int(
     array: npt.NDArray[np.uint64],
     i_start: int,
     i_end: int,
@@ -134,18 +140,101 @@ def _partition_inplace(
         array[j] = temp
 
 
+@jit("u8(f8)", nopython=True, nogil=True, cache=False)
+def _f8_to_u8(f8: float) -> int:
+    return np.rint(f8 * (1 << FLOAT_ORDER))
+
+
 @jit(
-    "("
-    "u8[:, ::1], "  # array
+    "i8("
+    "f8[:, :], "  # array
     "i8, "  # i_start
     "i8, "  # i_end
     "i1, "  # order
-    "i1, "  # axis_counter
-    "u8, "  # axis_start
-    "i1, "  # axis_division
+    "u8, "  # axis
     "b1, "  # direction
-    "i1, "  # n_cont_direction
     ")",
+    nopython=True,
+    nogil=True,
+    cache=False,
+)
+def _partition_inplace_float(
+    array: npt.NDArray[np.float64],
+    i_start: int,
+    i_end: int,
+    order: int,
+    axis: int,
+    direction: bool,
+) -> int:
+    """The function partition arranges data in a similar way as the famous partition function in quick sort.
+
+    :param array: The array to be sorted.
+    :param i_start: The start index of the array.
+    :param i_end: The end index of the array.
+    :param order: The order of interest.
+    :param axis: The axis number to be divided.
+    :param direction: False for ascending, True for descending.
+    """
+    N, d = array.shape
+    temp = np.empty(d, dtype=array.dtype)
+
+    i = i_start
+    j = i_end
+    while True:
+        while i < j and _bitset_test(_f8_to_u8(array[i, axis]), order) is direction:
+            i = i + 1
+        while i < j and _bitset_test(_f8_to_u8(array[j, axis]), order) is not direction:
+            j = j - 1
+
+        if j <= i:
+            # partition finished
+            return i
+        # swap
+        temp[:] = array[i]
+        array[i] = array[j]
+        array[j] = temp
+
+
+@generated_jit(nopython=True)
+def _partition_inplace(
+    array: npt.NDArray[np.uint64],
+    i_start: int,
+    i_end: int,
+    order: int,
+    axis: int,
+    direction: bool,
+) -> Callable[[npt.NDArray[Any], int, int, int, int, bool], int]:
+    if isinstance(array.dtype, types.Integer):
+        return _partition_inplace_int
+    else:
+        return _partition_inplace_float
+
+
+@jit(
+    [
+        "("
+        "u8[:, ::1], "  # array
+        "i8, "  # i_start
+        "i8, "  # i_end
+        "i1, "  # order
+        "i1, "  # axis_counter
+        "u8, "  # axis_start
+        "i1, "  # axis_division
+        "b1, "  # direction
+        "i1, "  # n_cont_direction
+        ")",
+        "("
+        "f8[:, ::1], "  # array
+        "i8, "  # i_start
+        "i8, "  # i_end
+        "i1, "  # order
+        "i1, "  # axis_counter
+        "u8, "  # axis_start
+        "i1, "  # axis_division
+        "b1, "  # direction
+        "i1, "  # n_cont_direction
+        ")",
+    ],
     nopython=True,
     nogil=True,
     cache=False,
@@ -262,7 +351,7 @@ def _hilbert_sort_inplace(
 
 
 @jit(
-    "(u8[:, ::1], i1)",
+    ["(u8[:, ::1], i1)", "(f8[:, ::1], i1)"],
     nopython=True,
     nogil=True,
     cache=False,
