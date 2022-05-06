@@ -196,6 +196,7 @@ def radical_inverse(array: npt.NDArray[np.integer[Any]], base: int) -> float:
         a = array[k]
         res += a * scale
         scale *= base
+    # maintain accuracy by doing one single lossy division at the end
     return res / scale
 
 
