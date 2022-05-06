@@ -28,6 +28,7 @@ class AbstractHilbertCurve:
 
     array: npt.NDArray[Any]
     order: int = -1
+    check_range: bool = True
     dtype: ClassVar[NumberDType | None] = None
 
     def __post_init__(self) -> None:
@@ -107,7 +108,7 @@ class HilbertCurveInt(AbstractHilbertCurve):
         if auto_order:
             self.order = int(np.ceil(np.log2(self.array.max() + 1)))
             logger.info("Auto choosing Hilbert order: %d", self.order)
-        elif self.array.max() + 1 > (1 << self.order):
+        elif self.check_range and self.array.max() + 1 > (1 << self.order):
             raise ValueError("Requires array.max() < 2 ** order")
 
     @classmethod
@@ -123,7 +124,7 @@ class HilbertCurveInt(AbstractHilbertCurve):
         x = np.arange(1 << order, dtype=np.uint64)
         xs = np.meshgrid(*(x for _ in range(dimension)))
         array = np.column_stack([x.flatten() for x in xs])
-        self = cls(array, order)
+        self = cls(array, order, check_range=False)
         self.sort()
         return self
 
@@ -134,7 +135,7 @@ class HilbertCurveInt(AbstractHilbertCurve):
     def to_float(self) -> HilbertCurveFloat:
         """Convert the Hilbert curve to float domain."""
         array = self.array / (1 << self.order)
-        return HilbertCurveFloat(array, self.order)
+        return HilbertCurveFloat(array, self.order, check_range=False)
 
 
 @dataclass
@@ -150,10 +151,11 @@ class HilbertCurveFloat(AbstractHilbertCurve):
 
     def __post_init__(self) -> None:
         super().__post_init__()
-        if self.array.max() >= 1.0:
-            raise ValueError("Requires array.max() < 1")
-        elif self.array.min() < 0.0:
-            raise ValueError("Requires array.min() >= 0")
+        if self.check_range:
+            if self.array.max() >= 1.0:
+                raise ValueError("Requires array.max() < 1")
+            elif self.array.min() < 0.0:
+                raise ValueError("Requires array.min() >= 0")
 
     @classmethod
     def from_order(
@@ -170,7 +172,7 @@ class HilbertCurveFloat(AbstractHilbertCurve):
     def to_int(self) -> HilbertCurveInt:
         """Convert the Hilbert curve to integer domain."""
         array = np.round(self.array * (1 << self.order)).astype(np.uint64)
-        return HilbertCurveInt(array, self.order)
+        return HilbertCurveInt(array, self.order, check_range=False)
 
     def sort(self) -> None:
         """Sort the Hilbert curve inplace."""
