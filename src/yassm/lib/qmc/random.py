@@ -18,6 +18,76 @@ if TYPE_CHECKING:
 
 from .number_base import increment_inplace, n_digits, radical_inverse
 
+#: first 63 prime numbers.
+PRIMES = np.array(
+    [
+        2,
+        3,
+        5,
+        7,
+        11,
+        13,
+        17,
+        19,
+        23,
+        29,
+        31,
+        37,
+        41,
+        43,
+        47,
+        53,
+        59,
+        61,
+        67,
+        71,
+        73,
+        79,
+        83,
+        89,
+        97,
+        101,
+        103,
+        107,
+        109,
+        113,
+        127,
+        131,
+        137,
+        139,
+        149,
+        151,
+        157,
+        163,
+        167,
+        173,
+        179,
+        181,
+        191,
+        193,
+        197,
+        199,
+        211,
+        223,
+        227,
+        229,
+        233,
+        239,
+        241,
+        251,
+        257,
+        263,
+        269,
+        271,
+        277,
+        281,
+        283,
+        293,
+        307,
+    ],
+    dtype=np.uint16,
+)
+
 
 @jit("f8[::1](i8)", nopython=True, nogil=True, cache=True)
 def midpoint_pointset(N: int) -> npt.NDArray[np.float64]:
@@ -150,3 +220,21 @@ def van_der_corput_sequence_slow(N: int, base: int) -> npt.NDArray[np.float64]:
     This slow version is for testing purpose only.
     """
     return _van_der_corput_sequence_u1_slow(N, base) if base <= 255 else _van_der_corput_sequence_u2_slow(N, base)
+
+
+@jit("f8[:, ::1](i8, i1, b1)", nopython=True, nogil=True, cache=True)
+def halton_sequence(N: int, d: int, transpose: bool) -> npt.NDArray[np.float64]:
+    """Returns the Halton sequence.
+
+    :param N: number of samples
+    :param d: number of dimensions
+    :param transpose: whether to transpose the result
+    :return: the Halton sequence
+    """
+    if not (2 <= d < 64):
+        raise ValueError("d must be between 2 and 63")
+    res = np.empty((d, N))
+    for i in range(d):
+        prime = PRIMES[i]
+        res[i] = van_der_corput_sequence(N, prime)
+    return np.ascontiguousarray(res.T) if transpose else res
