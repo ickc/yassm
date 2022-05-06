@@ -62,11 +62,11 @@ def _van_der_corput_sequence_u1(N: int, base: int) -> npt.NDArray[np.float64]:
     """Returns the van der Corput sequence."""
     res = np.empty(N)
 
-    n = n_digits(N, base)
+    n: int = n_digits(N, base)
     array = np.zeros(n, dtype=np.uint8)
 
-    most_significant_bit_scale = base ** (n - 1)
-    overall_scale = 1.0 / (base * most_significant_bit_scale)
+    most_significant_bit_scale: int = base ** (n - 1)
+    overall_scale: int = base * most_significant_bit_scale
     temp: int = 0
     for i in range(N):
         # we don't use 0 to avoid singularity
@@ -74,20 +74,24 @@ def _van_der_corput_sequence_u1(N: int, base: int) -> npt.NDArray[np.float64]:
 
         # increment
         array[0] += 1
-        current_scale = most_significant_bit_scale
+        current_scale: int = most_significant_bit_scale
+        current_scale_times_base: int = overall_scale
         temp += current_scale
         # check overflow
         for j in range(n - 1):
             if array[j] == base:
                 array[j] = 0
                 array[j + 1] += 1
-                temp -= base * current_scale
+                temp -= current_scale_times_base
+                # decrease by a factor of base
+                current_scale_times_base = current_scale
                 current_scale //= base
                 temp += current_scale
             else:
                 break
 
-        res[i] = temp * overall_scale
+        # maintain accuracy by doing one single lossy division at the end
+        res[i] = temp / overall_scale
     return res
 
 
@@ -96,11 +100,11 @@ def _van_der_corput_sequence_u2(N: int, base: int) -> npt.NDArray[np.float64]:
     """Returns the van der Corput sequence."""
     res = np.empty(N)
 
-    n = n_digits(N, base)
+    n: int = n_digits(N, base)
     array = np.zeros(n, dtype=np.uint16)
 
-    most_significant_bit_scale = base ** (n - 1)
-    overall_scale = 1.0 / (base * most_significant_bit_scale)
+    most_significant_bit_scale: int = base ** (n - 1)
+    overall_scale: int = base * most_significant_bit_scale
     temp: int = 0
     for i in range(N):
         # we don't use 0 to avoid singularity
@@ -108,20 +112,24 @@ def _van_der_corput_sequence_u2(N: int, base: int) -> npt.NDArray[np.float64]:
 
         # increment
         array[0] += 1
-        current_scale = most_significant_bit_scale
+        current_scale: int = most_significant_bit_scale
+        current_scale_times_base: int = overall_scale
         temp += current_scale
         # check overflow
         for j in range(n - 1):
             if array[j] == base:
                 array[j] = 0
                 array[j + 1] += 1
-                temp -= base * current_scale
+                temp -= current_scale_times_base
+                # decrease by a factor of base
+                current_scale_times_base = current_scale
                 current_scale //= base
                 temp += current_scale
             else:
                 break
 
-        res[i] = temp * overall_scale
+        # maintain accuracy by doing one single lossy division at the end
+        res[i] = temp / overall_scale
     return res
 
 

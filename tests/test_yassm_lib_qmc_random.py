@@ -24,7 +24,7 @@ def test_midpoint_pointset(N) -> None:
     ),
 )
 def test_van_der_corput_sequence(N, base) -> None:
-    np.testing.assert_allclose(
+    np.testing.assert_array_equal(
         van_der_corput_sequence(N, base),
         van_der_corput_sequence_slow(N, base),
     )
