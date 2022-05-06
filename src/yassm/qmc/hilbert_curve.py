@@ -62,27 +62,39 @@ class AbstractHilbertCurve:
     def sorted(self) -> AbstractHilbertCurve:
         raise NotImplementedError
 
-    def plot_2d(self) -> FigAx:
+    def plot_2d(
+        self,
+        **kwargs: dict[str, Any],
+    ) -> FigAx:
         array = self.array
         fig, ax = plt.subplots()
-        ax.plot(array[:, 0], array[:, 1])
+        ax.plot(array[:, 0], array[:, 1], **kwargs)
         ax.set_aspect("equal")
         return fig, ax
 
-    def plot_3d(self) -> FigAx:
+    def plot_3d(
+        self,
+        **kwargs: dict[str, Any],
+    ) -> FigAx:
         array = self.array
 
         fig = plt.figure()
         ax = fig.add_subplot(projection="3d")
-        ax.plot(array[:, 0], array[:, 1], zs=array[:, 2], zdir="z")
+        ax.plot(array[:, 0], array[:, 1], zs=array[:, 2], zdir="z", **kwargs)
         return fig, ax
 
-    def plot(self) -> FigAx:
-        """Plot the Hilbert curve."""
+    def plot(
+        self,
+        **kwargs: dict[str, Any],
+    ) -> FigAx:
+        """Plot the Hilbert curve.
+
+        :param kwargs: kwargs for `ax.plot`
+        """
         if self.dimension == 2:
-            return self.plot_2d()
+            return self.plot_2d(**kwargs)
         elif self.dimension == 3:
-            return self.plot_3d()
+            return self.plot_3d(**kwargs)
         else:
             raise ValueError("dimension must be 2 or 3")
 
