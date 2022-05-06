@@ -238,3 +238,40 @@ def halton_sequence(N: int, d: int, transpose: bool) -> npt.NDArray[np.float64]:
         prime = PRIMES[i]
         res[i] = van_der_corput_sequence(N, prime)
     return np.ascontiguousarray(res.T) if transpose else res
+
+
+# Matrix #######################################################################
+
+
+@jit("f8[:, ::1](f8, f8, i8)", nopython=True, nogil=True, cache=True)
+def generate_positive_semidefinite_matrix(low: float, high: float, size: int) -> npt.NDArray[np.float64]:
+    """Generates a positive semidefinite matrix.
+
+    For testing use.
+    """
+    L = np.random.uniform(low, high, size=size * size).reshape(size, size)
+    return L @ L.T
+
+
+@jit("Tuple((f8[::1], f8[:, ::1]))(f8[:, ::1])", nopython=True, nogil=True, cache=True)
+def correlation_variance_decomposition(
+    Σ: npt.NDArray[np.float64],
+) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]]:
+    r"""Returns the correlation and variance decomposition of a matrix.
+
+    .. math::
+        V^\frac{1}{2} = \text{diag}\{σ\}
+        Σ = V^\frac{1}{2} P V^\frac{1}{2}
+    """
+    n = Σ.shape[0]
+
+    temp = np.empty((n + 1, n))
+    σ = temp[0]
+    P = temp[1:]
+
+    for i in range(n):
+        σ[i] = np.sqrt(Σ[i, i])
+    for i in range(n):
+        for j in range(n):
+            P[i, j] = Σ[i, j] / (σ[i] * σ[j])
+    return σ, P
