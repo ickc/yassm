@@ -141,8 +141,8 @@ def _partition_inplace_int(
 
 
 @jit("u8(f8)", nopython=True, nogil=True, cache=False)
-def _f8_01_to_u8(x: float) -> int:
-    # maps to [0, 2^FLOAT_ORDER - 1]
+def _f8_to_u8(x: float) -> int:
+    """Convert [0, 1) to [0, 2^FLOAT_ORDER - 1]."""
     return np.floor(x * (1 << FLOAT_ORDER))
 
 
@@ -159,7 +159,7 @@ def _f8_01_to_u8(x: float) -> int:
     nogil=True,
     cache=False,
 )
-def _partition_inplace_float_01(
+def _partition_inplace_float(
     array: npt.NDArray[np.float64],
     i_start: int,
     i_end: int,
@@ -182,9 +182,9 @@ def _partition_inplace_float_01(
     i = i_start
     j = i_end
     while True:
-        while i < j and _bitset_test(_f8_01_to_u8(array[i, axis]), order) is direction:
+        while i < j and _bitset_test(_f8_to_u8(array[i, axis]), order) is direction:
             i = i + 1
-        while i < j and _bitset_test(_f8_01_to_u8(array[j, axis]), order) is not direction:
+        while i < j and _bitset_test(_f8_to_u8(array[j, axis]), order) is not direction:
             j = j - 1
 
         if j <= i:
@@ -208,7 +208,7 @@ def _partition_inplace(
     if isinstance(array.dtype, types.Integer):
         return _partition_inplace_int
     else:
-        return _partition_inplace_float_01
+        return _partition_inplace_float
 
 
 @jit(
@@ -241,7 +241,7 @@ def _partition_inplace(
     cache=False,
 )
 def _hilbert_sort_inplace(
-    array: npt.NDArray[np.uint64],
+    array: npt.NDArray[np.uint64 | np.float64],
     i_start: int,
     i_end: int,
     order: int,
@@ -358,7 +358,7 @@ def _hilbert_sort_inplace(
     cache=False,
 )
 def hilbert_sort_inplace(
-    array: npt.NDArray[np.uint64],
+    array: npt.NDArray[np.uint64 | np.float64],
     order: int,
 ) -> None:
     """Perform Hilbert sort on the array inplace.
