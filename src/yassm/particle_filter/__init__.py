@@ -406,6 +406,9 @@ class GenericParticleFilterStateSpaceModel(GenericLinearGaussianStateSpaceModel)
     particle_filter_method: str = "bootstrap"
     transform_params: TransformFunc | None = None
     untransform_params: TransformFunc | None = None
+    random_choice_weighted_inplace: Callable[
+        [npt.NDArray[np.float64], npt.NDArray[np.float64], int, npt.NDArray[np.float64]], None
+    ] = random_choice_weighted_inplace
 
     def __post_init__(self) -> None:
         if self.particle_filter_method not in ["bootstrap", "optimal"]:
@@ -511,6 +514,7 @@ class GenericParticleFilterStateSpaceModel(GenericLinearGaussianStateSpaceModel)
         sampling_X0_inplace = self.sampling_X0_inplace
         sampling_q_inplace = self.sampling_q_inplace
         weights_inplace = self.weights_inplace
+        random_choice_weighted_inplace = self.random_choice_weighted_inplace
         use_bootstrap = self.particle_filter_method == "bootstrap"
         n_processes = get_num_threads()
         logger.info("Using %d processes for the calculation of log-likelihood", n_processes)
@@ -607,6 +611,7 @@ class GenericParticleFilterStateSpaceModel(GenericLinearGaussianStateSpaceModel)
         sampling_X0_inplace = self.sampling_X0_inplace
         sampling_q_inplace = self.sampling_q_inplace
         weights_inplace = self.weights_inplace
+        random_choice_weighted_inplace = self.random_choice_weighted_inplace
         use_bootstrap = self.particle_filter_method == "bootstrap"
 
         @jit("f8(f8[::1], f8[:, ::1], i8)", nopython=True, nogil=True)
@@ -859,6 +864,7 @@ class GenericParticleFilterStateSpaceModel(GenericLinearGaussianStateSpaceModel)
         sampling_X0_inplace = self.sampling_X0_inplace
         sampling_q_inplace = self.sampling_q_inplace
         weights_inplace = self.weights_inplace
+        random_choice_weighted_inplace = self.random_choice_weighted_inplace
         use_bootstrap = self.particle_filter_method == "bootstrap"
 
         @jit("Tuple((f8[:, :, ::1], f8[:, :, ::1], f8[:, ::1]))(f8[:, ::1], f8[::1], i8)", nopython=True, nogil=True)
