@@ -183,7 +183,8 @@ class HilbertCurveFloat(AbstractHilbertCurve):
 
     def to_int(self) -> HilbertCurveInt:
         """Convert the Hilbert curve to integer domain."""
-        array = np.round(self.array * (1 << self.order)).astype(np.uint64)
+        # maps to [0, 2^order - 1]
+        array = np.floor(self.array * (1 << self.order), dtype=np.uint64)
         return HilbertCurveInt(array, self.order, check_range=False)
 
     def sort(self) -> None:
