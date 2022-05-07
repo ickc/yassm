@@ -141,8 +141,9 @@ def _partition_inplace_int(
 
 
 @jit("u8(f8)", nopython=True, nogil=True, cache=False)
-def _f8_to_u8(f8: float) -> int:
-    return np.rint(f8 * (1 << FLOAT_ORDER))
+def _f8_to_u8(x: float) -> int:
+    # maps to [0, 2^FLOAT_ORDER - 1]
+    return np.floor(x * (1 << FLOAT_ORDER))
 
 
 @jit(
