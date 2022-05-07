@@ -92,7 +92,6 @@ PRIMES = np.array(
 @jit("f8[::1](i8)", nopython=True, nogil=True, cache=True)
 def midpoint_pointset(N: int) -> npt.NDArray[np.float64]:
     """Returns the midpoint point-set which minimize star-discrepancy in 1D."""
-    res = np.empty(N)
     inv_2N = 1.0 / (2 * N)
     return np.linspace(inv_2N, 1.0 - inv_2N, N)
 
