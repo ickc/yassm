@@ -227,7 +227,7 @@ def halton_sequence(N: int, d: int, transpose: bool) -> npt.NDArray[np.float64]:
 
     :param N: number of samples
     :param d: number of dimensions
-    :param transpose: whether to transpose the result
+    :param transpose: whether to transpose the result. Shape of (N, d) if transpose else (d, N)
     :return: the Halton sequence
     """
     if not (2 <= d < 64):
