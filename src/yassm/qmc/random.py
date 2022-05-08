@@ -24,13 +24,13 @@ logger = getLogger(__name__)
 
 def gaussian_transform(
     uniform_array: npt.NDArray[np.float64],
-    cov: npt.NDArray[np.float64],
+    cov: npt.NDArray[np.float64] | None = None,
     method: str = "cholesky",
 ) -> npt.NDArray[np.float64]:
     """Transform a Uniform to Gaussian distribution.
 
     :param uniform_array: the uniform distribution in (0, 1)^d, shape of (N, d)
-    :param cov: the covariance matrix, shape of (d, d)
+    :param cov: the covariance matrix, shape of (d, d). If None, assume standard Gaussian, i.e. cov = np.eye(d).
     :param method:
         cholesky: Cholesky decomposition, fastest.
         ZCA_cor: ZCA-cor whitening transformation. See eq. 11 from the reference.
@@ -40,22 +40,25 @@ def gaussian_transform(
 
     Kessy, Agnan, Alex Lewin, and Korbinian Strimmer. “Optimal Whitening and Decorrelation.” The American Statistician 72, no. 4 (October 2, 2018): 309–14. https://doi.org/10.1080/00031305.2016.1277159.
     """
-    if method == "cholesky":
-        # W_inv_T = U = L.T
-        W_inv_T = linalg.cholesky(cov)
-    elif method == "ZCA_cor":
-        σ, P = correlation_variance_decomposition(cov)
-        P_sqrt = linalg.sqrtm(P)
-        W_inv_T = P_sqrt * σ
-    elif method in ("rosenblatt", "ZCA"):
-        W_inv_T = linalg.sqrtm(cov)
-    else:
-        raise ValueError(f"Unknown method: {method}")
-
     # to white gaussian
     guassian_white = SQRT2 * special.erfinv(2.0 * uniform_array - 1.0)
-    # inverse whitening
-    return guassian_white @ W_inv_T
+
+    if cov is None:
+        return guassian_white
+    else:
+        if method == "cholesky":
+            # W_inv_T = U = L.T
+            W_inv_T = linalg.cholesky(cov)
+        elif method == "ZCA_cor":
+            σ, P = correlation_variance_decomposition(cov)
+            P_sqrt = linalg.sqrtm(P)
+            W_inv_T = P_sqrt * σ
+        elif method in ("rosenblatt", "ZCA"):
+            W_inv_T = linalg.sqrtm(cov)
+        else:
+            raise ValueError(f"Unknown method: {method}")
+        # inverse whitening
+        return guassian_white @ W_inv_T
 
 
 def whitening_transform(
