@@ -17,7 +17,7 @@ import math
 from typing import TYPE_CHECKING
 
 import numpy as np
-from numba import jit
+from numba import jit, objmode
 from scipy import linalg
 
 from .hilbert_curve import FLOAT_ORDER, _bitset_flip, _bitset_test
@@ -28,103 +28,130 @@ if TYPE_CHECKING:
 
     import numpy.typing as npt
 
+    Args = tuple[npt.NDArray[np.float64], ...]
+    Gen = Callable[[npt.NDArray[np.float64]], Args]
+    F8ToU8 = Callable[[np.float64, int, Args], int]
+    HilbertSortInplace = Callable[[npt.NDArray[np.float64], int], None]
+
 SQRT2_INV = np.power(2.0, -0.5)
 
 
 # _f8_to_u8 ####################################################################
 
 
-def get_f8_to_u8(
-    data: npt.NDArray[np.float64],
-    method: str = "",
-) -> Callable[[npt.NDArray[np.float64], int], np.uint64]:
-    """Get the function to convert float64 to uint64.
+@jit("Tuple((f8[::1], f8[::1], f8[::1]))(f8[:, ::1])", nopython=True, nogil=True, cache=True)
+def gen_f8_to_u8_args_linear(data: npt.NDArray[np.float64]) -> Args:
+    N, d = data.shape
 
-    :param data: The data to be converted with unretricted range.
-    :param method: The method to be used to map float to int.
-        linear: linear rescaling the range.
-        logistic: logistic according to gerber-chopin-2015.
-        whiten_cholesky, whiten_ZCA, whiten_ZCA_cor:
-            whitening then to uniform using their respective method.
-    :return: The function of (x, axis) -> uint64,
-        where x is the current data point of shape (d,),
-        where axis is the i-th dimension of data in interested.
+    res = np.empty((3, d))
+    low = res[0]
+    high = res[1]
+    scale = res[2]
 
-    This should performs 2 steps,
+    # initialize
+    low[:] = data[0]
+    high[:] = low
+    for i in range(1, N):
+        row = data[i]
+        for j in range(d):
+            datum = row[j]
+            low[j] = min(datum, low[j])
+            high[j] = max(datum, high[j])
+    scale[:] = np.reciprocal(high - low)
+    return low, high, scale
 
-    1.  maps the data to (0, 1) or [0, 1] in float64
-    2.  maps that to [0, 2^FLOAT_ORDER - 1] in uint64
-    """
 
-    if method == "linear":
+@jit("u8(f8[::1], i8, Tuple((f8[::1], f8[::1], f8[::1])))", nopython=True, nogil=True, cache=True)
+def f8_to_u8_linear(x: npt.NDArray[np.float64], i: int, args: Args) -> int:
+    low, high, scale = args
 
-        low = data.min(axis=0)
-        high = data.max(axis=0)
-        scale = np.reciprocal(high - low)
+    if x[i] == high[i]:
+        return 1 << FLOAT_ORDER - 1
+    # this transformation goes to [0, 1],
+    # but 1 is special-cased above.
+    # i.e. to [0, 1)
+    x_i = scale[i] * (x[i] - low[i])
+    # maps to [0, 2^FLOAT_ORDER - 1] evenly
+    return np.floor(x_i * (1 << FLOAT_ORDER))
 
-        @jit("u8(f8[::1], i8)", nopython=True, nogil=True, cache=False)
-        def f8_to_u8(x: npt.NDArray[np.float64], i: int) -> int:
-            if x[i] == high[i]:
-                return 1 << FLOAT_ORDER - 1
-            # this transformation goes to [0, 1],
-            # but 1 is special-cased above.
-            # i.e. to [0, 1)
-            x_i = scale[i] * (x[i] - low[i])
-            # maps to [0, 2^FLOAT_ORDER - 1] evenly
-            return np.floor(x_i * (1 << FLOAT_ORDER))
 
-    elif method == "logistic":
+@jit("Tuple((f8[::1], f8[::1]))(f8[:, ::1])", nopython=True, nogil=True, cache=True)
+def gen_f8_to_u8_args_logistic(data: npt.NDArray[np.float64]) -> Args:
+    N, d = data.shape
 
-        mean = data.mean(axis=0)
-        std = data.std(axis=0, ddof=1)
+    mean = data.sum(axis=0) / N
+    # numba doesn't support ddof
+    ddof_factor_times2 = 2.0 * np.sqrt(N / (N - 1))
+    std_times2 = np.empty(d)
+    for j in range(d):
+        std_times2[j] = ddof_factor_times2 * data[:, j].std()
 
-        low = mean - 2.0 * std
-        high = mean + 2.0 * std
-        # 0.5 comes from tanh(y / 2)
-        scale = 0.5 / (high - low)
+    low = mean - std_times2
+    high = mean + std_times2
+    # 0.5 comes from tanh(y / 2)
+    scale = 0.5 / (high - low)
+    return low, scale
 
-        @jit("u8(f8[::1], i8)", nopython=True, nogil=True, cache=False)
-        def f8_to_u8(x: npt.NDArray[np.float64], i: int) -> int:
-            # to (0, 1)
-            x_i = 0.5 + 0.5 * np.tanh(scale[i] * (x[i] - low[i]))
-            # maps to [0, 2^FLOAT_ORDER - 1] evenly
-            return np.floor(x_i * (1 << FLOAT_ORDER))
 
-    elif method.startswith("whiten_"):
+@jit("u8(f8[::1], i8, Tuple((f8[::1], f8[::1])))", nopython=True, nogil=True, cache=True)
+def f8_to_u8_logistic(x: npt.NDArray[np.float64], i: int, args: Args) -> int:
+    low, scale = args
+    # to (0, 1)
+    x_i = 0.5 + 0.5 * np.tanh(scale[i] * (x[i] - low[i]))
+    # maps to [0, 2^FLOAT_ORDER - 1] evenly
+    return np.floor(x_i * (1 << FLOAT_ORDER))
 
-        mean = data.mean(axis=0)
-        cov = np.cov(data, rowvar=False)
 
-        if method == "whiten_cholesky":
-            W_T = linalg.cholesky(linalg.pinv(cov), lower=True)
-        elif method == "whiten_ZCA":
-            W_T = linalg.pinv(linalg.sqrtm(cov))
-        elif method == "whiten_ZCA_cor":
-            σ, P = correlation_variance_decomposition(cov)
-            P_sqrt_inv = linalg.pinv(linalg.sqrtm(P))
-            W_T = P_sqrt_inv / σ.reshape(-1, 1)
-        else:
-            raise ValueError(f"Unknown method: {method}")
+@jit("Tuple((f8[::1], f8[:, ::1]))(f8[:, ::1])", nopython=True, nogil=True, cache=True)
+def gen_f8_to_u8_args_whiten_cholesky(data: npt.NDArray[np.float64]) -> Args:
+    N, d = data.shape
 
-        @jit("u8(f8[::1], i8)", nopython=True, nogil=True, cache=False)
-        def f8_to_u8(x: npt.NDArray[np.float64], i: int) -> int:
-            # whitening
-            G = (x - mean) @ W_T
-            # to (0, 1)
-            x_i = 0.5 + 0.5 * math.erf(G[i] * SQRT2_INV)
-            # maps to [0, 2^FLOAT_ORDER - 1] evenly
-            return np.floor(x_i * (1 << FLOAT_ORDER))
+    mean = data.sum(axis=0) / N
+    cov = np.cov(data, rowvar=False)
+    W_T = np.linalg.cholesky(np.linalg.pinv(cov))
+    return mean, W_T
 
-    else:
-        raise ValueError(f"Unknown method: {method}")
 
-    return f8_to_u8
+@jit("Tuple((f8[::1], f8[:, ::1]))(f8[:, ::1])", nopython=True, nogil=True, cache=True)
+def gen_f8_to_u8_args_whiten_ZCA(data: npt.NDArray[np.float64]) -> Args:
+    N, d = data.shape
+
+    mean = data.sum(axis=0) / N
+    cov = np.cov(data, rowvar=False)
+    with objmode(W_T_inv="f8[:, ::1]"):
+        W_T_inv = linalg.sqrtm(cov)
+    return mean, np.linalg.pinv(W_T_inv).T
+
+
+@jit("Tuple((f8[::1], f8[:, ::1]))(f8[:, ::1])", nopython=True, nogil=True, cache=True)
+def gen_f8_to_u8_args_whiten_ZCA_cor(data: npt.NDArray[np.float64]) -> Args:
+    N, d = data.shape
+
+    mean = data.sum(axis=0) / N
+    cov = np.cov(data, rowvar=False)
+    σ, P = correlation_variance_decomposition(cov)
+    with objmode(P_sqrt="f8[:, ::1]"):
+        P_sqrt = linalg.sqrtm(P)
+    P_sqrt_inv = np.linalg.pinv(P_sqrt).T
+    W_T = P_sqrt_inv / σ.reshape(-1, 1)
+    return mean, W_T
+
+
+@jit("u8(f8[::1], i8, Tuple((f8[::1], f8[:, ::1])))", nopython=True, nogil=True, cache=True)
+def f8_to_u8_whiten(x: npt.NDArray[np.float64], i: int, args: Args) -> int:
+    mean, W_T = args
+    # whitening
+    G = (x - mean) @ W_T
+    # to (0, 1)
+    x_i = 0.5 + 0.5 * math.erf(G[i] * SQRT2_INV)
+    # maps to [0, 2^FLOAT_ORDER - 1] evenly
+    return np.floor(x_i * (1 << FLOAT_ORDER))
 
 
 # for arbitrary range of float #################################################
 
 
-@jit(nopython=True, nogil=True, cache=False)
+@jit(nopython=True, nogil=True, cache=True)
 def _partition_inplace_float(
     array: npt.NDArray[np.float64],
     i_start: int,
@@ -132,7 +159,8 @@ def _partition_inplace_float(
     order: int,
     axis: int,
     direction: bool,
-    f8_to_u8: Callable[[npt.NDArray[np.float64], int], np.uint64],
+    f8_to_u8: F8ToU8,
+    args: Args,
 ) -> int:
     """The function partition arranges data in a similar way as the famous partition function in quick sort.
 
@@ -150,9 +178,9 @@ def _partition_inplace_float(
     i = i_start
     j = i_end
     while True:
-        while i < j and _bitset_test(f8_to_u8(array[i], axis), order) is direction:
+        while i < j and _bitset_test(f8_to_u8(array[i], axis, args), order) is direction:
             i = i + 1
-        while i < j and _bitset_test(f8_to_u8(array[j], axis), order) is not direction:
+        while i < j and _bitset_test(f8_to_u8(array[j], axis, args), order) is not direction:
             j = j - 1
 
         if j <= i:
@@ -164,7 +192,7 @@ def _partition_inplace_float(
         array[j] = temp
 
 
-@jit(nopython=True, nogil=True, cache=False)
+@jit(nopython=True, nogil=True, cache=True)
 def _hilbert_sort_inplace(
     array: npt.NDArray[np.float64],
     i_start: int,
@@ -175,7 +203,8 @@ def _hilbert_sort_inplace(
     axis_division: int,
     direction: bool,
     n_cont_direction: int,
-    f8_to_u8: Callable[[npt.NDArray[np.float64], int], np.uint64],
+    f8_to_u8: F8ToU8,
+    args: Args,
 ) -> None:
     """Perform Hilbert sort on the array inplace.
 
@@ -209,6 +238,7 @@ def _hilbert_sort_inplace(
         partition_axis,
         _bitset_test(axis_start, partition_axis),
         f8_to_u8,
+        args,
     )
 
     if axis_counter == dimension - 1:
@@ -232,6 +262,7 @@ def _hilbert_sort_inplace(
             False,
             0,
             f8_to_u8,
+            args,
         )
 
         current_axis_start = axis_start
@@ -247,6 +278,7 @@ def _hilbert_sort_inplace(
             False,
             0,
             f8_to_u8,
+            args,
         )
     else:
         axis_counter += 1
@@ -263,6 +295,7 @@ def _hilbert_sort_inplace(
             False,
             1 if direction else n_cont_direction + 1,
             f8_to_u8,
+            args,
         )
 
         current_axis_start = _bitset_flip(axis_start, partition_axis)
@@ -280,14 +313,14 @@ def _hilbert_sort_inplace(
             True,
             n_cont_direction + 1 if direction else 1,
             f8_to_u8,
+            args,
         )
 
 
-@jit(nopython=True, nogil=True, cache=False)
-def hilbert_sort_inplace(
+@jit("(f8[:, ::1], i1)", nopython=True, nogil=True, cache=True)
+def hilbert_sort_inplace_linear(
     array: npt.NDArray[np.float64],
     order: int,
-    f8_to_u8: Callable[[npt.NDArray[np.float64], int], np.uint64],
 ) -> None:
     """Perform Hilbert sort on the array inplace.
 
@@ -296,6 +329,8 @@ def hilbert_sort_inplace(
     :param order: The order of the Hilbert curve, 1 <= order <= 64.
     """
     N = array.shape[0]
+    args = gen_f8_to_u8_args_linear(array)
+
     _hilbert_sort_inplace(
         array,
         0,
@@ -306,5 +341,147 @@ def hilbert_sort_inplace(
         0,
         False,
         0,
-        f8_to_u8,
+        f8_to_u8_linear,
+        args,
     )
+
+
+@jit("(f8[:, ::1], i1)", nopython=True, nogil=True, cache=True)
+def hilbert_sort_inplace_logistic(
+    array: npt.NDArray[np.float64],
+    order: int,
+) -> None:
+    """Perform Hilbert sort on the array inplace.
+
+    :param array: The array to be sorted, dtype of uint64, shape of (N, d),
+        where N is the number of data, and d is the dimension of data.
+    :param order: The order of the Hilbert curve, 1 <= order <= 64.
+    """
+    N = array.shape[0]
+    args = gen_f8_to_u8_args_logistic(array)
+
+    _hilbert_sort_inplace(
+        array,
+        0,
+        N - 1,
+        order - 1,
+        0,
+        0,
+        0,
+        False,
+        0,
+        f8_to_u8_logistic,
+        args,
+    )
+
+
+@jit("(f8[:, ::1], i1)", nopython=True, nogil=True, cache=True)
+def hilbert_sort_inplace_whiten_cholesky(
+    array: npt.NDArray[np.float64],
+    order: int,
+) -> None:
+    """Perform Hilbert sort on the array inplace.
+
+    :param array: The array to be sorted, dtype of uint64, shape of (N, d),
+        where N is the number of data, and d is the dimension of data.
+    :param order: The order of the Hilbert curve, 1 <= order <= 64.
+    """
+    N = array.shape[0]
+    args = gen_f8_to_u8_args_whiten_cholesky(array)
+
+    _hilbert_sort_inplace(
+        array,
+        0,
+        N - 1,
+        order - 1,
+        0,
+        0,
+        0,
+        False,
+        0,
+        f8_to_u8_whiten,
+        args,
+    )
+
+
+@jit("(f8[:, ::1], i1)", nopython=True, nogil=True, cache=True)
+def hilbert_sort_inplace_whiten_ZCA(
+    array: npt.NDArray[np.float64],
+    order: int,
+) -> None:
+    """Perform Hilbert sort on the array inplace.
+
+    :param array: The array to be sorted, dtype of uint64, shape of (N, d),
+        where N is the number of data, and d is the dimension of data.
+    :param order: The order of the Hilbert curve, 1 <= order <= 64.
+    """
+    N = array.shape[0]
+    args = gen_f8_to_u8_args_whiten_ZCA(array)
+
+    _hilbert_sort_inplace(
+        array,
+        0,
+        N - 1,
+        order - 1,
+        0,
+        0,
+        0,
+        False,
+        0,
+        f8_to_u8_whiten,
+        args,
+    )
+
+
+@jit("(f8[:, ::1], i1)", nopython=True, nogil=True, cache=True)
+def hilbert_sort_inplace_whiten_ZCA_cor(
+    array: npt.NDArray[np.float64],
+    order: int,
+) -> None:
+    """Perform Hilbert sort on the array inplace.
+
+    :param array: The array to be sorted, dtype of uint64, shape of (N, d),
+        where N is the number of data, and d is the dimension of data.
+    :param order: The order of the Hilbert curve, 1 <= order <= 64.
+    """
+    N = array.shape[0]
+    args = gen_f8_to_u8_args_whiten_ZCA_cor(array)
+
+    _hilbert_sort_inplace(
+        array,
+        0,
+        N - 1,
+        order - 1,
+        0,
+        0,
+        0,
+        False,
+        0,
+        f8_to_u8_whiten,
+        args,
+    )
+
+
+gen_f8_to_u8_args_func: dict[str, Gen] = {
+    "linear": gen_f8_to_u8_args_linear,
+    "logistic": gen_f8_to_u8_args_logistic,
+    "whiten_cholesky": gen_f8_to_u8_args_whiten_cholesky,
+    "whiten_ZCA": gen_f8_to_u8_args_whiten_ZCA,
+    "whiten_ZCA_cor": gen_f8_to_u8_args_whiten_ZCA_cor,
+}
+
+f8_to_u8_func: dict[str, F8ToU8] = {
+    "linear": f8_to_u8_linear,
+    "logistic": f8_to_u8_logistic,
+    "whiten_cholesky": f8_to_u8_whiten,
+    "whiten_ZCA": f8_to_u8_whiten,
+    "whiten_ZCA_cor": f8_to_u8_whiten,
+}
+
+hilber_sort_inplace_func: dict[str, HilbertSortInplace] = {
+    "linear": hilbert_sort_inplace_linear,
+    "logistic": hilbert_sort_inplace_logistic,
+    "whiten_cholesky": hilbert_sort_inplace_whiten_cholesky,
+    "whiten_ZCA": hilbert_sort_inplace_whiten_ZCA,
+    "whiten_ZCA_cor": hilbert_sort_inplace_whiten_ZCA_cor,
+}

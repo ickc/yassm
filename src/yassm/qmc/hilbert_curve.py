@@ -10,8 +10,7 @@ import numpy as np
 from numba import jit
 
 from yassm.lib.qmc.hilbert_curve import FLOAT_ORDER, hilbert_sort_inplace
-from yassm.lib.qmc.hilbert_curve_full_range import get_f8_to_u8
-from yassm.lib.qmc.hilbert_curve_full_range import hilbert_sort_inplace as hilbert_sort_inplace_full_range
+from yassm.lib.qmc.hilbert_curve_full_range import f8_to_u8_func, gen_f8_to_u8_args_func, hilber_sort_inplace_func
 
 if TYPE_CHECKING:
     from typing import Any, Callable
@@ -242,21 +241,21 @@ class HilbertCurveFloat(AbstractHilbertCurveFloat):
     range_reduction_method: str = "linear"
 
     @cached_property
-    def f8_to_u8(self) -> Callable[[npt.NDArray[np.float64], int], np.uint64]:
-        logger.info(f"Hilbert sort with range-reduction method: %s", self.range_reduction_method)
-        return get_f8_to_u8(self.array, method=self.range_reduction_method)
+    def batch_f8_to_u8(
+        self,
+    ) -> Callable[[npt.NDArray[np.float64], tuple[npt.NDArray[np.float64], ...]], npt.NDArray[np.uint64]]:
+        f8_to_u8 = f8_to_u8_func[self.range_reduction_method]
 
-    @cached_property
-    def batch_f8_to_u8(self) -> Callable[[npt.NDArray[np.float64]], npt.NDArray[np.uint64]]:
-        f8_to_u8 = self.f8_to_u8
-
-        @jit("u8[:, ::1](f8[:, ::1])", nopython=True, nogil=True, cache=False)
-        def batch_f8_to_u8(array: npt.NDArray[np.float64]) -> npt.NDArray[np.uint64]:
+        # "u8[:, ::1](f8[:, ::1])",
+        @jit(nopython=True, nogil=True, cache=False)
+        def batch_f8_to_u8(
+            array: npt.NDArray[np.float64], args: tuple[npt.NDArray[np.float64], ...]
+        ) -> npt.NDArray[np.uint64]:
             N, d = array.shape
             out = np.empty((N, d), dtype=np.uint64)
             for i in range(N):
                 for j in range(d):
-                    out[i, j] = f8_to_u8(array[i], j)
+                    out[i, j] = f8_to_u8(array[i], j, args)
             return out
 
         return batch_f8_to_u8
@@ -277,7 +276,9 @@ class HilbertCurveFloat(AbstractHilbertCurveFloat):
         # as f8_to_u8 is doing matrix multiplication when whitening
         # i.e. it performed a redandant matrix multiplication d times
         else:
-            array = self.batch_f8_to_u8(self.array)
+            gen_f8_to_u8_args = gen_f8_to_u8_args_func[self.range_reduction_method]
+            args = gen_f8_to_u8_args(self.array)
+            array = self.batch_f8_to_u8(self.array, args)
 
         return HilbertCurveInt(array, self.order, check_range=False)
 
@@ -285,4 +286,4 @@ class HilbertCurveFloat(AbstractHilbertCurveFloat):
         """Sort the Hilbert curve inplace."""
         if self.order != FLOAT_ORDER:
             raise ValueError(f"order must be {FLOAT_ORDER}")
-        hilbert_sort_inplace_full_range(self.array, self.order, self.f8_to_u8)
+        hilber_sort_inplace_func[self.range_reduction_method](self.array, self.order)
