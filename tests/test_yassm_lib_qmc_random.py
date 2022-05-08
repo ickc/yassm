@@ -3,6 +3,7 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
+from yassm.lib.qmc.hilbert_curve import FLOAT_ORDER, _f8_to_u8
 from yassm.lib.qmc.random import (
     correlation_variance_decomposition,
     generate_positive_semidefinite_matrix,
@@ -10,7 +11,15 @@ from yassm.lib.qmc.random import (
     van_der_corput_sequence,
     van_der_corput_sequence_slow,
 )
-from yassm.qmc.random import gaussian_cholesky_decomposition, gaussian_rosenblatt_transform, guassian_ZCA_cor
+from yassm.qmc.random import gaussian_transform, whitening_transform
+
+
+def test_f8_01_to_u8():
+    _MAX = 2**FLOAT_ORDER
+    assert _f8_to_u8(0.0) == 0
+    # the function expects [0, 1) only, but this test should works
+    # i.e. x < 1 => _f8_to_u8(x) < _MAX
+    assert _f8_to_u8(1.0) == _MAX
 
 
 @pytest.mark.parametrize(
@@ -37,34 +46,26 @@ def test_van_der_corput_sequence(N, base) -> None:
     )
 
 
-GAUSSIAN_CASES = (
-    (10000, 2, np.array([[4.0, 1.0], [1.0, 2.0]])),
-    (10000, 3, np.array([[4.0, 1.0, 2.0], [1.0, 2.0, 3.0], [2.0, 3.0, 5.0]])),
-)
+GAUSSIAN_CASES = [
+    (N, d, cov, method)
+    for N, d, cov in (
+        (10000, 2, np.array([[4.0, 1.0], [1.0, 2.0]])),
+        (10000, 3, np.array([[4.0, 1.0, 2.0], [1.0, 2.0, 3.0], [2.0, 3.0, 5.0]])),
+    )
+    for method in ("ZCA", "cholesky", "ZCA_cor")
+]
 
 
-@pytest.mark.parametrize("N, d, cov", GAUSSIAN_CASES)
-def test_gaussian_rosenblatt_transform(N, d, cov) -> None:
+@pytest.mark.parametrize("N, d, cov, method", GAUSSIAN_CASES)
+def test_gaussian_rosenblatt_transform(N, d, cov, method) -> None:
     uniform_array = np.random.uniform(size=(N, d))
-    gaussian = gaussian_rosenblatt_transform(uniform_array, cov)
-    cov_sample = np.cov(gaussian, rowvar=False)
-    rtol = 5.0 * np.sqrt(2.0 / (N - 1))
-    np.testing.assert_allclose(cov_sample, cov, rtol=rtol)
-
-
-@pytest.mark.parametrize("N, d, cov", GAUSSIAN_CASES)
-def test_gaussian_cholesky_decomposition(N, d, cov) -> None:
-    uniform_array = np.random.uniform(size=(N, d))
-    gaussian = gaussian_cholesky_decomposition(uniform_array, cov)
-    cov_sample = np.cov(gaussian, rowvar=False)
-    rtol = 5.0 * np.sqrt(2.0 / (N - 1))
-    np.testing.assert_allclose(cov_sample, cov, rtol=rtol)
-
-
-@pytest.mark.parametrize("N, d, cov", GAUSSIAN_CASES)
-def test_guassian_ZCA_cor(N, d, cov) -> None:
-    uniform_array = np.random.uniform(size=(N, d))
-    gaussian = guassian_ZCA_cor(uniform_array, cov)
+    gaussian = gaussian_transform(uniform_array, cov, method=method)
+    # cholesky is special as the inv-cholesky order prevent them to be inverse of each other
+    if method != "cholesky":
+        np.testing.assert_allclose(
+            whitening_transform(gaussian, cov=cov, mean=np.zeros(d), method=method),
+            uniform_array,
+        )
     cov_sample = np.cov(gaussian, rowvar=False)
     rtol = 5.0 * np.sqrt(2.0 / (N - 1))
     np.testing.assert_allclose(cov_sample, cov, rtol=rtol)

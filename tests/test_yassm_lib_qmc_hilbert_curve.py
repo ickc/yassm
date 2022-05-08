@@ -4,7 +4,7 @@ import numpy as np
 import pytest
 
 from yassm.lib.qmc.hilbert_curve import hilbert_sort_inplace
-from yassm.qmc.hilbert_curve import HilbertCurveFloat
+from yassm.qmc.hilbert_curve import HilbertCurveFloat01
 
 
 def test_hilbert_sort() -> None:
@@ -52,7 +52,7 @@ def test_hilbert_sort() -> None:
 )
 def test_hilbert_sort_float(N, d) -> None:
     array = np.random.uniform(size=(N, d))
-    h = HilbertCurveFloat(array)
+    h = HilbertCurveFloat01(array)
     hed = h.sorted()
     h.sort()
     np.testing.assert_allclose(hed.array, h.array)
