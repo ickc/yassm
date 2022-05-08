@@ -43,9 +43,16 @@ def random_choice_weighted_inplace(
     b = np.cumsum(p)
     # if p is normalized, b[-1] == 1.0
     u = np.random.uniform(0.0, b[-1], size)
-    idxs = np.digitize(u, b)
+    # idxs = np.digitize(u, b)
+    # see footnote of numpy.digitize
+    # that when b is monotonic increasing, the 2 algorithm are the same
+    idxs = np.searchsorted(b, u, side="right")
     for i in range(size):
-        choice[i] = x[idxs[i]]
+        idx = idxs[i]
+        # numerical issue might result in some u >= b[-1]
+        # this is the only exception in digitize/searchsorted
+        # that the index can fall outside
+        choice[i] = x[size - 1 if idx == size else idx]
 
 
 @jit("f8[:, ::1](f8[:, ::1], i8, f8[::1])", nopython=True, nogil=True, cache=True)
