@@ -108,7 +108,19 @@ def gen_f8_to_u8_args_whiten_cholesky(data: npt.NDArray[np.float64]) -> Args:
 
     mean = data.sum(axis=0) / N
     cov = np.cov(data, rowvar=False)
-    W_T = np.linalg.cholesky(np.linalg.pinv(cov))
+
+    # avoid LinAlgError: not positive definite
+    cov_inv = np.linalg.pinv(cov)
+    # force symmetric
+    cov_inv = 0.5 * (cov_inv + cov_inv.T)
+    # minimum eigenvalue
+    eigen_min = np.linalg.eigvalsh(cov_inv)[0]
+    # force eigen_min >= 0
+    if eigen_min < 0.0:
+        cov_inv += eigen_min * np.eye(d)
+
+    # W_T = L = U.T
+    W_T = np.linalg.cholesky(cov_inv)
     return mean, W_T
 
 

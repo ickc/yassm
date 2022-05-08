@@ -86,8 +86,23 @@ def whitening_transform(
         cov = np.cov(gassian_array, rowvar=False)
 
     if method == "cholesky":
+        # avoid LinAlgError: not positive definite
+        cov_inv = linalg.pinv(cov)
+        # force symmetric
+        cov_inv = 0.5 * (cov_inv + cov_inv.T)
+        # minimum eigenvalue
+        eigen_min = linalg.eigvalsh(cov_inv)[0]
+        # force eigen_min >= 0
+        if eigen_min < 0.0:
+            logger.warning(
+                "cov_inv is not positive definite with min eigenvalue λ=%f. "
+                "Forcing it to be positive semi-definite by adding λΙ.",
+                eigen_min,
+            )
+            cov_inv += eigen_min * np.eye(cov_inv.shape[0])
+
         # W_T = L = U.T
-        W_T = linalg.cholesky(linalg.pinv(cov), lower=True)
+        W_T = linalg.cholesky(cov_inv, lower=True)
     elif method == "ZCA":
         W_T = linalg.pinv(linalg.sqrtm(cov))
     elif method == "ZCA_cor":
