@@ -151,7 +151,7 @@ def f8_to_u8_whiten(x: npt.NDArray[np.float64], i: int, args: Args) -> int:
 # for arbitrary range of float #################################################
 
 
-@jit(nopython=True, nogil=True, cache=True)
+@jit(nopython=True, nogil=True, cache=False)
 def _partition_inplace_float(
     array: npt.NDArray[np.float64],
     i_start: int,
@@ -192,7 +192,7 @@ def _partition_inplace_float(
         array[j] = temp
 
 
-@jit(nopython=True, nogil=True, cache=True)
+@jit(nopython=True, nogil=True, cache=False)
 def _hilbert_sort_inplace(
     array: npt.NDArray[np.float64],
     i_start: int,
@@ -317,7 +317,7 @@ def _hilbert_sort_inplace(
         )
 
 
-@jit("(f8[:, ::1], i1)", nopython=True, nogil=True, cache=True)
+@jit("(f8[:, ::1], i1)", nopython=True, nogil=True, cache=False)
 def hilbert_sort_inplace_linear(
     array: npt.NDArray[np.float64],
     order: int,
@@ -346,7 +346,7 @@ def hilbert_sort_inplace_linear(
     )
 
 
-@jit("(f8[:, ::1], i1)", nopython=True, nogil=True, cache=True)
+@jit("(f8[:, ::1], i1)", nopython=True, nogil=True, cache=False)
 def hilbert_sort_inplace_logistic(
     array: npt.NDArray[np.float64],
     order: int,
@@ -375,7 +375,7 @@ def hilbert_sort_inplace_logistic(
     )
 
 
-@jit("(f8[:, ::1], i1)", nopython=True, nogil=True, cache=True)
+@jit("(f8[:, ::1], i1)", nopython=True, nogil=True, cache=False)
 def hilbert_sort_inplace_whiten_cholesky(
     array: npt.NDArray[np.float64],
     order: int,
@@ -404,7 +404,7 @@ def hilbert_sort_inplace_whiten_cholesky(
     )
 
 
-@jit("(f8[:, ::1], i1)", nopython=True, nogil=True, cache=True)
+@jit("(f8[:, ::1], i1)", nopython=True, nogil=True, cache=False)
 def hilbert_sort_inplace_whiten_ZCA(
     array: npt.NDArray[np.float64],
     order: int,
@@ -433,7 +433,7 @@ def hilbert_sort_inplace_whiten_ZCA(
     )
 
 
-@jit("(f8[:, ::1], i1)", nopython=True, nogil=True, cache=True)
+@jit("(f8[:, ::1], i1)", nopython=True, nogil=True, cache=False)
 def hilbert_sort_inplace_whiten_ZCA_cor(
     array: npt.NDArray[np.float64],
     order: int,
