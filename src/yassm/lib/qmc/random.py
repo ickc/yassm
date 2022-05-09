@@ -89,6 +89,19 @@ PRIMES = np.array(
 )
 
 
+@jit("i8(i8[::1])", nopython=True, nogil=True, cache=True)
+def choose_halton_n(exp: npt.NDArray[np.int64]) -> int:
+    """Return the number of points in a fully-stratified Halton sequence.
+
+    :param exp: The exponent of the Halton sequence.
+    :return: Π_i π_i^exp[i].
+    """
+    res: int = 1
+    for i in range(exp.size):
+        res *= PRIMES[i] ** exp[i]
+    return res
+
+
 @jit("f8[::1](i8)", nopython=True, nogil=True, cache=True)
 def midpoint_pointset(N: int) -> npt.NDArray[np.float64]:
     """Returns the midpoint point-set which minimize star-discrepancy in 1D."""

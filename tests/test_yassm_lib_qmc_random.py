@@ -5,6 +5,7 @@ import pytest
 
 from yassm.lib.qmc.hilbert_curve import FLOAT_ORDER, _f8_to_u8
 from yassm.lib.qmc.random import (
+    choose_halton_n,
     correlation_variance_decomposition,
     generate_positive_semidefinite_matrix,
     midpoint_pointset,
@@ -12,6 +13,10 @@ from yassm.lib.qmc.random import (
     van_der_corput_sequence_slow,
 )
 from yassm.qmc.random import gaussian_transform, whitening_transform
+
+
+def test_choose_halton_n():
+    assert choose_halton_n(np.array([3, 2])) == 72
 
 
 def test_f8_01_to_u8():
