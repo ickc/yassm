@@ -1,78 +1,32 @@
-============
-Contributing
-============
+# Contributing
 
-Contributions are welcome, and they are greatly appreciated! Every
-little bit helps, and credit will always be given.
+Bug reports and pull requests are welcome at <https://github.com/ickc/yassm/issues>.
+When reporting a bug, please include your OS, the output of `pixi list` (or `pip list`), and steps to reproduce it.
 
-Bug reports
-===========
+## Development
 
-When `reporting a bug <https://github.com/ickc/yassm/issues>`_ please include:
+The development environments are managed by [pixi](https://pixi.sh), with every package from conda-forge
+and yassm itself installed in editable mode:
 
-    * Your operating system name and version.
-    * Any details about your local setup that might be helpful in troubleshooting.
-    * Detailed steps to reproduce the bug.
+```sh
+git clone https://github.com/ickc/yassm.git
+cd yassm
+pixi run test              # unit tests
+pixi run test-boundscheck  # unit tests with Numba bounds checking, to catch out-of-bounds accesses
+pixi run examples          # the homework examples as integration tests
+pixi run lint              # ruff lint and format check
+pixi run fmt               # ruff auto-fix and format
+pixi run docs              # build the documentation into dist/docs
+pixi run -e py311 test     # tests on another Python version (py311 ... py315)
+```
 
-Documentation improvements
-==========================
+Without pixi, `uv sync --group dev` (or `pip install -e . --group dev`) installs the same tools from PyPI.
 
-yassm could always use more documentation, whether as part of the
-official yassm docs, in docstrings, or even on the web in blog posts,
-articles, and such.
+## Conventions
 
-Feature requests and feedback
-=============================
-
-The best way to send feedback is to file an issue at https://github.com/ickc/yassm/issues.
-
-If you are proposing a feature:
-
-* Explain in detail how it would work.
-* Keep the scope as narrow as possible, to make it easier to implement.
-* Remember that this is a volunteer-driven project, and that code contributions are welcome :)
-
-Development
-===========
-
-To set up `yassm` for local development:
-
-1. Fork `yassm <https://github.com/ickc/yassm>`_
-   (look for the "Fork" button).
-2. Clone your fork locally::
-
-    git clone git@github.com:YOURGITHUBNAME/yassm.git
-
-3. Create a branch for local development::
-
-    git checkout -b name-of-your-bugfix-or-feature
-
-   Now you can make your changes locally.
-
-4. Commit your changes and push your branch to GitHub::
-
-    git add .
-    git commit -m "Your detailed description of your changes."
-    git push origin name-of-your-bugfix-or-feature
-
-5. Submit a pull request through the GitHub website.
-
-Pull Request Guidelines
------------------------
-
-If you need some code review or feedback while you're developing the code just make the pull request.
-
-For merging, you should:
-
-1. Update documentation when there's new API, functionality etc.
-2. Add a note to ``CHANGELOG.rst`` about the changes.
-3. Add yourself to ``AUTHORS.rst``.
-
-
-
-Tips
-----
-
-To run tests::
-
-    pytest
+- Code is formatted and linted with [ruff](https://docs.astral.sh/ruff/) (`pixi run fmt`).
+- Docstrings use the [NumPy style](https://numpydoc.readthedocs.io/en/latest/format.html).
+- Numba functions are compiled eagerly with explicit signatures, `nopython=True, nogil=True`;
+  use `cache=True` unless the function is a closure, uses dynamic globals, or is self-recursive
+  (a cached self-recursive function crashes when reloaded from the cache).
+- Every bug fix comes with a regression test.
