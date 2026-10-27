@@ -8,7 +8,7 @@ from numba import jit
 
 from tests import set_seed, y
 from yassm.linear_gaussian.model.local_level import local_level_model
-from yassm.particle_filter import GeneralLinearGaussianParticleFilterStateSpaceModel
+from yassm.particle_filter import LinearGaussianParticleFilterModel
 
 if TYPE_CHECKING:
     import numpy.typing as npt
@@ -57,7 +57,7 @@ def X0(params: npt.NDArray[np.float64]) -> npt.NDArray[np.float64]:
     return μ, Γ
 
 
-class TestGeneralLinearGaussianParticleFilterStateSpaceModelBootstrap(TestCase):
+class TestLinearGaussianParticleFilterModelBootstrap(TestCase):
     def setUp(self) -> None:
         set_seed(20220501)
         n_sample = 5000
@@ -69,7 +69,7 @@ class TestGeneralLinearGaussianParticleFilterStateSpaceModelBootstrap(TestCase):
 
         self.params = self.fit.params
 
-        self.bootstrap_local_level_model = GeneralLinearGaussianParticleFilterStateSpaceModel(
+        self.bootstrap_local_level_model = LinearGaussianParticleFilterModel(
             2,
             A0,
             B0,
@@ -88,7 +88,7 @@ class TestGeneralLinearGaussianParticleFilterStateSpaceModelBootstrap(TestCase):
             param_names=local_level_model.param_names,
         )
 
-        self.optimal_local_level_model = GeneralLinearGaussianParticleFilterStateSpaceModel(
+        self.optimal_local_level_model = LinearGaussianParticleFilterModel(
             2,
             A0,
             B0,

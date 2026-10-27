@@ -13,10 +13,10 @@ CHOPIN, NICOLAS, and Omiros Papaspiliopoulos. INTRODUCTION TO SEQUENTIAL MONTE C
 from __future__ import annotations
 
 from ...lib.linear_gaussian.model.gerber_chopin_2015 import get_ABΣR
-from .. import GeneralLinearGaussianStateSpaceModel
+from .. import LinearGaussianModel
 
 
-def get_gerber_chopin_2015_model(d: int) -> GeneralLinearGaussianStateSpaceModel:
+def get_gerber_chopin_2015_model(d: int) -> LinearGaussianModel:
     (
         A0,
         B0,
@@ -24,7 +24,7 @@ def get_gerber_chopin_2015_model(d: int) -> GeneralLinearGaussianStateSpaceModel
         R0,
     ) = get_ABΣR(d)
 
-    return GeneralLinearGaussianStateSpaceModel(
+    return LinearGaussianModel(
         1,
         A0,
         B0,
