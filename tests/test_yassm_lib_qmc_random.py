@@ -8,6 +8,7 @@ from yassm.lib.qmc.random import (
     choose_halton_n,
     correlation_variance_decomposition,
     generate_positive_semidefinite_matrix,
+    halton_sequence,
     midpoint_pointset,
     van_der_corput_sequence,
     van_der_corput_sequence_slow,
@@ -81,3 +82,26 @@ def test_correlation_variance_decomposition(low, high, size) -> None:
     Σ = generate_positive_semidefinite_matrix(low, high, size)
     σ, P = correlation_variance_decomposition(Σ)
     np.testing.assert_allclose(σ.reshape(-1, 1) * P * σ, Σ)
+
+
+@pytest.mark.parametrize("base", (127, 131, 251, 257, 307))
+def test_van_der_corput_sequence_large_base(base) -> None:
+    """Bases >= 128 used to be truncated to int8, breaking Halton sequences with d >= 32."""
+    N = 1000
+    res = van_der_corput_sequence(N, base)
+    np.testing.assert_array_equal(res, van_der_corput_sequence_slow(N, base))
+    # first base - 1 points are 1/base, 2/base, ...
+    np.testing.assert_allclose(res[: base - 1], np.arange(1, base) / base)
+
+
+@pytest.mark.parametrize("d", (2, 31, 32, 54, 55, 63))
+def test_halton_sequence(d) -> None:
+    from scipy.stats import qmc
+
+    N = 512
+    res = halton_sequence(N, d, True)
+    assert res.shape == (N, d)
+    assert ((0.0 < res) & (res < 1.0)).all()
+    # yassm skips the point 0, so it is scipy's unscrambled Halton sequence shifted by one
+    ref = qmc.Halton(d, scramble=False).random(N + 1)[1:]
+    np.testing.assert_allclose(res, ref, rtol=1e-12)
