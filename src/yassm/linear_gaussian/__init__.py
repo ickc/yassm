@@ -27,7 +27,7 @@ from ..lib.linear_gaussian import (
     one_step_ahead_inplace,
     smoothing_backward_recursion_inplace,
 )
-from ..util import as_c_array, with_c_array_first_arg
+from ..util import as_c_array, as_scipy_objective
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Sequence
@@ -1383,7 +1383,7 @@ class GenericLinearGaussianStateSpaceModel:
                 callback = None
 
             opt = minimize(
-                with_c_array_first_arg(neg2_log_likelihood), params0, args=(y, μ_0, Γ_0), callback=callback, **kwargs
+                as_scipy_objective(neg2_log_likelihood), params0, args=(y, μ_0, Γ_0), callback=callback, **kwargs
             )
             msg = opt.message
             if not opt.success:

@@ -17,7 +17,7 @@ from ..lib.grid.one_dimension import (
     ps_to_mQ,
     smoothing_backward_recursion_inplace,
 )
-from ..util import as_c_array, with_c_array_first_arg
+from ..util import as_c_array, as_scipy_objective
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -604,9 +604,7 @@ class General1DStateSpaceModel:
             else:
                 callback = None
 
-            opt = minimize(
-                with_c_array_first_arg(neg_log_likelihood), params0, args=(y, p_0), callback=callback, **kwargs
-            )
+            opt = minimize(as_scipy_objective(neg_log_likelihood), params0, args=(y, p_0), callback=callback, **kwargs)
             msg = opt.message
             if not opt.success:
                 raise RuntimeError(f"MLE unsuccessful with message: {msg}")

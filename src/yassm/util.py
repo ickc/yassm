@@ -11,11 +11,9 @@ import numpy as np
 
 if TYPE_CHECKING:
     from collections.abc import Callable
-    from typing import Any, TypeVar
+    from typing import Any
 
     import numpy.typing as npt
-
-    T = TypeVar("T")
 
 # never emit "No handlers could be found" style warnings from the library
 logging.getLogger("yassm").addHandler(logging.NullHandler())
@@ -68,14 +66,21 @@ def as_c_array(
     return np.require(np.ascontiguousarray(array, dtype=dtype), requirements="W")
 
 
-def with_c_array_first_arg(func: Callable[..., T]) -> Callable[..., T]:
-    """Wrap `func` so that its first argument is passed as a C-contiguous float64 array.
+def as_scipy_objective(func: Callable[..., float]) -> Callable[..., float]:
+    """Wrap a jitted objective function for ``scipy.optimize.minimize``.
 
-    ``scipy.optimize.minimize`` may call the objective with a non-contiguous ``x``,
-    which Numba functions with ``f8[::1]`` signatures reject.
+    - ``x`` is passed as a C-contiguous float64 array:
+      ``scipy.optimize.minimize`` may call the objective with a non-contiguous ``x``,
+      which Numba functions with ``f8[::1]`` signatures reject.
+    - A singular matrix (e.g. a zero variance on the boundary of the parameter space,
+      which the optimizer may probe) gives ``+inf`` instead of raising ``LinAlgError``,
+      so that the optimizer backs off.
     """
 
-    def wrapped(x: npt.ArrayLike, *args: Any) -> T:
-        return func(np.ascontiguousarray(x, dtype=np.float64), *args)
+    def wrapped(x: npt.ArrayLike, *args: Any) -> float:
+        try:
+            return func(np.ascontiguousarray(x, dtype=np.float64), *args)
+        except np.linalg.LinAlgError:
+            return np.inf
 
     return wrapped

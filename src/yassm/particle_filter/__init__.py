@@ -13,7 +13,7 @@ from numba import get_num_threads, jit, objmode, prange
 from ..lib import random_choice_weighted_inplace, sqrt_diag
 from ..lib.linear_gaussian import cov_from_samples
 from ..linear_gaussian import AbstractFit, GeneralLinearGaussianStateSpaceModel, GenericLinearGaussianStateSpaceModel
-from ..util import as_c_array, with_c_array_first_arg
+from ..util import as_c_array, as_scipy_objective
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -803,7 +803,7 @@ class GenericParticleFilterStateSpaceModel(GenericLinearGaussianStateSpaceModel)
                 callback = None
 
             opt = minimize(
-                with_c_array_first_arg(minimization_func),
+                as_scipy_objective(minimization_func),
                 params0 if untransform_params is None else untransform_params(params0),
                 args=(y, n_sample),
                 callback=callback,

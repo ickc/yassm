@@ -70,11 +70,11 @@ def test_fit_accepts_readonly_input() -> None:
     np.testing.assert_allclose(fit.log_likelihood, local_level_model.fit(y.copy(), [1.0, 1.0], 0.0, 1e8).log_likelihood)
 
 
-def test_with_c_array_first_arg() -> None:
+def test_as_scipy_objective() -> None:
     """scipy.optimize may pass a non-contiguous x to the objective."""
     from numba import jit
 
-    from yassm.util import with_c_array_first_arg
+    from yassm.util import as_scipy_objective
 
     @jit("f8(f8[::1], f8)", nopython=True)
     def f(x, a):
@@ -82,7 +82,7 @@ def test_with_c_array_first_arg() -> None:
 
     x = np.arange(10.0)[::2]
     assert not x.flags.c_contiguous
-    assert with_c_array_first_arg(f)(x, 1.0) == 21.0
+    assert as_scipy_objective(f)(x, 1.0) == 21.0
 
 
 def test_fit_plot_renders() -> None:
@@ -99,3 +99,16 @@ def test_fit_plot_renders() -> None:
     fig, _ = fit.plot(T_forecast=10)
     fig.canvas.draw()
     plt.close(fig)
+
+
+def test_as_scipy_objective_singular() -> None:
+    """A singular matrix at the boundary of the parameter space is +inf, not an error."""
+    from numba import jit
+
+    from yassm.util import as_scipy_objective
+
+    @jit("f8(f8[::1])", nopython=True)
+    def f(x):
+        return np.linalg.inv(np.diag(x)).sum()
+
+    assert as_scipy_objective(f)(np.array([0.0, 1.0])) == np.inf
