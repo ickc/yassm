@@ -47,12 +47,13 @@ def random_choice_weighted_inplace(
     # see footnote of numpy.digitize
     # that when b is monotonic increasing, the 2 algorithm are the same
     idxs = np.searchsorted(b, u, side="right")
+    n_bin = b.size
     for i in range(size):
         idx = idxs[i]
         # numerical issue might result in some u >= b[-1]
         # this is the only exception in digitize/searchsorted
         # that the index can fall outside
-        choice[i] = x[size - 1 if idx == size else idx]
+        choice[i] = x[n_bin - 1 if idx == n_bin else idx]
 
 
 @jit("f8[:, ::1](f8[:, ::1], i8, f8[::1])", nopython=True, nogil=True, cache=True)
