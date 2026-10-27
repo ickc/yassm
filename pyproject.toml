@@ -77,13 +77,9 @@ docs = [
     "sphinx-copybutton>=0.5",
     "sphinx-autodoc-typehints>=2",
 ]
-lint = [
-    "ruff>=0.8",
-]
 dev = [
     { include-group = "test" },
     { include-group = "docs" },
-    { include-group = "lint" },
 ]
 
 [tool.hatch.version]
@@ -129,15 +125,41 @@ channels = ["conda-forge"]
 platforms = ["linux-64", "linux-aarch64", "osx-64", "osx-arm64", "win-64"]
 requires-pixi = ">=0.50"
 
-# the numerical stack comes from conda-forge, yassm itself is installed editable
+# Everything comes from conda-forge; only yassm itself is installed (editable) from the source tree.
+# The PEP 735 dependency groups and the extras above are for uv / pip users and PyPI metadata.
 [tool.pixi.dependencies]
 python = ">=3.11"
 numba = ">=0.59"
 numpy = ">=1.24"
 scipy = ">=1.10"
+matplotlib-base = ">=3.6"
+seaborn-base = ">=0.12"
+pandas = ">=2"
+numdifftools = ">=0.9.41"
 
 [tool.pixi.pypi-dependencies]
 yassm = { path = ".", editable = true }
+
+[tool.pixi.feature.test.dependencies]
+pytest = ">=8"
+pytest-cov = ">=5"
+pytest-xdist = ">=3"
+statsmodels = ">=0.14"
+
+[tool.pixi.feature.examples.dependencies]
+ipython = "*"
+jupytext = ">=1.16"
+statsmodels = ">=0.14"
+
+[tool.pixi.feature.docs.dependencies]
+sphinx = ">=8"
+furo = ">=2024.8.6"
+myst-nb = ">=1.1"
+sphinx-copybutton = ">=0.5"
+sphinx-autodoc-typehints = ">=2"
+
+[tool.pixi.feature.lint.dependencies]
+ruff = ">=0.8"
 
 [tool.pixi.feature.py311.dependencies]
 python = "3.11.*"
@@ -165,8 +187,8 @@ docs = { cmd = "sphinx-build -W --keep-going -b dirhtml docs dist/docs", env = {
 docs-serve = { cmd = "python -m http.server -d dist/docs 8000", depends-on = ["docs"], description = "Build and serve the docs locally" }
 
 [tool.pixi.environments]
-default = { features = ["test", "lint"], solve-group = "default" }
-docs = { features = ["docs", "test"], solve-group = "default" }
+default = { features = ["test", "examples", "lint"], solve-group = "default" }
+docs = { features = ["docs", "examples"], solve-group = "default" }
 lint = { features = ["lint"], solve-group = "default" }
 py311 = ["py311", "test"]
 py312 = ["py312", "test"]
