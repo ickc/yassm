@@ -548,10 +548,13 @@ f8_to_u8_func: dict[str, F8ToU8] = {
     "whiten_ZCA_cor": f8_to_u8_whiten,
 }
 
-hilber_sort_inplace_func: dict[str, HilbertSortInplace] = {
+hilbert_sort_inplace_func: dict[str, HilbertSortInplace] = {
     "linear": hilbert_sort_inplace_linear,
     "logistic": hilbert_sort_inplace_logistic,
     "whiten_cholesky": hilbert_sort_inplace_whiten_cholesky,
     "whiten_ZCA": hilbert_sort_inplace_whiten_ZCA,
     "whiten_ZCA_cor": hilbert_sort_inplace_whiten_ZCA_cor,
 }
+
+#: Deprecated misspelt alias kept for backward compatibility.
+hilber_sort_inplace_func = hilbert_sort_inplace_func

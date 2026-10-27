@@ -1401,7 +1401,7 @@ class GeneralLinearGaussianParticleFilterStateSpaceModel(  # type: ignore[misc] 
 
 
 @dataclass
-class GeneralNonLinearBootstrapParticleFitlerStateSpaceModel(GenericParticleFilterStateSpaceModel):
+class GeneralNonLinearBootstrapParticleFilterStateSpaceModel(GenericParticleFilterStateSpaceModel):
     r"""General non-linear bootstrap particle filter state space model.
 
     Parameters
@@ -1520,3 +1520,7 @@ class GeneralNonLinearBootstrapParticleFitlerStateSpaceModel(GenericParticleFilt
     @property
     def smoothed_state_to_obs(self) -> SmoothedStateToObs:  # type: ignore[override]  # inheritance issue
         return self.state_to_obs
+
+
+#: Deprecated misspelt alias kept for backward compatibility.
+GeneralNonLinearBootstrapParticleFitlerStateSpaceModel = GeneralNonLinearBootstrapParticleFilterStateSpaceModel

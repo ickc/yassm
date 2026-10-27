@@ -9,7 +9,7 @@ import numpy as np
 from numba import jit
 
 from yassm.lib.qmc.hilbert_curve import FLOAT_ORDER, hilbert_sort_inplace
-from yassm.lib.qmc.hilbert_curve_full_range import f8_to_u8_func, gen_f8_to_u8_args_func, hilber_sort_inplace_func
+from yassm.lib.qmc.hilbert_curve_full_range import f8_to_u8_func, gen_f8_to_u8_args_func, hilbert_sort_inplace_func
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -296,4 +296,4 @@ class HilbertCurveFloat(AbstractHilbertCurveFloat):
         """Sort the Hilbert curve inplace."""
         if self.order != FLOAT_ORDER:
             raise ValueError(f"order must be {FLOAT_ORDER}")
-        hilber_sort_inplace_func[self.range_reduction_method](self.array, self.order)
+        hilbert_sort_inplace_func[self.range_reduction_method](self.array, self.order)

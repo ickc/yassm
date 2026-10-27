@@ -9,7 +9,7 @@ from numba import jit
 from tests import y
 from yassm.lib.linear_gaussian import prob_normal_1d
 from yassm.linear_gaussian.model.local_level import local_level_model
-from yassm.particle_filter import GeneralNonLinearBootstrapParticleFitlerStateSpaceModel
+from yassm.particle_filter import GeneralNonLinearBootstrapParticleFilterStateSpaceModel
 
 if TYPE_CHECKING:
     import numpy.typing as npt
@@ -71,7 +71,7 @@ class TestGeneralLinearGaussianParticleFilterStateSpaceModelBootstrap(TestCase):
 
         self.params = self.fit.params
 
-        self.bootstrap_local_level_model = GeneralNonLinearBootstrapParticleFitlerStateSpaceModel(
+        self.bootstrap_local_level_model = GeneralNonLinearBootstrapParticleFilterStateSpaceModel(
             2,
             pdf_Y_inplace=pdf_Y_inplace,
             K_t_inplace=K_t_inplace,

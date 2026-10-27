@@ -44,3 +44,16 @@ def test_import_is_quiet() -> None:
     import yassm  # noqa: F401
 
     assert all(isinstance(h, logging.NullHandler) for h in logging.getLogger("yassm").handlers)
+
+
+def test_deprecated_aliases() -> None:
+    from yassm.lib.qmc import hilbert_curve_full_range
+    from yassm.particle_filter import (
+        GeneralNonLinearBootstrapParticleFilterStateSpaceModel,
+        GeneralNonLinearBootstrapParticleFitlerStateSpaceModel,
+    )
+
+    assert (
+        GeneralNonLinearBootstrapParticleFitlerStateSpaceModel is GeneralNonLinearBootstrapParticleFilterStateSpaceModel
+    )
+    assert hilbert_curve_full_range.hilber_sort_inplace_func is hilbert_curve_full_range.hilbert_sort_inplace_func

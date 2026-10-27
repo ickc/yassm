@@ -4,7 +4,7 @@ import numpy as np
 import pytest
 
 from yassm.lib.qmc.hilbert_curve import FLOAT_ORDER, hilbert_sort_inplace
-from yassm.lib.qmc.hilbert_curve_full_range import hilber_sort_inplace_func
+from yassm.lib.qmc.hilbert_curve_full_range import hilbert_sort_inplace_func
 from yassm.qmc.hilbert_curve import HilbertCurveFloat01, HilbertCurveInt
 
 
@@ -160,8 +160,8 @@ def test_hilbert_curve_int_all_zeros() -> None:
     np.testing.assert_array_equal(h.array, 0)
 
 
-@pytest.mark.parametrize("method", sorted(hilber_sort_inplace_func))
+@pytest.mark.parametrize("method", sorted(hilbert_sort_inplace_func))
 def test_full_range_sort_single_point(method) -> None:
     array = np.array([[1.0, 2.0, 3.0]])
-    hilber_sort_inplace_func[method](array, FLOAT_ORDER)
+    hilbert_sort_inplace_func[method](array, FLOAT_ORDER)
     np.testing.assert_array_equal(array, [[1.0, 2.0, 3.0]])
