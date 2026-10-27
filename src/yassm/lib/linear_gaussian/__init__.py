@@ -102,6 +102,8 @@ def one_step_ahead(
     tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]]
         (m_s_given_t, Q_s_given_t).
 
+    Notes
+    -----
     TODO: delete this as not used?
     """
     m_s_given_t = A_s @ m_sMinus1_given_t
@@ -167,6 +169,8 @@ def filter_update(
     tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]]
         (m_t_given_t, Q_t_given_t).
 
+    Notes
+    -----
     TODO: provide another version using Sherman-Morrison-Woodbury formula
     and dispatch by comparing n, d
 
@@ -217,6 +221,8 @@ def filter_update_inplace(
     Q_t_given_tMinus1
         shape of (d, d).
 
+    Notes
+    -----
     TODO: provide another version using Sherman-Morrison-Woodbury formula
     and dispatch by comparing n, d
     """
@@ -274,6 +280,8 @@ def smoothing_backward_recursion(
     tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]]
         (m_s_given_t, Q_s_given_t).
 
+    Notes
+    -----
     TODO: delete this as not used?
     """
     Γ_sPlus1_transpose = solve(Q_sPlus1_given_s, A_sPlus1 @ Q_s_given_s)

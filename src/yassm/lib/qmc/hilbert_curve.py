@@ -4,34 +4,29 @@ Sort array of uint64 integers using Hilbert sort.
 
 Notes
 -----
-0 <= order < 64
+``0 <= order < 64``. Since bits are used on ``partition_axis``/``current_axis_division``,
+``dimension < 64``, and::
 
-Since bit is used on partition_axis/current_axis_division,
-dimension < 64.
+    0 <= partition_axis < dimension < 64
+    0 <= axis_division, current_axis_division < dimension < 64
+    0 <= axis_start, current_axis_start, axis_counter < dimension < 64
+    0 <= n_cont_direction <= axis_counter < dimension < 64
 
-0 <= partition_axis < dimension < 64
-0 <= axis_division, current_axis_division < dimension < 64
-0 <= axis_start, current_axis_start, axis_counter < dimension < 64
-0 <= n_cont_direction <= axis_counter < dimension < 64
+The algorithm loops over the orders from m - 1 down to 0.
 
-Algorithm loop order from m - 1 to 1 asynchronously.
+The arguments of the recursion are typed as
+
+- ``array``: ``u8`` or ``f8``, shape of (N, d), C-contiguous;
+- ``i_start``, ``i_end``, ``current_partition``: ``i8`` (indices);
+- ``order``, ``axis_counter``, ``axis_division``, ``current_axis_division``, ``n_cont_direction``:
+  ``i1``, as they are all < 64;
+- ``axis_start``, ``current_axis_start``: ``u8``, a bitset of d bits (see `_bitset_flip`).
 
 Warnings
 --------
 The recursive functions here must not be cached (``cache=True``): Numba cannot
 reload a cached self-recursive function. The first run works, but every
 subsequent process aborts with ``LLVM ERROR: Symbol not found: ...``.
-
-Types
------
-array
-    ``u8`` or ``f8``, shape of (N, d), C-contiguous.
-i_start, i_end, current_partition
-    ``i8`` (indices).
-order, axis_counter, axis_division, current_axis_division, n_cont_direction
-    ``i1``, as they are all < 64.
-axis_start, current_axis_start
-    ``u8``, a bitset of d bits (see `_bitset_flip`).
 
 References
 ----------

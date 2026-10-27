@@ -315,6 +315,8 @@ def _backward_sampling_1d_inplace(
     N
         Number of samples to generate.
 
+    Notes
+    -----
     Modified from `kalman_smoothing_inplace` as they share
     the same prerequisites.
     """

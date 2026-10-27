@@ -83,3 +83,19 @@ def test_with_c_array_first_arg() -> None:
     x = np.arange(10.0)[::2]
     assert not x.flags.c_contiguous
     assert with_c_array_first_arg(f)(x, 1.0) == 21.0
+
+
+def test_fit_plot_renders() -> None:
+    """The legend labels must be valid mathtext; this only fails when the figure is drawn."""
+    import matplotlib
+
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+
+    from tests import y
+    from yassm.linear_gaussian.model.local_level import local_level_model
+
+    fit = local_level_model.fit(y, [1.0, 1.0], 0.0, 1e8)
+    fig, _ = fit.plot(T_forecast=10)
+    fig.canvas.draw()
+    plt.close(fig)

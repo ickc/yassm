@@ -160,6 +160,8 @@ class GenericParticleFilterStateSpaceModelFit(AbstractFit):
     param_names
         optional names of parameters
 
+    Notes
+    -----
     TODO: tailor for particle filter
     """
 
@@ -504,6 +506,8 @@ class GenericParticleFilterStateSpaceModel(GenericLinearGaussianStateSpaceModel)
             x_t_tilde
                 output buffer.
 
+            Notes
+            -----
             For SIR in general,
             or in the case of
             bootstrap particle filter,
@@ -526,6 +530,8 @@ class GenericParticleFilterStateSpaceModel(GenericLinearGaussianStateSpaceModel)
         x_t_tilde
             output buffer.
 
+        Notes
+        -----
         For SIR in general,
         or in the case of
         bootstrap particle filter,
@@ -831,23 +837,25 @@ class GenericParticleFilterStateSpaceModel(GenericLinearGaussianStateSpaceModel)
     ) -> GenericParticleFilterStateSpaceModelFit:
         """Return a GenericParticleFilterStateSpaceModelFit instance.
 
-            Parameters
-            ----------
-            y
-                observed data (Y)
-            params
-                parameters of the model
-            mle_method
-                method used to estimate MLE
-            mle_n_iter
-                number of iteration run with MLE
-            mle_return_chain
-                if True, return the chain of parameters during MLE
-            t
-                optional time axis
-            param_names
-                optional names of parameters
+        Parameters
+        ----------
+        y
+            observed data (Y)
+        params
+            parameters of the model
+        mle_method
+            method used to estimate MLE
+        mle_n_iter
+            number of iteration run with MLE
+        mle_return_chain
+            if True, return the chain of parameters during MLE
+        t
+            optional time axis
+        param_names
+            optional names of parameters
 
+        Notes
+        -----
         TODO: tailor for particle filter
         """
         y = as_c_array(y)
@@ -1015,6 +1023,8 @@ class GeneralLinearGaussianParticleFilterStateSpaceModel(  # type: ignore[misc] 
             x_0
                 output buffer of shape (d, N).
 
+            Notes
+            -----
             For SIR in general,
             or bootstrap particle filter
             when prior of X_0 contains no information (defused.)
@@ -1055,6 +1065,8 @@ class GeneralLinearGaussianParticleFilterStateSpaceModel(  # type: ignore[misc] 
             x_0_tilde
                 output buffer.
 
+            Notes
+            -----
             This is only used for bootstrap particle filter.
             """
             N = x_0_tilde.shape[0]
@@ -1092,6 +1104,8 @@ class GeneralLinearGaussianParticleFilterStateSpaceModel(  # type: ignore[misc] 
             x_t_given_tMinus1
                 output buffer.
 
+            Notes
+            -----
             For forecasting in the case of SIR.
             For Bootstrap particle filter,
             same as sampling_q_inplace
@@ -1147,6 +1161,8 @@ class GeneralLinearGaussianParticleFilterStateSpaceModel(  # type: ignore[misc] 
             x_t_tilde
                 output buffer.
 
+            Notes
+            -----
             For SIR in general,
             or in the case of
             bootstrap particle filter,
@@ -1200,6 +1216,8 @@ class GeneralLinearGaussianParticleFilterStateSpaceModel(  # type: ignore[misc] 
         x_t_tilde
             output buffer.
 
+        Notes
+        -----
         For SIR in general,
         or in the case of
         bootstrap particle filter,
@@ -1233,6 +1251,8 @@ class GeneralLinearGaussianParticleFilterStateSpaceModel(  # type: ignore[misc] 
             w_t
                 output buffer.
 
+            Notes
+            -----
             For SIR in general.
             In the case of
             bootstrap particle filter,
@@ -1283,6 +1303,8 @@ class GeneralLinearGaussianParticleFilterStateSpaceModel(  # type: ignore[misc] 
             w_t
                 output buffer.
 
+            Notes
+            -----
             For SIR in general.
             In the case of
             bootstrap particle filter,
@@ -1322,6 +1344,8 @@ class GeneralLinearGaussianParticleFilterStateSpaceModel(  # type: ignore[misc] 
         w_t
             output buffer.
 
+        Notes
+        -----
         For SIR in general.
         In the case of
         bootstrap particle filter,
@@ -1418,8 +1442,11 @@ class GeneralNonLinearBootstrapParticleFilterStateSpaceModel(GenericParticleFilt
     sampling_U_t
         `sampling_U_t(params, t, N)` returns samples from `U_t` to `u_t` as `u_t`.
 
-    : param smoothed_state_to_obs: `state_to_obs(params, x_t, t0)` returns the state in observation space.
+    smoothed_state_to_obs
+        `state_to_obs(params, x_t, t0)` returns the state in observation space.
 
+    Notes
+    -----
     This implements general non-linear bootstrap particle filter state space model
     according to the specification, w.r.t. the four callable above respectively.
 
@@ -1493,6 +1520,8 @@ class GeneralNonLinearBootstrapParticleFilterStateSpaceModel(GenericParticleFilt
             w_t
                 output buffer.
 
+            Notes
+            -----
             x_tMinus1 is ignored.
             """
             pdf_Y_inplace(w_t, y_t, x_t_tilde, params, t)
@@ -1508,6 +1537,8 @@ class GeneralNonLinearBootstrapParticleFilterStateSpaceModel(GenericParticleFilt
         w_t
             output buffer.
 
+        Notes
+        -----
         For SIR in general.
         In the case of
         bootstrap particle filter,

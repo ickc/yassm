@@ -470,6 +470,8 @@ class General1DStateSpaceModel:
             float
                 negative log-likelihood up to a constant
 
+            Notes
+            -----
             Modified from Kalman filter.
             """
             size = y.shape[0]

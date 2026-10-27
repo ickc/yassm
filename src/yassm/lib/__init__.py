@@ -73,6 +73,8 @@ def random_choice_weighted(
     p
         probability of each element in x, assumes to be positive, shape of (n_bin,) without checking.
 
+    Notes
+    -----
     Similar to `np.random.default_rng().choice(x, size=size, p=p)`,
     but p can be non-normalized.
     """

@@ -127,6 +127,8 @@ def increment_inplace(array: npt.NDArray[np.integer[Any]], base: int) -> None:
     None
         None.
 
+    Notes
+    -----
     This does not check if the most significant bit is overflow.
     """
     n_digits = array.size

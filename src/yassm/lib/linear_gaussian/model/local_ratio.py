@@ -286,6 +286,8 @@ def _backward_sampling_1d_inplace(
     N
         Number of samples to generate.
 
+    Notes
+    -----
     Modified from `local_level._backward_sampling_1d_inplace`.
     """
     size = m_t_given_t.size
@@ -410,6 +412,8 @@ def gibbs_sampling(
     tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]]
         the parameters chain and the Xs chain.
 
+    Notes
+    -----
     Same as `local_level.gibbs_sampling`.
     """
     n_params = params.size
@@ -774,6 +778,8 @@ def gibbs_sampling_debug(
     tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]]
         the parameters chain and the Xs chain.
 
+    Notes
+    -----
     Same as `local_level.gibbs_sampling`.
     """
     n_params = 10

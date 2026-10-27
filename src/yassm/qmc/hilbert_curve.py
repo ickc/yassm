@@ -237,16 +237,17 @@ class HilbertCurveFloat01(AbstractHilbertCurveFloat):
 class HilbertCurveFloat(AbstractHilbertCurveFloat):
     """Hilbert curve with float domain.
 
+    The support is the full range of float.
+
     Parameters
     ----------
     range_reduction_method
-        The method to be used to map float to int.
-        linear: linear rescaling the range.
-        logistic: logistic according to gerber-chopin-2015.
-        whiten_cholesky, whiten_ZCA, whiten_ZCA_cor:
-            whitening then to uniform using their respective method.
+        The method to be used to map float to int:
 
-    The support is the full range of float.
+        - ``linear``: linear rescaling the range.
+        - ``logistic``: logistic according to Gerber & Chopin (2015).
+        - ``whiten_cholesky``, ``whiten_ZCA``, ``whiten_ZCA_cor``:
+          whitening then to uniform using their respective method.
     """
 
     range_reduction_method: str = "linear"

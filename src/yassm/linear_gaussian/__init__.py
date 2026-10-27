@@ -445,6 +445,8 @@ class AbstractFit:
             a sequence of color of at least 12 elements. Every 2 colors must be pair of light and dark.
             If None, `sns.color_palette("Paired")` is used.
 
+        Notes
+        -----
         TODO: refactor to a DataFrame first and plot from its data.
         """
         import matplotlib.pyplot as plt
@@ -491,7 +493,7 @@ class AbstractFit:
             )
         )
 
-        str_CI = f" w/ ${(1.0 - α) * 100.0:.3g} \\%%$ C.I." if n_std is None else f" w/ {n_std:.3g}σ C.I."
+        str_CI = f" w/ ${(1.0 - α) * 100.0:.3g} \\%$ C.I." if n_std is None else f" w/ {n_std:.3g}σ C.I."
 
         colors = colors_obs
         if plot_obs:
@@ -1503,8 +1505,10 @@ class GeneralLinearGaussianStateSpaceModel(GenericLinearGaussianStateSpaceModel)
     param_names
         list of names of the parameters.
 
+    Notes
+    -----
     Y is of n-dimension,
-    X is of d-dimension.
+    X is of d-dimension::
 
         X_0 ~ N(μ_0, Γ_0)
         X_t = A_t X_(t-1) + U_t
@@ -1832,6 +1836,8 @@ class GeneralLinearGaussianStateSpaceModel(GenericLinearGaussianStateSpaceModel)
             N
                 Number of samples to generate.
 
+            Notes
+            -----
             Modified from `kalman_smoothing_inplace` as they share
             the same prerequisites.
             """

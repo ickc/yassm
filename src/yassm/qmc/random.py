@@ -37,10 +37,12 @@ def gaussian_transform(
     cov
         the covariance matrix, shape of (d, d). If None, assume standard Gaussian, i.e. cov = np.eye(d).
     method
-        cholesky: Cholesky decomposition, fastest.
-        ZCA_cor: ZCA-cor whitening transformation. See eq. 11 from the reference.
-        rosenblatt, ZCA: Rosenblatt transform, also called ZCA in the context of Gaussian.
+        - ``cholesky``: Cholesky decomposition, fastest.
+        - ``ZCA_cor``: ZCA-cor whitening transformation. See eq. 11 from the reference.
+        - ``rosenblatt``, ``ZCA``: Rosenblatt transform, also called ZCA in the context of Gaussian.
 
+    Notes
+    -----
     U(0, 1)^d to N(0, Σ)
 
     Kessy, Agnan, Alex Lewin, and Korbinian Strimmer. “Optimal Whitening and Decorrelation.” The American Statistician 72, no. 4 (October 2, 2018): 309–14. https://doi.org/10.1080/00031305.2016.1277159.
@@ -83,10 +85,12 @@ def whitening_transform(
     cov
         the covariance matrix, shape of (d, d). If None, use sample covariance.
     method
-        ZCA: ZCA whitening
-        cholesky: Cholesky decomposition
-        ZCA_cor: ZCA-cor whitening transformation
+        - ``ZCA``: ZCA whitening
+        - ``cholesky``: Cholesky decomposition
+        - ``ZCA_cor``: ZCA-cor whitening transformation
 
+    Notes
+    -----
     These are inverse of gaussian_transform with corresponding method,
     except for cholesky because of the cholesky-inv ordering
     """
@@ -158,16 +162,15 @@ class HaltonSequence:
         cov
             the covariance matrix, shape of (d, d)
         method
-            the method to use, "cholesky", "rosenblatt", or "ZCA_cor".
-            Default is "cholesky",
-            cholesky is faster than rosenblatt,
-            ZCA_cor is optimal.
+            the method to use, ``"cholesky"`` (default), ``"rosenblatt"``, or ``"ZCA_cor"``:
+            cholesky is faster than rosenblatt, ZCA_cor is optimal.
         range_reduction_method
-            The method to be used to map float to int.
-            linear: linear rescaling the range.
-            logistic: logistic according to gerber-chopin-2015.
-            whiten_cholesky, whiten_ZCA, whiten_ZCA_cor:
-                whitening then to uniform using their respective method.
+            The method to be used to map float to int:
+
+            - ``linear``: linear rescaling the range.
+            - ``logistic``: logistic according to Gerber & Chopin (2015).
+            - ``whiten_cholesky``, ``whiten_ZCA``, ``whiten_ZCA_cor``:
+              whitening then to uniform using their respective method.
         """
         h = self.to_hilbert_curve()
         h.sort()
