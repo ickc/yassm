@@ -174,3 +174,34 @@ def test_top_level_exports() -> None:
     assert set(yassm.__all__) <= set(dir(yassm))
     with pytest.raises(AttributeError, match="no attribute"):
         yassm.NoSuchThing  # noqa: B018
+
+
+@pytest.mark.parametrize("model_name", ["local_level_model", "local_ratio_model", "local_linear_model"])
+def test_posterior_normal_approximation(model_name: str) -> None:
+    """The Hessian at the MLE works for the built-in models and gives a positive definite covariance."""
+    pytest.importorskip("numdifftools")
+    import yassm
+
+    rng = np.random.default_rng(42)
+    x = np.cumsum(rng.normal(size=300))
+    d = 1
+    if model_name == "local_linear_model":
+        x = np.cumsum(x) / 10.0
+        d = 2
+    y = x + rng.normal(scale=2.0, size=x.size)
+
+    model = getattr(yassm, model_name)
+    n_params = len(model.param_names)
+    fit = model.fit(
+        y,
+        None,
+        np.zeros(d),
+        1e8 * np.identity(d),
+        mle_method="scipy_minimize",
+        mle_n_iter=1,
+        mle_kwargs={"bounds": [(1e-8, None)] * 2 + [(None, None)] * (n_params - 2)},
+    )
+    cov = fit.posterior_normal_approximation_cov
+    assert cov.shape == (n_params, n_params)
+    np.testing.assert_allclose(cov, cov.T, rtol=1e-6)
+    assert np.all(np.linalg.eigvalsh(cov) > 0.0)
