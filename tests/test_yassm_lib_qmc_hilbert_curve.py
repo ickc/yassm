@@ -9,7 +9,6 @@ from yassm.qmc.hilbert_curve import HilbertCurveFloat01, HilbertCurveInt
 
 
 def test_hilbert_sort() -> None:
-    N = 9  # 9 points
     m = 3  # order of Hilbert curve
     array = np.array(
         [

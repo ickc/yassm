@@ -18,3 +18,29 @@ def test_sqrt_diag() -> None:
         )
     )
     np.testing.assert_array_equal(res, ref)
+
+
+def test_import_does_not_require_optional_dependencies() -> None:
+    """Importing every module must only need the core dependencies (numba, numpy, scipy)."""
+    import subprocess
+    import sys
+
+    code = """
+import pkgutil, importlib, sys
+import yassm
+for m in pkgutil.walk_packages(yassm.__path__, "yassm."):
+    importlib.import_module(m.name)
+optional = ("pandas", "matplotlib", "seaborn", "numdifftools", "statsmodels")
+print(",".join(m for m in optional if m in sys.modules))
+"""
+    res = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, check=True)
+    assert res.stdout.strip() == ""
+
+
+def test_import_is_quiet() -> None:
+    """A library should not configure logging on import."""
+    import logging
+
+    import yassm  # noqa: F401
+
+    assert all(isinstance(h, logging.NullHandler) for h in logging.getLogger("yassm").handlers)
