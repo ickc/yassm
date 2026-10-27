@@ -13,7 +13,7 @@ import numpy as np
 from numba import jit
 
 from tests import y
-from yassm.grid.one_dimension import General1DStateSpaceModel
+from yassm.grid.one_dimension import GridFilterModel
 from yassm.lib.grid.one_dimension import prob_normal
 from yassm.linear_gaussian.model.local_level import local_level_model
 
@@ -73,7 +73,7 @@ class TestGrid(TestCase):
         x_f = y_mid + r * y_range
         p_0 = np.full(G, 1.0 / G)
 
-        mod = General1DStateSpaceModel(
+        mod = GridFilterModel(
             2,
             transition_func,
             design_func,

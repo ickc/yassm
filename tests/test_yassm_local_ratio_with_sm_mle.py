@@ -14,7 +14,7 @@ from .test_yassm_local_ratio_with_sm import LocalRatioModel
 if TYPE_CHECKING:
     from typing import Any
 
-    from yassm.linear_gaussian import GeneralLinearGaussianStateSpaceModelFit
+    from yassm.linear_gaussian import LinearGaussianFit
 
 
 class TestLinearGaussianLocalRatioEM(TestCase):
@@ -39,7 +39,7 @@ class TestLinearGaussianLocalRatioEM(TestCase):
         mod = LocalRatioModel(self.y, m0=self.μ_0, C0=self.Γ_0)
         return mod.fit()
 
-    def setUpYassm(self) -> GeneralLinearGaussianStateSpaceModelFit:
+    def setUpYassm(self) -> LinearGaussianFit:
         # param = np.empty(3)
         # param[:2] = self.y.var()
         # param[2] = 1.0

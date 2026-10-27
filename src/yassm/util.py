@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import logging
 import os
+import sys
+import warnings
 from logging import Formatter
 from typing import TYPE_CHECKING
 
@@ -84,3 +86,33 @@ def as_scipy_objective(func: Callable[..., float]) -> Callable[..., float]:
             return np.inf
 
     return wrapped
+
+
+def deprecated_aliases(module: str, aliases: dict[str, str]) -> Callable[[str], Any]:
+    """Return a module ``__getattr__`` resolving deprecated names with a `DeprecationWarning`.
+
+    Parameters
+    ----------
+    module
+        ``__name__`` of the module defining the new names.
+    aliases
+        Mapping from each deprecated name to its replacement.
+
+    Examples
+    --------
+    >>> __getattr__ = deprecated_aliases(__name__, {"OldName": "NewName"})  # doctest: +SKIP
+    """
+
+    def __getattr__(name: str) -> Any:
+        try:
+            new = aliases[name]
+        except KeyError:
+            raise AttributeError(f"module {module!r} has no attribute {name!r}") from None
+        warnings.warn(
+            f"{module}.{name} is deprecated, use {module}.{new} instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return getattr(sys.modules[module], new)
+
+    return __getattr__

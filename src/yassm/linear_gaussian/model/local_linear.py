@@ -7,7 +7,7 @@ import numpy as np
 
 from ...lib.linear_gaussian.model.local_linear import A0, B0, R0, Σ0
 from ...lib.linear_gaussian.model.local_linear import sampling_parameters as _sampling_parameters
-from .. import GeneralLinearGaussianStateSpaceModel
+from .. import LinearGaussianModel
 
 if TYPE_CHECKING:
     import numpy.typing as npt
@@ -16,7 +16,7 @@ if TYPE_CHECKING:
 
 
 @dataclass
-class LocalLinearModel(GeneralLinearGaussianStateSpaceModel):
+class LocalLinearModel(LinearGaussianModel):
     @property
     def sampling_parameters(self) -> SamplingParameters:
         return _sampling_parameters

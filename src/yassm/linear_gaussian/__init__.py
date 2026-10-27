@@ -27,7 +27,7 @@ from ..lib.linear_gaussian import (
     one_step_ahead_inplace,
     smoothing_backward_recursion_inplace,
 )
-from ..util import as_c_array, as_scipy_objective
+from ..util import as_c_array, as_scipy_objective, deprecated_aliases
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Sequence
@@ -639,13 +639,13 @@ class AbstractFit:
 
 
 @dataclass
-class GeneralLinearGaussianStateSpaceModelFit(AbstractFit):
+class LinearGaussianFit(AbstractFit):
     """A class performing the General linear gaussian state space model pipelines.
 
     Parameters
     ----------
     parent
-        a GenericLinearGaussianStateSpaceModel instance.
+        a BaseLinearGaussianModel instance.
     y
         observed data (Y)
     params
@@ -672,7 +672,7 @@ class GeneralLinearGaussianStateSpaceModelFit(AbstractFit):
         optional names of parameters
     """
 
-    parent: GenericLinearGaussianStateSpaceModel
+    parent: BaseLinearGaussianModel
     _y: npt.ArrayLike
     _params: npt.ArrayLike
     _μ_0: npt.ArrayLike
@@ -1237,7 +1237,7 @@ class GeneralLinearGaussianStateSpaceModelFit(AbstractFit):
 
 
 @dataclass
-class GenericLinearGaussianStateSpaceModel:
+class BaseLinearGaussianModel:
     """Abstract class for any linear gaussian state space model.
 
     Parameters
@@ -1422,8 +1422,8 @@ class GenericLinearGaussianStateSpaceModel:
         gibbs_burn_in: int = 0,
         t: npt.NDArray[Any] | None = None,
         param_names: list[str] | None = None,
-    ) -> GeneralLinearGaussianStateSpaceModelFit:
-        """Return a GeneralLinearGaussianStateSpaceModelFit instance.
+    ) -> LinearGaussianFit:
+        """Return a LinearGaussianFit instance.
 
         Parameters
         ----------
@@ -1453,7 +1453,7 @@ class GenericLinearGaussianStateSpaceModel:
         # using default if exists
         if not mle_kwargs and hasattr(self, "mle_kwargs"):
             mle_kwargs = self.mle_kwargs  # type: ignore[attr-defined]
-        return GeneralLinearGaussianStateSpaceModelFit(
+        return LinearGaussianFit(
             self,
             y,
             params,
@@ -1471,7 +1471,7 @@ class GenericLinearGaussianStateSpaceModel:
 
 
 @dataclass
-class GeneralLinearGaussianStateSpaceModel(GenericLinearGaussianStateSpaceModel):
+class LinearGaussianModel(BaseLinearGaussianModel):
     """General linear gaussian state space model.
 
     Parameters
@@ -2164,3 +2164,13 @@ class GeneralLinearGaussianStateSpaceModel(GenericLinearGaussianStateSpaceModel)
             return res
 
         return neg2_log_likelihood
+
+
+__getattr__ = deprecated_aliases(
+    __name__,
+    {
+        "GeneralLinearGaussianStateSpaceModelFit": "LinearGaussianFit",
+        "GeneralLinearGaussianStateSpaceModel": "LinearGaussianModel",
+        "GenericLinearGaussianStateSpaceModel": "BaseLinearGaussianModel",
+    },
+)

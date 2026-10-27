@@ -17,7 +17,7 @@ from ..lib.grid.one_dimension import (
     ps_to_mQ,
     smoothing_backward_recursion_inplace,
 )
-from ..util import as_c_array, as_scipy_objective
+from ..util import as_c_array, as_scipy_objective, deprecated_aliases
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -100,8 +100,8 @@ logger = getLogger(__name__)
 
 
 @dataclass
-class General1DStateSpaceModelFit:
-    parent: General1DStateSpaceModel
+class GridFilterFit:
+    parent: GridFilterModel
     y: npt.NDArray[np.float64]
     params: npt.NDArray[np.float64]
     p_0: npt.NDArray[np.float64]
@@ -227,7 +227,7 @@ class General1DStateSpaceModelFit:
 
 
 @dataclass
-class General1DStateSpaceModel:
+class GridFilterModel:
     N: int
     transition_func: TransitionFunc
     design_func: DesignFunc
@@ -565,7 +565,7 @@ class General1DStateSpaceModel:
 
     def mle(self, method: str = "scipy_minimize") -> Mle:
         """
-        Similar to `yassm.linear_gaussian.GeneralLinearGaussianStateSpaceModel.mle`.
+        Similar to `yassm.linear_gaussian.LinearGaussianModel.mle`.
         """
         method_lower = method.lower()
         if method_lower != "scipy_minimize":
@@ -624,8 +624,8 @@ class General1DStateSpaceModel:
         mle_kwargs: dict[Any, Any] | None = None,
         t: npt.NDArray[Any] | None = None,
         param_names: list[str] | None = None,
-    ) -> General1DStateSpaceModelFit:
-        return General1DStateSpaceModelFit(
+    ) -> GridFilterFit:
+        return GridFilterFit(
             self,
             y,
             params,
@@ -637,3 +637,12 @@ class General1DStateSpaceModel:
             t=t,
             param_names=param_names or self.param_names,
         )
+
+
+__getattr__ = deprecated_aliases(
+    __name__,
+    {
+        "General1DStateSpaceModelFit": "GridFilterFit",
+        "General1DStateSpaceModel": "GridFilterModel",
+    },
+)

@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+import importlib
+
 import numpy as np
+import pytest
 
 from yassm.lib import sqrt_diag
 
@@ -46,17 +49,45 @@ def test_import_is_quiet() -> None:
     assert all(isinstance(h, logging.NullHandler) for h in logging.getLogger("yassm").handlers)
 
 
-def test_deprecated_aliases() -> None:
-    from yassm.lib.qmc import hilbert_curve_full_range
-    from yassm.particle_filter import (
-        GeneralNonLinearBootstrapParticleFilterStateSpaceModel,
-        GeneralNonLinearBootstrapParticleFitlerStateSpaceModel,
-    )
+@pytest.mark.parametrize(
+    ("module", "old", "new"),
+    [
+        ("yassm.linear_gaussian", "GeneralLinearGaussianStateSpaceModel", "LinearGaussianModel"),
+        ("yassm.linear_gaussian", "GeneralLinearGaussianStateSpaceModelFit", "LinearGaussianFit"),
+        ("yassm.linear_gaussian", "GenericLinearGaussianStateSpaceModel", "BaseLinearGaussianModel"),
+        ("yassm.grid.one_dimension", "General1DStateSpaceModel", "GridFilterModel"),
+        ("yassm.grid.one_dimension", "General1DStateSpaceModelFit", "GridFilterFit"),
+        ("yassm.particle_filter", "GenericParticleFilterStateSpaceModel", "BaseParticleFilterModel"),
+        ("yassm.particle_filter", "GenericParticleFilterStateSpaceModelFit", "ParticleFilterFit"),
+        (
+            "yassm.particle_filter",
+            "GeneralLinearGaussianParticleFilterStateSpaceModel",
+            "LinearGaussianParticleFilterModel",
+        ),
+        (
+            "yassm.particle_filter",
+            "GeneralNonLinearBootstrapParticleFilterStateSpaceModel",
+            "NonLinearParticleFilterModel",
+        ),
+        (
+            "yassm.particle_filter",
+            "GeneralNonLinearBootstrapParticleFitlerStateSpaceModel",
+            "NonLinearParticleFilterModel",
+        ),
+        ("yassm.lib.qmc.hilbert_curve_full_range", "hilber_sort_inplace_func", "hilbert_sort_inplace_func"),
+    ],
+)
+def test_deprecated_aliases(module: str, old: str, new: str) -> None:
+    mod = importlib.import_module(module)
+    with pytest.warns(DeprecationWarning, match=old):
+        assert getattr(mod, old) is getattr(mod, new)
 
-    assert (
-        GeneralNonLinearBootstrapParticleFitlerStateSpaceModel is GeneralNonLinearBootstrapParticleFilterStateSpaceModel
-    )
-    assert hilbert_curve_full_range.hilber_sort_inplace_func is hilbert_curve_full_range.hilbert_sort_inplace_func
+
+def test_unknown_attribute_raises() -> None:
+    import yassm.particle_filter
+
+    with pytest.raises(AttributeError, match="no attribute"):
+        yassm.particle_filter.NoSuchThing  # noqa: B018
 
 
 def test_fit_accepts_readonly_input() -> None:
@@ -112,3 +143,4 @@ def test_as_scipy_objective_singular() -> None:
         return np.linalg.inv(np.diag(x)).sum()
 
     assert as_scipy_objective(f)(np.array([0.0, 1.0])) == np.inf
+

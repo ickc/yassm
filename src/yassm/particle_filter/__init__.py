@@ -12,8 +12,8 @@ from numba import get_num_threads, jit, objmode, prange
 
 from ..lib import random_choice_weighted_inplace, sqrt_diag
 from ..lib.linear_gaussian import cov_from_samples
-from ..linear_gaussian import AbstractFit, GeneralLinearGaussianStateSpaceModel, GenericLinearGaussianStateSpaceModel
-from ..util import as_c_array, as_scipy_objective
+from ..linear_gaussian import AbstractFit, BaseLinearGaussianModel, LinearGaussianModel
+from ..util import as_c_array, as_scipy_objective, deprecated_aliases
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -134,13 +134,13 @@ SQRT_2Π_INV = 1.0 / np.sqrt(2.0 * np.pi)
 
 
 @dataclass
-class GenericParticleFilterStateSpaceModelFit(AbstractFit):
+class ParticleFilterFit(AbstractFit):
     """A class performing the particle filter state space model pipelines.
 
     Parameters
     ----------
     parent
-        a GenericParticleFilterStateSpaceModel instance.
+        a BaseParticleFilterModel instance.
     y
         observed data (Y)
     params
@@ -165,7 +165,7 @@ class GenericParticleFilterStateSpaceModelFit(AbstractFit):
     TODO: tailor for particle filter
     """
 
-    parent: GenericParticleFilterStateSpaceModel
+    parent: BaseParticleFilterModel
     _y: npt.ArrayLike
     _params: npt.ArrayLike
     mle_method: str = "scipy_minimize"
@@ -424,10 +424,10 @@ class GenericParticleFilterStateSpaceModelFit(AbstractFit):
         return -self.parent.neg_log_likelihood_from_w_t(self.w_t)
 
 
-# TODO: refactor s.t. both this and GenericLinearGaussianStateSpaceModel
+# TODO: refactor s.t. both this and BaseLinearGaussianModel
 # are based on an abstract class
 @dataclass
-class GenericParticleFilterStateSpaceModel(GenericLinearGaussianStateSpaceModel):
+class BaseParticleFilterModel(BaseLinearGaussianModel):
     """Generic particle filter state space model.
 
     Parameters
@@ -834,8 +834,8 @@ class GenericParticleFilterStateSpaceModel(GenericLinearGaussianStateSpaceModel)
         n_sample: int = 0,
         t: npt.NDArray[Any] | None = None,
         param_names: list[str] | None = None,
-    ) -> GenericParticleFilterStateSpaceModelFit:
-        """Return a GenericParticleFilterStateSpaceModelFit instance.
+    ) -> ParticleFilterFit:
+        """Return a ParticleFilterFit instance.
 
         Parameters
         ----------
@@ -865,7 +865,7 @@ class GenericParticleFilterStateSpaceModel(GenericLinearGaussianStateSpaceModel)
         # using default if exists
         if not mle_kwargs and hasattr(self, "mle_kwargs"):
             mle_kwargs = self.mle_kwargs  # type: ignore[attr-defined]
-        return GenericParticleFilterStateSpaceModelFit(
+        return ParticleFilterFit(
             self,
             y,
             params,
@@ -991,14 +991,14 @@ class GenericParticleFilterStateSpaceModel(GenericLinearGaussianStateSpaceModel)
 
 
 @dataclass
-class GeneralLinearGaussianParticleFilterStateSpaceModel(  # type: ignore[misc]  # inheritance issue in method forecast
-    GenericParticleFilterStateSpaceModel, GeneralLinearGaussianStateSpaceModel
+class LinearGaussianParticleFilterModel(  # type: ignore[misc]  # inheritance issue in method forecast
+    BaseParticleFilterModel, LinearGaussianModel
 ):
     """General particle filter in the special case of linear Gaussian state space model."""
 
     def __post_init__(self) -> None:
-        GeneralLinearGaussianStateSpaceModel.__post_init__(self)
-        GenericParticleFilterStateSpaceModel.__post_init__(self)
+        LinearGaussianModel.__post_init__(self)
+        BaseParticleFilterModel.__post_init__(self)
         # in this model X0 is the only way to pass μ_0, Γ_0
         assert self.X0 is not None
         self.X0: Callable[[npt.NDArray[np.float64]], tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]]]
@@ -1360,7 +1360,7 @@ class GeneralLinearGaussianParticleFilterStateSpaceModel(  # type: ignore[misc] 
         }[self.particle_filter_method]
 
     # TODO: refactor classes
-    # We really only need __post_init__ from GeneralLinearGaussianStateSpaceModel
+    # We really only need __post_init__ from LinearGaussianModel
 
     @cached_property
     def kalman_filtering_inplace(self) -> Any:
@@ -1428,7 +1428,7 @@ class GeneralLinearGaussianParticleFilterStateSpaceModel(  # type: ignore[misc] 
 
 
 @dataclass
-class GeneralNonLinearBootstrapParticleFilterStateSpaceModel(GenericParticleFilterStateSpaceModel):
+class NonLinearParticleFilterModel(BaseParticleFilterModel):
     r"""General non-linear bootstrap particle filter state space model.
 
     Parameters
@@ -1556,5 +1556,13 @@ class GeneralNonLinearBootstrapParticleFilterStateSpaceModel(GenericParticleFilt
         return self.state_to_obs
 
 
-#: Deprecated misspelt alias kept for backward compatibility.
-GeneralNonLinearBootstrapParticleFitlerStateSpaceModel = GeneralNonLinearBootstrapParticleFilterStateSpaceModel
+__getattr__ = deprecated_aliases(
+    __name__,
+    {
+        "GenericParticleFilterStateSpaceModelFit": "ParticleFilterFit",
+        "GenericParticleFilterStateSpaceModel": "BaseParticleFilterModel",
+        "GeneralLinearGaussianParticleFilterStateSpaceModel": "LinearGaussianParticleFilterModel",
+        "GeneralNonLinearBootstrapParticleFilterStateSpaceModel": "NonLinearParticleFilterModel",
+        "GeneralNonLinearBootstrapParticleFitlerStateSpaceModel": "NonLinearParticleFilterModel",
+    },
+)

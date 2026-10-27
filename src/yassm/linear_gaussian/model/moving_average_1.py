@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 from ...lib.linear_gaussian.model.moving_average_1 import A0, B0, R0, X0, Σ0
-from .. import GeneralLinearGaussianStateSpaceModel
+from .. import LinearGaussianModel
 
-moving_average_1_model = GeneralLinearGaussianStateSpaceModel(
+moving_average_1_model = LinearGaussianModel(
     2,
     A0,
     B0,

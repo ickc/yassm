@@ -7,7 +7,7 @@ import numpy as np
 from numba import jit
 
 from tests import y, y_nan
-from yassm.linear_gaussian import GeneralLinearGaussianStateSpaceModel
+from yassm.linear_gaussian import LinearGaussianModel
 from yassm.linear_gaussian.model.local_level import local_level_model
 from yassm.linear_gaussian.model.local_ratio import local_ratio_model
 
@@ -41,7 +41,7 @@ def R0(params: npt.NDArray[np.float64]) -> npt.NDArray[np.float64]:
     return np.array([[params[0]]])
 
 
-local_level_model_general = GeneralLinearGaussianStateSpaceModel(
+local_level_model_general = LinearGaussianModel(
     2,
     A0,
     B0,
