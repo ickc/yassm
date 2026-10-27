@@ -67,7 +67,7 @@ def get_grid_to_position(
 ) -> Callable[[int], float]:
     """Compile grid_to_position given args.
 
-    Signiture is similar to `numpy.linspace(x_0, x_f, G)`.
+    Signature is similar to `numpy.linspace(x_0, x_f, G)`.
     """
 
     @jit(["f8(i8)", "f8[::1](i8[::1])"], nopython=True, nogil=True, cache=False)
@@ -119,10 +119,15 @@ def one_step_ahead_inplace(
 ) -> None:
     """One-step ahead prediction inplace.
 
-    :param p_s_given_t: output array, must be intialized with zeros.
-    :param transition_func: a function of (x_t, x_tMinus1, params) returning the
+    Parameters
+    ----------
+    p_s_given_t
+        output array, must be initialized with zeros.
+    transition_func
+        a function of (x_t, x_tMinus1, params) returning the
         density at x_t given previous step at x_tMinus1.
-    :param grid_to_position: a function from grid index to grid position.
+    grid_to_position
+        a function from grid index to grid position.
     """
     G = p_sMinus1_given_t.size
 
@@ -151,10 +156,15 @@ def filter_update_inplace(
 ) -> None:
     """Filter update inplace.
 
-    :param p_t_given_t: output array, must be intialized with zeros.
-    :param design_func: a function of (y_t, x_t, params) returning the
+    Parameters
+    ----------
+    p_t_given_t
+        output array, must be initialized with zeros.
+    design_func
+        a function of (y_t, x_t, params) returning the
         density at y_t given X_t = x_t.
-    :param grid_to_position: a function from grid index to grid position.
+    grid_to_position
+        a function from grid index to grid position.
     """
     G = p_t_given_tMinus1.size
 
@@ -178,10 +188,15 @@ def smoothing_backward_recursion_inplace(
 ) -> None:
     """Smoothing backward recursion inplace.
 
-    :param p_s_given_t: output array, must be intialized with zeros.
-    :param transition_func: a function of (x_t, x_tMinus1, params) returning the
+    Parameters
+    ----------
+    p_s_given_t
+        output array, must be initialized with zeros.
+    transition_func
+        a function of (x_t, x_tMinus1, params) returning the
         density at x_t given previous step at x_tMinus1.
-    :param grid_to_position: a function from grid index to grid position.
+    grid_to_position
+        a function from grid index to grid position.
     """
     G = p_s_given_t.size
 

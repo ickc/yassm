@@ -258,12 +258,24 @@ class General1DStateSpaceModel:
             p_0: npt.NDArray[np.float64],
         ) -> None:
             """
-            :param p_t_given_tMinus1: out array.
-            :param p_t_given_t: out array.
-            :param y: data.
-            :param params: params.
-            :param p_0: initial density.
-            :return: p_t_given_tMinus1, p_t_given_t
+
+            Parameters
+            ----------
+            p_t_given_tMinus1
+                out array.
+            p_t_given_t
+                out array.
+            y
+                data.
+            params
+                params.
+            p_0
+                initial density.
+
+            Returns
+            -------
+            None
+                p_t_given_tMinus1, p_t_given_t
             """
             size = y.shape[0]
 
@@ -439,10 +451,20 @@ class General1DStateSpaceModel:
             p_0: npt.NDArray[np.float64],
         ) -> float:
             """
-            :param y: data.
-            :param params: params.
-            :param p_0: initial density.
-            :return: negative log-likelihood up to a constant
+
+            Parameters
+            ----------
+            y
+                data.
+            params
+                params.
+            p_0
+                initial density.
+
+            Returns
+            -------
+            float
+                negative log-likelihood up to a constant
 
             Modified from Kalman filter.
             """
@@ -557,7 +579,7 @@ class General1DStateSpaceModel:
         ) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]]:
             """Calculate MLE from log-likelihood using scipy.optimize.minimize.
 
-            Tips: include `bounds` for constrainted variables.
+            Tips: include `bounds` for constrained variables.
             """
             from scipy.optimize import minimize
 
@@ -579,7 +601,7 @@ class General1DStateSpaceModel:
             opt = minimize(neg_log_likelihood, params0, args=(y, p_0), callback=callback, **kwargs)
             msg = opt.message
             if not opt.success:
-                raise RuntimeError(f"MLE unccessful with message: {msg}")
+                raise RuntimeError(f"MLE unsuccessful with message: {msg}")
             logger.info("MLE constructed with message: %s", msg)
             return opt.x, np.array(chain)
 

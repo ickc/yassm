@@ -106,7 +106,10 @@ class AbstractHilbertCurve:
     ) -> FigAx:
         """Plot the Hilbert curve.
 
-        :param kwargs: kwargs for `ax.plot`
+        Parameters
+        ----------
+        kwargs
+            kwargs for `ax.plot`
         """
         if self.dimension == 2:
             return self.plot_2d(ax=ax, **kwargs)
@@ -233,7 +236,10 @@ class HilbertCurveFloat01(AbstractHilbertCurveFloat):
 class HilbertCurveFloat(AbstractHilbertCurveFloat):
     """Hilbert curve with float domain.
 
-    :param range_reduction_method: The method to be used to map float to int.
+    Parameters
+    ----------
+    range_reduction_method
+        The method to be used to map float to int.
         linear: linear rescaling the range.
         logistic: logistic according to gerber-chopin-2015.
         whiten_cholesky, whiten_ZCA, whiten_ZCA_cor:
@@ -278,7 +284,7 @@ class HilbertCurveFloat(AbstractHilbertCurveFloat):
             )
         # below should always work including whitening but slower
         # as f8_to_u8 is doing matrix multiplication when whitening
-        # i.e. it performed a redandant matrix multiplication d times
+        # i.e. it performed a redundant matrix multiplication d times
         else:
             gen_f8_to_u8_args = gen_f8_to_u8_args_func[self.range_reduction_method]
             args = gen_f8_to_u8_args(self.array)

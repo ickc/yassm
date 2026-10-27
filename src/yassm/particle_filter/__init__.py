@@ -136,16 +136,28 @@ SQRT_2Π_INV = 1.0 / np.sqrt(2.0 * np.pi)
 class GenericParticleFilterStateSpaceModelFit(AbstractFit):
     """A class performing the particle filter state space model pipelines.
 
-    :param parent: a GenericParticleFilterStateSpaceModel instance.
-    :param y: observed data (Y)
-    :param params: parameters of the model
-    :param mle_method: method used to estimate MLE
-    :param mle_n_iter: number of iteration run with MLE
-    :param mle_return_chain: if True, return the chain of parameters during MLE
-    :param mle_kwargs: pass to self.parent.mle
-    :param n_sample: number of samples used in FFBSampling algorithm
-    :param t: optional time axis
-    :param param_names: optional names of parameters
+    Parameters
+    ----------
+    parent
+        a GenericParticleFilterStateSpaceModel instance.
+    y
+        observed data (Y)
+    params
+        parameters of the model
+    mle_method
+        method used to estimate MLE
+    mle_n_iter
+        number of iteration run with MLE
+    mle_return_chain
+        if True, return the chain of parameters during MLE
+    mle_kwargs
+        pass to self.parent.mle
+    n_sample
+        number of samples used in FFBSampling algorithm
+    t
+        optional time axis
+    param_names
+        optional names of parameters
 
     TODO: tailor for particle filter
     """
@@ -244,7 +256,10 @@ class GenericParticleFilterStateSpaceModelFit(AbstractFit):
     def _run_particle_filter(self) -> None:
         """Run the particle filter.
 
-        :return: None
+        Returns
+        -------
+        None
+            None
         """
         logger.info("Running particle_filter")
         self._x_t_tilde, self._x_t, self._w_t = self.parent.particle_filter(self.y, self.params, self.n_sample)
@@ -302,7 +317,10 @@ class GenericParticleFilterStateSpaceModelFit(AbstractFit):
     def filtered_obs_samples(self) -> npt.NDArray[np.float64]:
         """Return all samples of filtered states in observation space.
 
-        :return: filtered_obs_samples of shape (size, N, n)
+        Returns
+        -------
+        npt.NDArray[np.float64]
+            filtered_obs_samples of shape (size, N, n)
         """
         return self.parent.smoothed_state_to_obs(self.params, self.x_t, 0)
 
@@ -334,9 +352,17 @@ class GenericParticleFilterStateSpaceModelFit(AbstractFit):
     ) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64], npt.NDArray[np.float64]]:
         """Filtered observations confidence intervals.
 
-        :param α: Confidence level.
-        :param with_obs_cov: Whether to include observation covariance.
-        :return: tuple of 3 arrays of shape (size, n).
+        Parameters
+        ----------
+        α
+            Confidence level.
+        with_obs_cov
+            Whether to include observation covariance.
+
+        Returns
+        -------
+        tuple[npt.NDArray[np.float64], npt.NDArray[np.float64], npt.NDArray[np.float64]]
+            tuple of 3 arrays of shape (size, n).
             They are the lower, central and upper confidence intervals.
         """
         if with_obs_cov:
@@ -360,9 +386,17 @@ class GenericParticleFilterStateSpaceModelFit(AbstractFit):
     ) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64], npt.NDArray[np.float64]]:
         """Forecast with confidence intervals.
 
-        :param T_forecast: Number of forecast time steps.
-        :param α: Confidence level.
-        :return: tuple of 3 arrays of shape (size, n).
+        Parameters
+        ----------
+        T_forecast
+            Number of forecast time steps.
+        α
+            Confidence level.
+
+        Returns
+        -------
+        tuple[npt.NDArray[np.float64], npt.NDArray[np.float64], npt.NDArray[np.float64]]
+            tuple of 3 arrays of shape (size, n).
             They are the lower, central and upper confidence intervals.
         """
         # (size, N, n)
@@ -393,11 +427,16 @@ class GenericParticleFilterStateSpaceModelFit(AbstractFit):
 class GenericParticleFilterStateSpaceModel(GenericLinearGaussianStateSpaceModel):
     """Generic particle filter state space model.
 
-    :param particle_filter_method: Method to use for particle filter, valid options are
+    Parameters
+    ----------
+    particle_filter_method
+        Method to use for particle filter, valid options are
         bootstrap, particle_filter.
-    :param transform_params: For MLE, function from unconstrainted to constrainted space
-        i.e. from optimzation space to parameter space.
-    :param untransform_params: For MLE, function from constrainted to unconstrainted space
+    transform_params
+        For MLE, function from unconstrained to constrained space
+        i.e. from optimization space to parameter space.
+    untransform_params
+        For MLE, function from constrained to unconstrained space
         i.e. from parameter space to optimization space.
     """
 
@@ -459,7 +498,10 @@ class GenericParticleFilterStateSpaceModel(GenericLinearGaussianStateSpaceModel)
         ) -> None:
             """Sampling from q distribution.
 
-            :param x_t_tilde: output buffer.
+            Parameters
+            ----------
+            x_t_tilde
+                output buffer.
 
             For SIR in general,
             or in the case of
@@ -478,7 +520,10 @@ class GenericParticleFilterStateSpaceModel(GenericLinearGaussianStateSpaceModel)
     def sampling_q_inplace(self) -> SamplingQInplace:
         """Sampling from q distribution.
 
-        :param x_t_tilde: output buffer.
+        Parameters
+        ----------
+        x_t_tilde
+            output buffer.
 
         For SIR in general,
         or in the case of
@@ -699,7 +744,7 @@ class GenericParticleFilterStateSpaceModel(GenericLinearGaussianStateSpaceModel)
         untransform_params = self.untransform_params
 
         if transform_params is not None:
-            logger.info("Calculating MLE using transformed parameter space, possibly for unconstrainted optimization.")
+            logger.info("Calculating MLE using transformed parameter space, possibly for unconstrained optimization.")
 
             @jit("f8(f8[::1], f8[:, ::1], i8)", nopython=True, nogil=True, cache=False)
             def minimization_func(
@@ -709,7 +754,10 @@ class GenericParticleFilterStateSpaceModel(GenericLinearGaussianStateSpaceModel)
             ) -> float:
                 """Minimization function for scipy.optimize.minimize.
 
-                :param unconstrained: unconstrained parameters in optimization space.
+                Parameters
+                ----------
+                unconstrained
+                    unconstrained parameters in optimization space.
                 """
                 constrained = transform_params(unconstrained)  # type: ignore[misc]  # type limitation
                 return neg_log_likelihood(constrained, y, N)
@@ -727,7 +775,7 @@ class GenericParticleFilterStateSpaceModel(GenericLinearGaussianStateSpaceModel)
         ) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]]:
             """Calculate MLE from log-likelihood using scipy.optimize.minimize.
 
-            Tips: include `bounds` for constrainted variables.
+            Tips: include `bounds` for constrained variables.
             """
             from scipy.optimize import minimize
 
@@ -755,7 +803,7 @@ class GenericParticleFilterStateSpaceModel(GenericLinearGaussianStateSpaceModel)
             )
             msg = opt.message
             if not opt.success:
-                raise RuntimeError(f"MLE unccessful with message: {msg}")
+                raise RuntimeError(f"MLE unsuccessful with message: {msg}")
             logger.info("MLE constructed with message: %s", msg)
             return opt.x if transform_params is None else transform_params(opt.x), np.array(chain)
 
@@ -780,13 +828,22 @@ class GenericParticleFilterStateSpaceModel(GenericLinearGaussianStateSpaceModel)
     ) -> GenericParticleFilterStateSpaceModelFit:
         """Return a GenericParticleFilterStateSpaceModelFit instance.
 
-            :param y: observed data (Y)
-            :param params: parameters of the model
-            :param mle_method: method used to estimate MLE
-            :param mle_n_iter: number of iteration run with MLE
-            :param mle_return_chain: if True, return the chain of parameters during MLE
-            :param t: optional time axis
-            :param param_names: optional names of parameters
+            Parameters
+            ----------
+            y
+                observed data (Y)
+            params
+                parameters of the model
+            mle_method
+                method used to estimate MLE
+            mle_n_iter
+                number of iteration run with MLE
+            mle_return_chain
+                if True, return the chain of parameters during MLE
+            t
+                optional time axis
+            param_names
+                optional names of parameters
 
         TODO: tailor for particle filter
         """
@@ -873,7 +930,10 @@ class GenericParticleFilterStateSpaceModel(GenericLinearGaussianStateSpaceModel)
         ) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64], npt.NDArray[np.float64]]:
             """Guided particle filter.
 
-            :param N: number of particles.
+            Parameters
+            ----------
+            N
+                number of particles.
             """
             size = y.shape[0]
             # initialize
@@ -947,7 +1007,10 @@ class GeneralLinearGaussianParticleFilterStateSpaceModel(  # type: ignore[misc] 
         ) -> None:
             """Sampling X_0.
 
-            :param x_0: output buffer of shape (d, N).
+            Parameters
+            ----------
+            x_0
+                output buffer of shape (d, N).
 
             For SIR in general,
             or bootstrap particle filter
@@ -984,7 +1047,10 @@ class GeneralLinearGaussianParticleFilterStateSpaceModel(  # type: ignore[misc] 
         ) -> None:
             """Sampling X_0.
 
-            :param x_0_tilde: output buffer.
+            Parameters
+            ----------
+            x_0_tilde
+                output buffer.
 
             This is only used for bootstrap particle filter.
             """
@@ -1018,9 +1084,12 @@ class GeneralLinearGaussianParticleFilterStateSpaceModel(  # type: ignore[misc] 
         ) -> None:
             """One-step ahead prediction.
 
-            :param x_t_given_tMinus1: output buffer.
+            Parameters
+            ----------
+            x_t_given_tMinus1
+                output buffer.
 
-            For forcasting in the case of SIR.
+            For forecasting in the case of SIR.
             For Bootstrap particle filter,
             same as sampling_q_inplace
             where x_t_given_tMinus1 is x_t_tilde.
@@ -1070,7 +1139,10 @@ class GeneralLinearGaussianParticleFilterStateSpaceModel(  # type: ignore[misc] 
         ) -> None:
             """Sampling from q distribution.
 
-            :param x_t_tilde: output buffer.
+            Parameters
+            ----------
+            x_t_tilde
+                output buffer.
 
             For SIR in general,
             or in the case of
@@ -1120,7 +1192,10 @@ class GeneralLinearGaussianParticleFilterStateSpaceModel(  # type: ignore[misc] 
     def sampling_q_inplace(self) -> SamplingQInplace:
         """Sampling from q distribution.
 
-        :param x_t_tilde: output buffer.
+        Parameters
+        ----------
+        x_t_tilde
+            output buffer.
 
         For SIR in general,
         or in the case of
@@ -1150,7 +1225,10 @@ class GeneralLinearGaussianParticleFilterStateSpaceModel(  # type: ignore[misc] 
         ) -> None:
             """Calculate unnormalized weights.
 
-            :param w_t: output buffer.
+            Parameters
+            ----------
+            w_t
+                output buffer.
 
             For SIR in general.
             In the case of
@@ -1197,7 +1275,10 @@ class GeneralLinearGaussianParticleFilterStateSpaceModel(  # type: ignore[misc] 
         ) -> None:
             """Calculate unnormalized weights.
 
-            :param w_t: output buffer.
+            Parameters
+            ----------
+            w_t
+                output buffer.
 
             For SIR in general.
             In the case of
@@ -1233,7 +1314,10 @@ class GeneralLinearGaussianParticleFilterStateSpaceModel(  # type: ignore[misc] 
     def weights_inplace(self) -> WeightsInplace:
         """Calculate unnormalized weights.
 
-        :param w_t: output buffer.
+        Parameters
+        ----------
+        w_t
+            output buffer.
 
         For SIR in general.
         In the case of
@@ -1320,10 +1404,17 @@ class GeneralLinearGaussianParticleFilterStateSpaceModel(  # type: ignore[misc] 
 class GeneralNonLinearBootstrapParticleFitlerStateSpaceModel(GenericParticleFilterStateSpaceModel):
     r"""General non-linear bootstrap particle filter state space model.
 
-    :param pdf_Y_inplace: `pdf_Y_inplace(pdf, y, x, params, t)` writes the probability density of `y` given `x` at time `t` to `pdf`.
-    :param K_t_inplace: `K_t_inplace(x_t, x_tMinus1, u_t, params, t)` computes and write to `x_t` in terms of `x_tMinus1` and `u_t`, where `u_t` is generated below.
-    :param sampling_X0_tilde_inplace: `sampling_X0_tilde_inplace(x_0_tilde, params)` writes samples from `X_0` to `x_0_tilde`.
-    :param sampling_U_t: `sampling_U_t(params, t, N)` returns samples from `U_t` to `u_t` as `u_t`.
+    Parameters
+    ----------
+    pdf_Y_inplace
+        `pdf_Y_inplace(pdf, y, x, params, t)` writes the probability density of `y` given `x` at time `t` to `pdf`.
+    K_t_inplace
+        `K_t_inplace(x_t, x_tMinus1, u_t, params, t)` computes and write to `x_t` in terms of `x_tMinus1` and `u_t`, where `u_t` is generated below.
+    sampling_X0_tilde_inplace
+        `sampling_X0_tilde_inplace(x_0_tilde, params)` writes samples from `X_0` to `x_0_tilde`.
+    sampling_U_t
+        `sampling_U_t(params, t, N)` returns samples from `U_t` to `u_t` as `u_t`.
+
     : param smoothed_state_to_obs: `state_to_obs(params, x_t, t0)` returns the state in observation space.
 
     This implements general non-linear bootstrap particle filter state space model
@@ -1368,7 +1459,10 @@ class GeneralNonLinearBootstrapParticleFitlerStateSpaceModel(GenericParticleFilt
         ) -> None:
             """One-step ahead prediction.
 
-            :param x_t_given_tMinus1: output buffer.
+            Parameters
+            ----------
+            x_t_given_tMinus1
+                output buffer.
             """
             N = x_t_given_tMinus1.shape[0]
             u_t = sampling_U_t(params, t, N)
@@ -1391,7 +1485,10 @@ class GeneralNonLinearBootstrapParticleFitlerStateSpaceModel(GenericParticleFilt
         ) -> None:
             """Calculate unnormalized weights.
 
-            :param w_t: output buffer.
+            Parameters
+            ----------
+            w_t
+                output buffer.
 
             x_tMinus1 is ignored.
             """
@@ -1403,7 +1500,10 @@ class GeneralNonLinearBootstrapParticleFitlerStateSpaceModel(GenericParticleFilt
     def weights_inplace(self) -> WeightsInplace:
         """Calculate unnormalized weights.
 
-        :param w_t: output buffer.
+        Parameters
+        ----------
+        w_t
+            output buffer.
 
         For SIR in general.
         In the case of

@@ -20,7 +20,10 @@ def setup_logging(
 ) -> logging.Logger:
     """Setup logging.
 
-    :param env_var: if not empty, set log level from this environment variable.
+    Parameters
+    ----------
+    env_var
+        if not empty, set log level from this environment variable.
     """
     logger = logging.getLogger(name)
     handler = Handler()

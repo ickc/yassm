@@ -178,13 +178,22 @@ def _partition_inplace_float(
 ) -> int:
     """The function partition arranges data in a similar way as the famous partition function in quick sort.
 
-    :param array: The array to be sorted.
-    :param i_start: The start index of the array.
-    :param i_end: The end index of the array.
-    :param order: The order of interest.
-    :param axis: The axis number to be divided.
-    :param direction: False for ascending, True for descending.
-    :param f8_to_u8: The function to convert float to uint64.
+    Parameters
+    ----------
+    array
+        The array to be sorted.
+    i_start
+        The start index of the array.
+    i_end
+        The end index of the array.
+    order
+        The order of interest.
+    axis
+        The axis number to be divided.
+    direction
+        False for ascending, True for descending.
+    f8_to_u8
+        The function to convert float to uint64.
     """
     N, d = array.shape
     temp = np.empty(d, dtype=array.dtype)
@@ -222,16 +231,28 @@ def _hilbert_sort_inplace(
 ) -> None:
     """Perform Hilbert sort on the array inplace.
 
-    :param array: The array to be sorted.
-    :param i_start: The start index of the array.
-    :param i_end: The end index of the array.
-    :param order: The current order of the Hilbert curve.
-    :param axis_counter: Axis counter in current order.
-    :param axis_start: Start positions of axes.
-    :param axis_division: Axis number of 1st division on current order.
-    :param direction: Direction of previous division. False for ascending, True for descending.
-    :param n_cont_direction: Number of continuous occurrences of direction at same order.
-    :param f8_to_u8: The function to convert float to uint64.
+    Parameters
+    ----------
+    array
+        The array to be sorted.
+    i_start
+        The start index of the array.
+    i_end
+        The end index of the array.
+    order
+        The current order of the Hilbert curve.
+    axis_counter
+        Axis counter in current order.
+    axis_start
+        Start positions of axes.
+    axis_division
+        Axis number of 1st division on current order.
+    direction
+        Direction of previous division. False for ascending, True for descending.
+    n_cont_direction
+        Number of continuous occurrences of direction at same order.
+    f8_to_u8
+        The function to convert float to uint64.
     """
     dimension = array.shape[1]
 
@@ -338,9 +359,13 @@ def hilbert_sort_inplace_linear(
 ) -> None:
     """Perform Hilbert sort on the array inplace.
 
-    :param array: The array to be sorted, dtype of uint64, shape of (N, d),
+    Parameters
+    ----------
+    array
+        The array to be sorted, dtype of uint64, shape of (N, d),
         where N is the number of data, and d is the dimension of data.
-    :param order: The order of the Hilbert curve, 1 <= order <= 64.
+    order
+        The order of the Hilbert curve, 1 <= order <= 64.
     """
     N = array.shape[0]
     if order <= 0 or N < 2:
@@ -370,9 +395,13 @@ def hilbert_sort_inplace_logistic(
 ) -> None:
     """Perform Hilbert sort on the array inplace.
 
-    :param array: The array to be sorted, dtype of uint64, shape of (N, d),
+    Parameters
+    ----------
+    array
+        The array to be sorted, dtype of uint64, shape of (N, d),
         where N is the number of data, and d is the dimension of data.
-    :param order: The order of the Hilbert curve, 1 <= order <= 64.
+    order
+        The order of the Hilbert curve, 1 <= order <= 64.
     """
     N = array.shape[0]
     if order <= 0 or N < 2:
@@ -402,9 +431,13 @@ def hilbert_sort_inplace_whiten_cholesky(
 ) -> None:
     """Perform Hilbert sort on the array inplace.
 
-    :param array: The array to be sorted, dtype of uint64, shape of (N, d),
+    Parameters
+    ----------
+    array
+        The array to be sorted, dtype of uint64, shape of (N, d),
         where N is the number of data, and d is the dimension of data.
-    :param order: The order of the Hilbert curve, 1 <= order <= 64.
+    order
+        The order of the Hilbert curve, 1 <= order <= 64.
     """
     N = array.shape[0]
     if order <= 0 or N < 2:
@@ -434,9 +467,13 @@ def hilbert_sort_inplace_whiten_ZCA(
 ) -> None:
     """Perform Hilbert sort on the array inplace.
 
-    :param array: The array to be sorted, dtype of uint64, shape of (N, d),
+    Parameters
+    ----------
+    array
+        The array to be sorted, dtype of uint64, shape of (N, d),
         where N is the number of data, and d is the dimension of data.
-    :param order: The order of the Hilbert curve, 1 <= order <= 64.
+    order
+        The order of the Hilbert curve, 1 <= order <= 64.
     """
     N = array.shape[0]
     if order <= 0 or N < 2:
@@ -466,9 +503,13 @@ def hilbert_sort_inplace_whiten_ZCA_cor(
 ) -> None:
     """Perform Hilbert sort on the array inplace.
 
-    :param array: The array to be sorted, dtype of uint64, shape of (N, d),
+    Parameters
+    ----------
+    array
+        The array to be sorted, dtype of uint64, shape of (N, d),
         where N is the number of data, and d is the dimension of data.
-    :param order: The order of the Hilbert curve, 1 <= order <= 64.
+    order
+        The order of the Hilbert curve, 1 <= order <= 64.
     """
     N = array.shape[0]
     if order <= 0 or N < 2:

@@ -36,8 +36,12 @@ def prob_normal_1d(
 ) -> npt.NDArray[np.float64]:
     """Probability density of normal distribution.
 
-    :param cov_inv: inverse covariance.
-    :param norm_peak_to_1: Normalize peak to 1.
+    Parameters
+    ----------
+    cov_inv
+        inverse covariance.
+    norm_peak_to_1
+        Normalize peak to 1.
     """
     scale = 1.0 if norm_peak_to_1 else SQRT_2Π_INV * np.sqrt(cov_inv)
     return scale * np.exp(-0.5 * cov_inv * np.square(x - μ))
@@ -52,8 +56,12 @@ def prob_normal(
 ) -> npt.NDArray[np.float64]:
     """Probability density of normal distribution.
 
-    :param Σ_inv: Inverse of covariance matrix.
-    :param norm_peak_to_1: Normalize peak to 1.
+    Parameters
+    ----------
+    Σ_inv
+        Inverse of covariance matrix.
+    norm_peak_to_1
+        Normalize peak to 1.
     """
     n = x.shape[0]
     res = np.empty(n)
@@ -82,9 +90,17 @@ def one_step_ahead(
 ) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]]:
     """Calculate one step ahead prediction.
 
-    :param m_sMinus1_given_t: shape of (d,).
-    :param Q_sMinus1_given_t: shape of (d, d).
-    :return: (m_s_given_t, Q_s_given_t).
+    Parameters
+    ----------
+    m_sMinus1_given_t
+        shape of (d,).
+    Q_sMinus1_given_t
+        shape of (d, d).
+
+    Returns
+    -------
+    tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]]
+        (m_s_given_t, Q_s_given_t).
 
     TODO: delete this as not used?
     """
@@ -109,10 +125,16 @@ def one_step_ahead_inplace(
 ) -> None:
     """Calculate one step ahead prediction.
 
-    :param m_s_given_t: output array to be written.
-    :param Q_s_given_t: output array to be written.
-    :param m_sMinus1_given_t: shape of (d,).
-    :param Q_sMinus1_given_t: shape of (d, d).
+    Parameters
+    ----------
+    m_s_given_t
+        output array to be written.
+    Q_s_given_t
+        output array to be written.
+    m_sMinus1_given_t
+        shape of (d,).
+    Q_sMinus1_given_t
+        shape of (d, d).
     """
     m_s_given_t[:] = A_s @ m_sMinus1_given_t
     Q_s_given_t[:] = A_s @ Q_sMinus1_given_t @ A_s.transpose() + Σ_s
@@ -133,9 +155,17 @@ def filter_update(
 ) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]]:
     """Calculate filter update.
 
-    :param m_t_given_tMinus1: shape of (d,).
-    :param Q_t_given_tMinus1: shape of (d, d).
-    :return: (m_t_given_t, Q_t_given_t).
+    Parameters
+    ----------
+    m_t_given_tMinus1
+        shape of (d,).
+    Q_t_given_tMinus1
+        shape of (d, d).
+
+    Returns
+    -------
+    tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]]
+        (m_t_given_t, Q_t_given_t).
 
     TODO: provide another version using Sherman-Morrison-Woodbury formula
     and dispatch by comparing n, d
@@ -176,10 +206,16 @@ def filter_update_inplace(
 ) -> None:
     """Calculate filter update.
 
-    :param m_t_given_t: output array to be written.
-    :param Q_t_given_t: output array to be written.
-    :param m_t_given_tMinus1: shape of (d,).
-    :param Q_t_given_tMinus1: shape of (d, d).
+    Parameters
+    ----------
+    m_t_given_t
+        output array to be written.
+    Q_t_given_t
+        output array to be written.
+    m_t_given_tMinus1
+        shape of (d,).
+    Q_t_given_tMinus1
+        shape of (d, d).
 
     TODO: provide another version using Sherman-Morrison-Woodbury formula
     and dispatch by comparing n, d
@@ -218,13 +254,25 @@ def smoothing_backward_recursion(
 ) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]]:
     """Calculate filter update.
 
-    :param m_s_given_s: shape of (d,).
-    :param Q_s_given_s: shape of (d, d).
-    :param m_sPlus1_given_t: shape of (d,).
-    :param Q_sPlus1_given_t: shape of (d, d).
-    :param m_sPlus1_given_s: shape of (d,).
-    :param Q_sPlus1_given_s: shape of (d, d).
-    :return: (m_s_given_t, Q_s_given_t).
+    Parameters
+    ----------
+    m_s_given_s
+        shape of (d,).
+    Q_s_given_s
+        shape of (d, d).
+    m_sPlus1_given_t
+        shape of (d,).
+    Q_sPlus1_given_t
+        shape of (d, d).
+    m_sPlus1_given_s
+        shape of (d,).
+    Q_sPlus1_given_s
+        shape of (d, d).
+
+    Returns
+    -------
+    tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]]
+        (m_s_given_t, Q_s_given_t).
 
     TODO: delete this as not used?
     """
@@ -255,14 +303,24 @@ def smoothing_backward_recursion_inplace(
 ) -> None:
     """Calculate filter update.
 
-    :param m_s_given_t: output array to be written.
-    :param Q_s_given_t: output array to be written.
-    :param m_s_given_s: shape of (d,).
-    :param Q_s_given_s: shape of (d, d).
-    :param m_sPlus1_given_t: shape of (d,).
-    :param Q_sPlus1_given_t: shape of (d, d).
-    :param m_sPlus1_given_s: shape of (d,).
-    :param Q_sPlus1_given_s: shape of (d, d).
+    Parameters
+    ----------
+    m_s_given_t
+        output array to be written.
+    Q_s_given_t
+        output array to be written.
+    m_s_given_s
+        shape of (d,).
+    Q_s_given_s
+        shape of (d, d).
+    m_sPlus1_given_t
+        shape of (d,).
+    Q_sPlus1_given_t
+        shape of (d, d).
+    m_sPlus1_given_s
+        shape of (d,).
+    Q_sPlus1_given_s
+        shape of (d, d).
     """
     Γ_sPlus1_transpose = solve(Q_sPlus1_given_s, A_sPlus1 @ Q_s_given_s)
     Γ_sPlus1 = Γ_sPlus1_transpose.transpose()

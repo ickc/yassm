@@ -93,8 +93,15 @@ PRIMES = np.array(
 def choose_halton_n(exp: npt.NDArray[np.int64]) -> int:
     """Return the number of points in a fully-stratified Halton sequence.
 
-    :param exp: The exponent of the Halton sequence.
-    :return: Π_i π_i^exp[i].
+    Parameters
+    ----------
+    exp
+        The exponent of the Halton sequence.
+
+    Returns
+    -------
+    int
+        Π_i π_i^exp[i].
     """
     res: int = 1
     for i in range(exp.size):
@@ -238,10 +245,19 @@ def van_der_corput_sequence_slow(N: int, base: int) -> npt.NDArray[np.float64]:
 def halton_sequence(N: int, d: int, transpose: bool) -> npt.NDArray[np.float64]:
     """Returns the Halton sequence.
 
-    :param N: number of samples
-    :param d: number of dimensions
-    :param transpose: whether to transpose the result. Shape of (N, d) if transpose else (d, N)
-    :return: the Halton sequence
+    Parameters
+    ----------
+    N
+        number of samples
+    d
+        number of dimensions
+    transpose
+        whether to transpose the result. Shape of (N, d) if transpose else (d, N)
+
+    Returns
+    -------
+    npt.NDArray[np.float64]
+        the Halton sequence
     """
     if not (2 <= d < 64):
         raise ValueError("d must be between 2 and 63")

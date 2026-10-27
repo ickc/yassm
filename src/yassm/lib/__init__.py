@@ -64,9 +64,14 @@ def random_choice_weighted(
 ) -> npt.NDArray[np.float64]:
     """weighted random choice with replacement.
 
-    :param: x: 2d-array to be chosen from, shape of (n_bin, d).
-    :param: size: number of samples.
-    :param: p: probability of each element in x, assumes to be positive, shape of (n_bin,) without checking.
+    Parameters
+    ----------
+    x
+        2d-array to be chosen from, shape of (n_bin, d).
+    size
+        number of samples.
+    p
+        probability of each element in x, assumes to be positive, shape of (n_bin,) without checking.
 
     Similar to `np.random.default_rng().choice(x, size=size, p=p)`,
     but p can be non-normalized.

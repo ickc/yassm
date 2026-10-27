@@ -4,7 +4,6 @@ Sort array of uint64 integers using Hilbert sort.
 
 Notes
 -----
-
 0 <= order < 64
 
 Since bit is used on partition_axis/current_axis_division,
@@ -17,30 +16,25 @@ dimension < 64.
 
 Algorithm loop order from m - 1 to 1 asynchronously.
 
-Warning
--------
-
-Somehow when `cache=False`,
-there will be segmantation fault.
-
-TODO: use other Numba/Python versions to see if there is any difference.
+Warnings
+--------
+The recursive functions here must not be cached (``cache=True``): Numba cannot
+reload a cached self-recursive function. The first run works, but every
+subsequent process aborts with ``LLVM ERROR: Symbol not found: ...``.
 
 Types
 -----
+array
+    ``u8`` or ``f8``, shape of (N, d), C-contiguous.
+i_start, i_end, current_partition
+    ``i8`` (indices).
+order, axis_counter, axis_division, current_axis_division, n_cont_direction
+    ``i1``, as they are all < 64.
+axis_start, current_axis_start
+    ``u8``, a bitset of d bits (see `_bitset_flip`).
 
-array: u8
-# index type
-i_start, i_end, current_partition: i8
-order: u1
-axis_counter: u1
-# involved in _bitset_flip
-axis_start, current_axis_start: u8
-axis_division, current_axis_division: 11
-n_cont_direction: i1
-
-Reference
----------
-
+References
+----------
 Imamura, Yasunobu, Takeshi Shinohara, Kouichi Hirata, and Tetsuji Kuboyama. “Fast Hilbert Sort Algorithm Without Using Hilbert Indices.” In Similarity Search and Applications, edited by Laurent Amsaleg, Michael E. Houle, and Erich Schubert, 9939:259–67. Lecture Notes in Computer Science. Cham: Springer International Publishing, 2016. https://doi.org/10.1007/978-3-319-46759-7_20.
 """
 
@@ -112,12 +106,20 @@ def _partition_inplace_int(
 ) -> int:
     """The function partition arranges data in a similar way as the famous partition function in quick sort.
 
-    :param array: The array to be sorted.
-    :param i_start: The start index of the array.
-    :param i_end: The end index of the array.
-    :param order: The order of interest.
-    :param axis: The axis number to be divided.
-    :param direction: False for ascending, True for descending.
+    Parameters
+    ----------
+    array
+        The array to be sorted.
+    i_start
+        The start index of the array.
+    i_end
+        The end index of the array.
+    order
+        The order of interest.
+    axis
+        The axis number to be divided.
+    direction
+        False for ascending, True for descending.
     """
     N, d = array.shape
     temp = np.empty(d, dtype=array.dtype)
@@ -168,12 +170,20 @@ def _partition_inplace_float(
 ) -> int:
     """The function partition arranges data in a similar way as the famous partition function in quick sort.
 
-    :param array: The array to be sorted.
-    :param i_start: The start index of the array.
-    :param i_end: The end index of the array.
-    :param order: The order of interest.
-    :param axis: The axis number to be divided.
-    :param direction: False for ascending, True for descending.
+    Parameters
+    ----------
+    array
+        The array to be sorted.
+    i_start
+        The start index of the array.
+    i_end
+        The end index of the array.
+    order
+        The order of interest.
+    axis
+        The axis number to be divided.
+    direction
+        False for ascending, True for descending.
     """
     N, d = array.shape
     temp = np.empty(d, dtype=array.dtype)
@@ -265,15 +275,26 @@ def _hilbert_sort_inplace(
 ) -> None:
     """Perform Hilbert sort on the array inplace.
 
-    :param array: The array to be sorted.
-    :param i_start: The start index of the array.
-    :param i_end: The end index of the array.
-    :param order: The current order of the Hilbert curve.
-    :param axis_counter: Axis counter in current order.
-    :param axis_start: Start positions of axes.
-    :param axis_division: Axis number of 1st division on current order.
-    :param direction: Direction of previous division. False for ascending, True for descending.
-    :param n_cont_direction: Number of continuous occurrences of direction at same order.
+    Parameters
+    ----------
+    array
+        The array to be sorted.
+    i_start
+        The start index of the array.
+    i_end
+        The end index of the array.
+    order
+        The current order of the Hilbert curve.
+    axis_counter
+        Axis counter in current order.
+    axis_start
+        Start positions of axes.
+    axis_division
+        Axis number of 1st division on current order.
+    direction
+        Direction of previous division. False for ascending, True for descending.
+    n_cont_direction
+        Number of continuous occurrences of direction at same order.
     """
     dimension = array.shape[1]
 
@@ -375,9 +396,13 @@ def hilbert_sort_inplace(
 ) -> None:
     """Perform Hilbert sort on the array inplace.
 
-    :param array: The array to be sorted, dtype of uint64, shape of (N, d),
+    Parameters
+    ----------
+    array
+        The array to be sorted, dtype of uint64, shape of (N, d),
         where N is the number of data, and d is the dimension of data.
-    :param order: The order of the Hilbert curve, 1 <= order <= 64.
+    order
+        The order of the Hilbert curve, 1 <= order <= 64.
     """
     N = array.shape[0]
     if order <= 0 or N < 2:
