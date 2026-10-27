@@ -657,7 +657,8 @@ class LinearGaussianFit(AbstractFit):
     mle_method
         method used to estimate MLE
     mle_n_iter
-        number of iteration run with MLE
+        number of iterations of the MLE (EM or gradient ascent); 0 skips the MLE.
+        Iterative optimisers such as ``scipy_minimize`` run to convergence for any positive value.
     mle_return_chain
         if True, return the chain of parameters during MLE
     mle_kwargs
@@ -1383,7 +1384,7 @@ class BaseLinearGaussianModel:
                 """Store iterations."""
                 chain.append(np.array(xk))
 
-            if n_iter:
+            if n_iter > 1:
                 logger.warning("n_iter %s is ignored when using scipy.optimize.minimize.", n_iter)
 
             chain: list[npt.NDArray[np.float64]] = []
@@ -1450,7 +1451,8 @@ class BaseLinearGaussianModel:
         mle_method
             method used to estimate MLE
         mle_n_iter
-            number of iteration run with MLE
+            number of iterations of the MLE (EM or gradient ascent); 0 skips the MLE.
+            Iterative optimisers such as ``scipy_minimize`` run to convergence for any positive value.
         mle_return_chain
             if True, return the chain of parameters during MLE
         t

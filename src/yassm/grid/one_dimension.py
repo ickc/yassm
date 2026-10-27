@@ -593,7 +593,7 @@ class GridFilterModel:
                 """Store iterations."""
                 chain.append(np.array(xk))
 
-            if n_iter:
+            if n_iter > 1:
                 logger.warning("n_iter %s is ignored when using scipy.optimize.minimize.", n_iter)
 
             chain: list[npt.NDArray[np.float64]] = []

@@ -148,7 +148,8 @@ class ParticleFilterFit(AbstractFit):
     mle_method
         method used to estimate MLE
     mle_n_iter
-        number of iteration run with MLE
+        number of iterations of the MLE (EM or gradient ascent); 0 skips the MLE.
+        Iterative optimisers such as ``scipy_minimize`` run to convergence for any positive value.
     mle_return_chain
         if True, return the chain of parameters during MLE
     mle_kwargs
@@ -213,7 +214,8 @@ class ParticleFilterFit(AbstractFit):
 
         if mle_n_iter:
             logger.info("Using %s for MLE.", self.mle_method)
-            logger.warning("n_iter is ignored.")
+            if mle_n_iter > 1:
+                logger.warning("mle_n_iter %s is ignored by %s.", mle_n_iter, self.mle_method)
             if self.mle_method == "grid_search":
                 params_grid = self.mle_kwargs["params_grid"]
                 ls = self.parent.neg_log_likelihoods(params_grid, y, n_sample)
@@ -791,7 +793,7 @@ class BaseParticleFilterModel(BaseLinearGaussianModel):
                 unconstrained = np.ascontiguousarray(unconstrained, dtype=np.float64)
                 chain.append(np.array(unconstrained) if transform_params is None else transform_params(unconstrained))
 
-            if n_iter:
+            if n_iter > 1:
                 logger.warning("n_iter %s is ignored when using scipy.optimize.minimize.", n_iter)
 
             chain: list[npt.NDArray[np.float64]] = []
@@ -846,7 +848,8 @@ class BaseParticleFilterModel(BaseLinearGaussianModel):
         mle_method
             method used to estimate MLE
         mle_n_iter
-            number of iteration run with MLE
+            number of iterations of the MLE (EM or gradient ascent); 0 skips the MLE.
+            Iterative optimisers such as ``scipy_minimize`` run to convergence for any positive value.
         mle_return_chain
             if True, return the chain of parameters during MLE
         t
