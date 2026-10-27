@@ -230,3 +230,24 @@ def test_as_scipy_objective_raises_other_errors() -> None:
         as_scipy_objective(with_data)(x, np.nan)
     # but the optimizer may try non-finite parameters, e.g. TNC after an infinite objective
     assert as_scipy_objective(with_data)(np.array([1.0, np.nan]), 0.0) == np.inf
+
+
+def test_run_gibbs_sampling_filter() -> None:
+    """Filtering keeps the post-burn-in chain length, drops low-likelihood samples and refreshes derived results."""
+    from tests import set_seed, y
+    from yassm.linear_gaussian.model.local_level import local_level_model
+
+    set_seed(20220501)
+    n_kept = 200
+    fit = local_level_model.fit(y.copy(), None, 0.0, np.inf, mle_n_iter=100, n_sample=2000, gibbs_burn_in=2000 - n_kept)
+    m_unfiltered = fit.m_t_given_T_from_gibbs_samples
+
+    n_std = 1.0
+    fit.run_gibbs_sampling(filter_n_std=n_std)
+    assert fit.gibbs_params_chain.shape[0] == n_kept
+    assert np.all(fit.log_likelihoods(fit.gibbs_params_chain) > fit.log_likelihood - 0.5 * n_std**2)
+    assert fit.m_t_given_T_from_gibbs_samples is not m_unfiltered
+
+    with pytest.raises(ValueError, match="increase n_sample"):
+        fit.run_gibbs_sampling(filter_n_std=1e-6)
+
