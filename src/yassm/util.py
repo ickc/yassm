@@ -4,11 +4,10 @@ from __future__ import annotations
 
 import logging
 import os
+from logging import Formatter
 
-try:
-    from coloredlogs import ColoredFormatter as Formatter
-except ImportError:
-    from logging import Formatter
+# never emit "No handlers could be found" style warnings from the library
+logging.getLogger("yassm").addHandler(logging.NullHandler())
 
 
 def setup_logging(

@@ -5,7 +5,6 @@ from functools import cached_property
 from logging import getLogger
 from typing import TYPE_CHECKING, ClassVar
 
-import matplotlib.pyplot as plt
 import numpy as np
 from numba import jit
 
@@ -70,6 +69,8 @@ class AbstractHilbertCurve:
         ax: Axes | None = None,
         **kwargs: dict[str, Any],
     ) -> FigAx:
+        import matplotlib.pyplot as plt
+
         array = self.array
 
         if ax is None:
@@ -85,6 +86,8 @@ class AbstractHilbertCurve:
         ax: Axes | None = None,
         **kwargs: dict[str, Any],
     ) -> FigAx:
+        import matplotlib.pyplot as plt
+
         array = self.array
 
         if ax is None:

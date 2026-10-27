@@ -16,7 +16,6 @@ from logging import getLogger
 from typing import TYPE_CHECKING
 
 import numpy as np
-import pandas as pd
 from numba import jit, objmode, prange
 from scipy import stats
 
@@ -35,6 +34,7 @@ if TYPE_CHECKING:
 
     import matplotlib as mpl
     import numpy.typing as npt
+    import pandas as pd
     from typing_extensions import Protocol
 
     KalmanFilteringInplace = Callable[
@@ -223,11 +223,11 @@ class AbstractFit:
             dt = self.t[1] - self.t[0]
             start = self.t[-1] + dt
             stop = self.t[-1] + T_forecast * dt
-            return (
-                pd.date_range(start, stop, T_forecast)
-                if np.issubdtype(self.t.dtype, np.datetime64)
-                else np.linspace(start, stop, T_forecast)
-            )
+            if np.issubdtype(self.t.dtype, np.datetime64):
+                import pandas as pd
+
+                return pd.date_range(start, stop, T_forecast)
+            return np.linspace(start, stop, T_forecast)
 
     # running functions and cache: _run_*
 
@@ -358,10 +358,14 @@ class AbstractFit:
 
     @property
     def mle_params_chain_to_frame(self) -> pd.DataFrame:
+        import pandas as pd
+
         return pd.DataFrame(self.mle_params_chain, columns=self.param_names)
 
     @property
     def params_to_series(self) -> pd.Series:
+        import pandas as pd
+
         return pd.Series(self.params, index=self.param_names)
 
     # plot
