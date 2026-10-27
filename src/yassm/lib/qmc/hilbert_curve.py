@@ -49,7 +49,8 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 import numpy as np
-from numba import generated_jit, jit, types
+from numba import jit, types
+from numba.extending import overload
 
 if TYPE_CHECKING:
     from typing import Any, Callable
@@ -196,19 +197,32 @@ def _partition_inplace_float(
         array[j] = temp
 
 
-@generated_jit(nopython=True)
 def _partition_inplace(
-    array: npt.NDArray[np.uint64],
+    array: npt.NDArray[np.uint64 | np.float64],
     i_start: int,
     i_end: int,
     order: int,
     axis: int,
     direction: bool,
-) -> Callable[[npt.NDArray[Any], int, int, int, int, bool], int]:
+) -> int:
+    """Dispatch to `_partition_inplace_int` or `_partition_inplace_float` by dtype.
+
+    Only callable from jitted code, see `_partition_inplace_overload`.
+    """
+    raise NotImplementedError("only callable from Numba-jitted code")
+
+
+@overload(_partition_inplace, jit_options={"nogil": True})
+def _partition_inplace_overload(array, i_start, i_end, order, axis, direction):  # type: ignore[no-untyped-def]
+    # no annotations here: numba requires the overload and the implementation to have identical signatures
     if isinstance(array.dtype, types.Integer):
-        return _partition_inplace_int
+        return lambda array, i_start, i_end, order, axis, direction: _partition_inplace_int(
+            array, i_start, i_end, order, axis, direction
+        )
     else:
-        return _partition_inplace_float
+        return lambda array, i_start, i_end, order, axis, direction: _partition_inplace_float(
+            array, i_start, i_end, order, axis, direction
+        )
 
 
 @jit(

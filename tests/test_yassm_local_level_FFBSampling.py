@@ -20,7 +20,7 @@ class TestLocalLinearGaussian(TestCase):
         self.gibbs_burn_in = 500
 
         μ_0 = 0.0
-        Γ_0 = np.infty
+        Γ_0 = np.inf
 
         self.fit = self.model.fit(
             self.y,

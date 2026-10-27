@@ -83,7 +83,7 @@ class TestGrid(TestCase):
             G,
             param_names=["σ_ε_sq", "σ_Z_sq"],
         )
-        self.ref = local_level_model.fit(y, params0, 0.0, np.infty, mle_n_iter=100)
+        self.ref = local_level_model.fit(y, params0, 0.0, np.inf, mle_n_iter=100)
 
         self.mod = mod
         self.p_0 = p_0

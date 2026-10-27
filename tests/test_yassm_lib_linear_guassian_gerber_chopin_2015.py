@@ -13,4 +13,4 @@ def test_F():
     i, j = np.meshgrid(i, i)
     exp = np.abs(i - j)
     ref = np.power(α, exp)
-    np.testing.assert_array_equal(get_F(α, d), ref)
+    np.testing.assert_allclose(get_F(α, d), ref, rtol=1e-15)
