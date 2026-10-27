@@ -3,6 +3,7 @@
 The quantity to pass around is a 1d-array
 representing the density over a fixed interval throughout.
 """
+
 from __future__ import annotations
 
 from typing import TYPE_CHECKING, overload
@@ -30,8 +31,7 @@ def prob_normal(  # type: ignore[misc]
     μ: float,
     Σ: float,
     Δx: float,
-) -> float:
-    ...
+) -> float: ...
 
 
 @overload
@@ -40,8 +40,7 @@ def prob_normal(
     μ: float | npt.NDArray[np.float64],
     Σ: float | npt.NDArray[np.float64],
     Δx: float | npt.NDArray[np.float64],
-) -> npt.NDArray[np.float64]:
-    ...
+) -> npt.NDArray[np.float64]: ...
 
 
 @vectorize("f8(f8, f8, f8, f8)")

@@ -1,5 +1,4 @@
-"""General 1-dimensional state space model.
-"""
+"""General 1-dimensional state space model."""
 
 from __future__ import annotations
 
@@ -92,8 +91,7 @@ if TYPE_CHECKING:
             n_iter: int,
             return_chain: bool,
             **kwargs: dict[str, Any],
-        ) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]]:
-            ...
+        ) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]]: ...
 
 
 logger = getLogger(__name__)
@@ -101,7 +99,6 @@ logger = getLogger(__name__)
 
 @dataclass
 class General1DStateSpaceModelFit:
-
     parent: General1DStateSpaceModel
     y: npt.NDArray[np.float64]
     params: npt.NDArray[np.float64]
@@ -142,7 +139,10 @@ class General1DStateSpaceModelFit:
 
     def _run_kalman_filtering(self) -> None:
         logger.info("Running kalman filtering...")
-        (self._p_t_given_tMinus1, self._p_t_given_t,) = self.parent.kalman_filtering(
+        (
+            self._p_t_given_tMinus1,
+            self._p_t_given_t,
+        ) = self.parent.kalman_filtering(
             self.y,
             self.params,
             self.p_0,

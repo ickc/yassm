@@ -96,7 +96,15 @@ def test_one_step_ahead(
     m_sMinus1_given_t: float,
     Q_sMinus1_given_t: float,
     raise_assertion_error: bool = True,
-) -> tuple[npt.NDArray[np.float64], float, float, npt.NDArray[np.float64], float, float, npt.NDArray[np.float64],]:
+) -> tuple[
+    npt.NDArray[np.float64],
+    float,
+    float,
+    npt.NDArray[np.float64],
+    float,
+    float,
+    npt.NDArray[np.float64],
+]:
     params = np.array([σ_ε_sq, σ_Z_sq, φ])
     σ_Z = np.sqrt(σ_Z_sq)
     x_f = n_σ * σ_Z
@@ -183,7 +191,15 @@ def test_filter_update(
     Q_t_given_tMinus1: float,
     y_t: float,
     raise_assertion_error: bool = True,
-) -> tuple[npt.NDArray[np.float64], float, float, npt.NDArray[np.float64], float, float, npt.NDArray[np.float64],]:
+) -> tuple[
+    npt.NDArray[np.float64],
+    float,
+    float,
+    npt.NDArray[np.float64],
+    float,
+    float,
+    npt.NDArray[np.float64],
+]:
     params = np.array([σ_ε_sq, σ_Z_sq, φ])
     σ_Z = np.sqrt(σ_Z_sq)
     σ_ε = np.sqrt(σ_ε_sq)
@@ -274,7 +290,15 @@ def test_smoothing_backward_recursion_inplace(
     m_sPlus1_given_t: float,
     Q_sPlus1_given_t: float,
     raise_assertion_error: bool = True,
-) -> tuple[npt.NDArray[np.float64], float, float, npt.NDArray[np.float64], float, float, npt.NDArray[np.float64],]:
+) -> tuple[
+    npt.NDArray[np.float64],
+    float,
+    float,
+    npt.NDArray[np.float64],
+    float,
+    float,
+    npt.NDArray[np.float64],
+]:
     params = np.array([σ_ε_sq, σ_Z_sq, φ])
     σ_Z = np.sqrt(σ_Z_sq)
     σ_ε = np.sqrt(σ_ε_sq)

@@ -1,5 +1,4 @@
-"""General state space model using particle filter.
-"""
+"""General state space model using particle filter."""
 
 from __future__ import annotations
 
@@ -125,8 +124,7 @@ if TYPE_CHECKING:
             n_sample: int,
             return_chain: bool,
             **kwargs: dict[str, Any],
-        ) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]]:
-            ...
+        ) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]]: ...
 
 
 logger = getLogger(__name__)
@@ -1341,6 +1339,7 @@ class GeneralNonLinearBootstrapParticleFitlerStateSpaceModel(GenericParticleFilt
 
         U_t \sim f_{U_t}
     """
+
     mle_kwargs: dict[Any, Any] = field(default_factory=dict)
     param_names: list[str] | None = None
     d: int = 1
@@ -1351,15 +1350,9 @@ class GeneralNonLinearBootstrapParticleFitlerStateSpaceModel(GenericParticleFilt
     K_t_inplace: Callable[
         [npt.NDArray[np.float64], npt.NDArray[np.float64], npt.NDArray[np.float64], npt.NDArray[np.float64], int], None
     ] = None  # type:ignore[assignment]  # we don't really allow None here
-    sampling_X0_tilde_inplace: Callable[
-        [npt.NDArray[np.float64], npt.NDArray[np.float64]], None
-    ] = None  # type:ignore[assignment]  # we don't really allow None here
-    sampling_U_t: Callable[
-        [npt.NDArray[np.float64], int, int], npt.NDArray[np.float64]
-    ] = None  # type:ignore[assignment]  # we don't really allow None here
-    state_to_obs: Callable[
-        [npt.NDArray[np.float64], npt.NDArray[np.float64], int], npt.NDArray[np.float64]
-    ] = None  # type:ignore[assignment]  # we don't really allow None here
+    sampling_X0_tilde_inplace: Callable[[npt.NDArray[np.float64], npt.NDArray[np.float64]], None] = None  # type:ignore[assignment]  # we don't really allow None here
+    sampling_U_t: Callable[[npt.NDArray[np.float64], int, int], npt.NDArray[np.float64]] = None  # type:ignore[assignment]  # we don't really allow None here
+    state_to_obs: Callable[[npt.NDArray[np.float64], npt.NDArray[np.float64], int], npt.NDArray[np.float64]] = None  # type:ignore[assignment]  # we don't really allow None here
 
     @cached_property
     def sampling_one_step_ahead_inplace(self) -> SamplingOneStepAheadInplace:

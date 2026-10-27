@@ -187,8 +187,7 @@ if TYPE_CHECKING:
             n_iter: int,
             return_chain: bool,
             **kwargs: dict[str, Any],
-        ) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]]:
-            ...
+        ) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]]: ...
 
 
 logger = getLogger(__name__)
@@ -445,7 +444,7 @@ class AbstractFit:
             )
         )
 
-        str_CI = f" w/ ${(1. - α) * 100.:.3g} \\%%$ C.I." if n_std is None else f" w/ {n_std:.3g}σ C.I."
+        str_CI = f" w/ ${(1.0 - α) * 100.0:.3g} \\%%$ C.I." if n_std is None else f" w/ {n_std:.3g}σ C.I."
 
         colors = colors_obs
         if plot_obs:
@@ -715,7 +714,10 @@ class GeneralLinearGaussianStateSpaceModelFit(AbstractFit):
 
     def _run_kalman_smoothing(self) -> None:
         logger.info("Running kalman smoothing...")
-        (self._m_t_given_T, self._Q_t_given_T,) = self.parent.kalman_smoothing(
+        (
+            self._m_t_given_T,
+            self._Q_t_given_T,
+        ) = self.parent.kalman_smoothing(
             self.params,
             self.m_t_given_tMinus1,
             self.Q_t_given_tMinus1,
@@ -725,7 +727,10 @@ class GeneralLinearGaussianStateSpaceModelFit(AbstractFit):
 
     def _run_filtered_state_to_obs(self) -> None:
         logger.info("Running smoothed_state_to_obs for filtered states...")
-        (self._filtered_obs, self._filtered_obs_cov,) = self.parent.smoothed_state_to_obs(
+        (
+            self._filtered_obs,
+            self._filtered_obs_cov,
+        ) = self.parent.smoothed_state_to_obs(
             self.params,
             self.m_t_given_t,
             self.Q_t_given_t,
@@ -735,7 +740,10 @@ class GeneralLinearGaussianStateSpaceModelFit(AbstractFit):
 
     def _run_smoothed_state_to_obs(self) -> None:
         logger.info("Running smoothed_state_to_obs...")
-        (self._smoothed_obs, self._smoothed_obs_cov,) = self.parent.smoothed_state_to_obs(
+        (
+            self._smoothed_obs,
+            self._smoothed_obs_cov,
+        ) = self.parent.smoothed_state_to_obs(
             self.params,
             self.m_t_given_T,
             self.Q_t_given_T,
@@ -745,7 +753,10 @@ class GeneralLinearGaussianStateSpaceModelFit(AbstractFit):
 
     def _run_filtered_state_to_obs_with_obs_cov(self) -> None:
         logger.info("Running smoothed_state_to_obs with obs_cov for filtered states...")
-        (self._filtered_obs, self._filtered_obs_cov_with_obs_cov,) = self.parent.smoothed_state_to_obs(
+        (
+            self._filtered_obs,
+            self._filtered_obs_cov_with_obs_cov,
+        ) = self.parent.smoothed_state_to_obs(
             self.params,
             self.m_t_given_t,
             self.Q_t_given_t,
@@ -755,7 +766,10 @@ class GeneralLinearGaussianStateSpaceModelFit(AbstractFit):
 
     def _run_smoothed_state_to_obs_with_obs_cov(self) -> None:
         logger.info("Running smoothed_state_to_obs with obs_cov...")
-        (self._smoothed_obs, self._smoothed_obs_cov_with_obs_cov,) = self.parent.smoothed_state_to_obs(
+        (
+            self._smoothed_obs,
+            self._smoothed_obs_cov_with_obs_cov,
+        ) = self.parent.smoothed_state_to_obs(
             self.params,
             self.m_t_given_T,
             self.Q_t_given_T,
@@ -765,7 +779,10 @@ class GeneralLinearGaussianStateSpaceModelFit(AbstractFit):
 
     def _run_smoothed_state_to_obs_from_samples(self) -> None:
         logger.info("Running smoothed_state_to_obs from samples...")
-        (self._smoothed_obs_from_samples, self._smoothed_obs_cov_from_samples,) = self.parent.smoothed_state_to_obs(
+        (
+            self._smoothed_obs_from_samples,
+            self._smoothed_obs_cov_from_samples,
+        ) = self.parent.smoothed_state_to_obs(
             self.params,
             self.m_t_given_T_from_samples,
             self.Q_t_given_T_from_samples,
@@ -839,8 +856,7 @@ class GeneralLinearGaussianStateSpaceModelFit(AbstractFit):
         )
         if filter_n_std is not None:
             mask = (
-                self.log_likelihoods(self.gibbs_params_chain_with_burn_in)
-                > self.log_likelihood - 0.5 * filter_n_std**2
+                self.log_likelihoods(self.gibbs_params_chain_with_burn_in) > self.log_likelihood - 0.5 * filter_n_std**2
             )
             n_sample_used = self.n_sample - self.gibbs_burn_in
             self.n_sample = mask.sum()
@@ -1772,7 +1788,12 @@ class GeneralLinearGaussianStateSpaceModel(GenericLinearGaussianStateSpaceModel)
 
             params_cur = params
             for i in range(N):
-                (m_t_given_tMinus1, Q_t_given_tMinus1, m_t_given_t, Q_t_given_t,) = kalman_filtering(
+                (
+                    m_t_given_tMinus1,
+                    Q_t_given_tMinus1,
+                    m_t_given_t,
+                    Q_t_given_t,
+                ) = kalman_filtering(
                     y,
                     params_cur,
                     μ_0,
