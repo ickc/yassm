@@ -6,7 +6,7 @@ from unittest import TestCase
 import numpy as np
 from numba import jit
 
-from tests import y
+from tests import set_seed, y
 from yassm.linear_gaussian.model.local_level import local_level_model
 from yassm.particle_filter import GeneralLinearGaussianParticleFilterStateSpaceModel
 
@@ -59,6 +59,7 @@ def X0(params: npt.NDArray[np.float64]) -> npt.NDArray[np.float64]:
 
 class TestGeneralLinearGaussianParticleFilterStateSpaceModelBootstrap(TestCase):
     def setUp(self) -> None:
+        set_seed(20220501)
         n_sample = 5000
         self.rtol = 0.1
         # test starting from this t-step

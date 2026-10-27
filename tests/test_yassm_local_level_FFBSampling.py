@@ -4,7 +4,7 @@ from unittest import TestCase
 
 import numpy as np
 
-from tests import y
+from tests import set_seed, y
 from yassm.linear_gaussian.model.local_level import local_level_model
 from yassm.linear_gaussian.model.local_ratio import local_ratio_model
 
@@ -14,6 +14,7 @@ class TestLocalLinearGaussian(TestCase):
     model = local_level_model
 
     def setUp(self) -> None:
+        set_seed(20220501)
         self.mle_n_iter = 100
         self.n_sample = 10000
         self.gibbs_burn_in = 500

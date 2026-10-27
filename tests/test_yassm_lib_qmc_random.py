@@ -64,7 +64,7 @@ GAUSSIAN_CASES = [
 
 @pytest.mark.parametrize("N, d, cov, method", GAUSSIAN_CASES)
 def test_gaussian_rosenblatt_transform(N, d, cov, method) -> None:
-    uniform_array = np.random.uniform(size=(N, d))
+    uniform_array = np.random.default_rng(2022).uniform(size=(N, d))
     gaussian = gaussian_transform(uniform_array, cov, method=method)
     # cholesky is special as the inv-cholesky order prevent them to be inverse of each other
     if method != "cholesky":

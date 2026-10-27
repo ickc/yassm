@@ -6,7 +6,7 @@ from unittest import TestCase
 import numpy as np
 from numba import jit
 
-from tests import y
+from tests import set_seed, y
 from yassm.lib.linear_gaussian import prob_normal_1d
 from yassm.linear_gaussian.model.local_level import local_level_model
 from yassm.particle_filter import GeneralNonLinearBootstrapParticleFilterStateSpaceModel
@@ -62,6 +62,7 @@ def state_to_obs(
 
 class TestGeneralLinearGaussianParticleFilterStateSpaceModelBootstrap(TestCase):
     def setUp(self) -> None:
+        set_seed(20220501)
         n_sample = 5000
         self.rtol = 0.2
         # test starting from this t-step
