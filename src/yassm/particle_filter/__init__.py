@@ -13,7 +13,7 @@ from numba import get_num_threads, jit, objmode, prange
 from ..lib import random_choice_weighted_inplace, sqrt_diag
 from ..lib.linear_gaussian import cov_from_samples
 from ..linear_gaussian import AbstractFit, GeneralLinearGaussianStateSpaceModel, GenericLinearGaussianStateSpaceModel
-from ..util import as_c_array
+from ..util import as_c_array, with_c_array_first_arg
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -782,7 +782,8 @@ class GenericParticleFilterStateSpaceModel(GenericLinearGaussianStateSpaceModel)
 
             def _callback(unconstrained: npt.NDArray[np.float64]) -> None:
                 """Store iterations."""
-                chain.append(unconstrained if transform_params is None else transform_params(unconstrained))
+                unconstrained = np.ascontiguousarray(unconstrained, dtype=np.float64)
+                chain.append(np.array(unconstrained) if transform_params is None else transform_params(unconstrained))
 
             if n_iter:
                 logger.warning("n_iter %s is ignored when using scipy.optimize.minimize.", n_iter)
@@ -796,7 +797,7 @@ class GenericParticleFilterStateSpaceModel(GenericLinearGaussianStateSpaceModel)
                 callback = None
 
             opt = minimize(
-                minimization_func,
+                with_c_array_first_arg(minimization_func),
                 params0 if untransform_params is None else untransform_params(params0),
                 args=(y, n_sample),
                 callback=callback,
@@ -806,7 +807,8 @@ class GenericParticleFilterStateSpaceModel(GenericLinearGaussianStateSpaceModel)
             if not opt.success:
                 raise RuntimeError(f"MLE unsuccessful with message: {msg}")
             logger.info("MLE constructed with message: %s", msg)
-            return opt.x if transform_params is None else transform_params(opt.x), np.array(chain)
+            x = np.ascontiguousarray(opt.x, dtype=np.float64)
+            return x if transform_params is None else transform_params(x), np.array(chain)
 
         return mle_scipy_minimize
 

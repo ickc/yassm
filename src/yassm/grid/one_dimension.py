@@ -17,7 +17,7 @@ from ..lib.grid.one_dimension import (
     ps_to_mQ,
     smoothing_backward_recursion_inplace,
 )
-from ..util import as_c_array
+from ..util import as_c_array, with_c_array_first_arg
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -589,7 +589,7 @@ class General1DStateSpaceModel:
 
             def _callback(xk: npt.NDArray[np.float64]) -> None:
                 """Store iterations."""
-                chain.append(xk)
+                chain.append(np.array(xk))
 
             if n_iter:
                 logger.warning("n_iter %s is ignored when using scipy.optimize.minimize.", n_iter)
@@ -602,7 +602,9 @@ class General1DStateSpaceModel:
             else:
                 callback = None
 
-            opt = minimize(neg_log_likelihood, params0, args=(y, p_0), callback=callback, **kwargs)
+            opt = minimize(
+                with_c_array_first_arg(neg_log_likelihood), params0, args=(y, p_0), callback=callback, **kwargs
+            )
             msg = opt.message
             if not opt.success:
                 raise RuntimeError(f"MLE unsuccessful with message: {msg}")

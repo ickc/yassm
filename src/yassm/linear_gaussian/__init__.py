@@ -27,7 +27,7 @@ from ..lib.linear_gaussian import (
     one_step_ahead_inplace,
     smoothing_backward_recursion_inplace,
 )
-from ..util import as_c_array
+from ..util import as_c_array, with_c_array_first_arg
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Sequence
@@ -1367,7 +1367,7 @@ class GenericLinearGaussianStateSpaceModel:
 
             def _callback(xk: npt.NDArray[np.float64]) -> None:
                 """Store iterations."""
-                chain.append(xk)
+                chain.append(np.array(xk))
 
             if n_iter:
                 logger.warning("n_iter %s is ignored when using scipy.optimize.minimize.", n_iter)
@@ -1380,7 +1380,9 @@ class GenericLinearGaussianStateSpaceModel:
             else:
                 callback = None
 
-            opt = minimize(neg2_log_likelihood, params0, args=(y, μ_0, Γ_0), callback=callback, **kwargs)
+            opt = minimize(
+                with_c_array_first_arg(neg2_log_likelihood), params0, args=(y, μ_0, Γ_0), callback=callback, **kwargs
+            )
             msg = opt.message
             if not opt.success:
                 raise RuntimeError(f"MLE unsuccessful with message: {msg}")

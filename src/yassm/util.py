@@ -10,7 +10,12 @@ from typing import TYPE_CHECKING
 import numpy as np
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
+    from typing import Any, TypeVar
+
     import numpy.typing as npt
+
+    T = TypeVar("T")
 
 # never emit "No handlers could be found" style warnings from the library
 logging.getLogger("yassm").addHandler(logging.NullHandler())
@@ -61,3 +66,16 @@ def as_c_array(
     e.g. returned by ``DataFrame.values`` under pandas' Copy-on-Write.
     """
     return np.require(np.ascontiguousarray(array, dtype=dtype), requirements="W")
+
+
+def with_c_array_first_arg(func: Callable[..., T]) -> Callable[..., T]:
+    """Wrap `func` so that its first argument is passed as a C-contiguous float64 array.
+
+    ``scipy.optimize.minimize`` may call the objective with a non-contiguous ``x``,
+    which Numba functions with ``f8[::1]`` signatures reject.
+    """
+
+    def wrapped(x: npt.ArrayLike, *args: Any) -> T:
+        return func(np.ascontiguousarray(x, dtype=np.float64), *args)
+
+    return wrapped

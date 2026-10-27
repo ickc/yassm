@@ -68,3 +68,18 @@ def test_fit_accepts_readonly_input() -> None:
     y_ro.flags.writeable = False
     fit = local_level_model.fit(y_ro, [1.0, 1.0], 0.0, 1e8)
     np.testing.assert_allclose(fit.log_likelihood, local_level_model.fit(y.copy(), [1.0, 1.0], 0.0, 1e8).log_likelihood)
+
+
+def test_with_c_array_first_arg() -> None:
+    """scipy.optimize may pass a non-contiguous x to the objective."""
+    from numba import jit
+
+    from yassm.util import with_c_array_first_arg
+
+    @jit("f8(f8[::1], f8)", nopython=True)
+    def f(x, a):
+        return x.sum() + a
+
+    x = np.arange(10.0)[::2]
+    assert not x.flags.c_contiguous
+    assert with_c_array_first_arg(f)(x, 1.0) == 21.0
