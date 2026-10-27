@@ -343,6 +343,9 @@ def hilbert_sort_inplace_linear(
     :param order: The order of the Hilbert curve, 1 <= order <= 64.
     """
     N = array.shape[0]
+    if order <= 0 or N < 2:
+        # a single cell or at most a single point: nothing to sort
+        return
     args = gen_f8_to_u8_args_linear(array)
 
     _hilbert_sort_inplace(
@@ -372,6 +375,9 @@ def hilbert_sort_inplace_logistic(
     :param order: The order of the Hilbert curve, 1 <= order <= 64.
     """
     N = array.shape[0]
+    if order <= 0 or N < 2:
+        # a single cell or at most a single point: nothing to sort
+        return
     args = gen_f8_to_u8_args_logistic(array)
 
     _hilbert_sort_inplace(
@@ -401,6 +407,9 @@ def hilbert_sort_inplace_whiten_cholesky(
     :param order: The order of the Hilbert curve, 1 <= order <= 64.
     """
     N = array.shape[0]
+    if order <= 0 or N < 2:
+        # a single cell or at most a single point: nothing to sort
+        return
     args = gen_f8_to_u8_args_whiten_cholesky(array)
 
     _hilbert_sort_inplace(
@@ -430,6 +439,9 @@ def hilbert_sort_inplace_whiten_ZCA(
     :param order: The order of the Hilbert curve, 1 <= order <= 64.
     """
     N = array.shape[0]
+    if order <= 0 or N < 2:
+        # a single cell or at most a single point: nothing to sort
+        return
     args = gen_f8_to_u8_args_whiten_ZCA(array)
 
     _hilbert_sort_inplace(
@@ -459,6 +471,9 @@ def hilbert_sort_inplace_whiten_ZCA_cor(
     :param order: The order of the Hilbert curve, 1 <= order <= 64.
     """
     N = array.shape[0]
+    if order <= 0 or N < 2:
+        # a single cell or at most a single point: nothing to sort
+        return
     args = gen_f8_to_u8_args_whiten_ZCA_cor(array)
 
     _hilbert_sort_inplace(

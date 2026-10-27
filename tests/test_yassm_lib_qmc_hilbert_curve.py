@@ -3,8 +3,9 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from yassm.lib.qmc.hilbert_curve import hilbert_sort_inplace
-from yassm.qmc.hilbert_curve import HilbertCurveFloat01
+from yassm.lib.qmc.hilbert_curve import FLOAT_ORDER, hilbert_sort_inplace
+from yassm.lib.qmc.hilbert_curve_full_range import hilber_sort_inplace_func
+from yassm.qmc.hilbert_curve import HilbertCurveFloat01, HilbertCurveInt
 
 
 def test_hilbert_sort() -> None:
@@ -134,3 +135,34 @@ def test_compare_to_stackoverflow(N, m, n):
     HSort(array_list, 0, N - 1, m - 1, 0, 0, 0, False, 0)
     hilbert_sort_inplace(array, m)
     np.testing.assert_array_equal(array, array_list)
+
+
+@pytest.mark.parametrize("dtype", (np.uint64, np.float64))
+@pytest.mark.parametrize("N", (0, 1))
+def test_hilbert_sort_trivial_sizes(dtype, N) -> None:
+    array = np.ones((N, 3), dtype=dtype) / 2 if dtype == np.float64 else np.ones((N, 3), dtype=dtype)
+    expected = array.copy()
+    hilbert_sort_inplace(array, 3 if dtype == np.uint64 else FLOAT_ORDER)
+    np.testing.assert_array_equal(array, expected)
+
+
+def test_hilbert_sort_order_0_is_noop() -> None:
+    """Order 0 means a single cell: the order used to wrap around through int8 and shuffle the array."""
+    array = np.random.default_rng(0).integers(0, 4, size=(1000, 4)).astype(np.uint64)
+    expected = array.copy()
+    hilbert_sort_inplace(array, 0)
+    np.testing.assert_array_equal(array, expected)
+
+
+def test_hilbert_curve_int_all_zeros() -> None:
+    h = HilbertCurveInt(np.zeros((10, 2), dtype=np.uint64))
+    assert h.order == 0
+    h.sort()
+    np.testing.assert_array_equal(h.array, 0)
+
+
+@pytest.mark.parametrize("method", sorted(hilber_sort_inplace_func))
+def test_full_range_sort_single_point(method) -> None:
+    array = np.array([[1.0, 2.0, 3.0]])
+    hilber_sort_inplace_func[method](array, FLOAT_ORDER)
+    np.testing.assert_array_equal(array, [[1.0, 2.0, 3.0]])

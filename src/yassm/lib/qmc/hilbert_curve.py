@@ -380,6 +380,9 @@ def hilbert_sort_inplace(
     :param order: The order of the Hilbert curve, 1 <= order <= 64.
     """
     N = array.shape[0]
+    if order <= 0 or N < 2:
+        # a single cell or at most a single point: nothing to sort
+        return
     _hilbert_sort_inplace(
         array,
         0,
