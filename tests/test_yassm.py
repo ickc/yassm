@@ -164,3 +164,13 @@ def test_run_gibbs_sampling_filter() -> None:
     with pytest.raises(ValueError, match="increase n_sample"):
         fit.run_gibbs_sampling(filter_n_std=1e-6)
 
+
+def test_top_level_exports() -> None:
+    import yassm
+
+    for name in yassm.__all__:
+        assert getattr(yassm, name) is not None
+    assert yassm.LinearGaussianModel is importlib.import_module("yassm.linear_gaussian").LinearGaussianModel
+    assert set(yassm.__all__) <= set(dir(yassm))
+    with pytest.raises(AttributeError, match="no attribute"):
+        yassm.NoSuchThing  # noqa: B018
