@@ -43,3 +43,19 @@ def test_full_range_sort_agrees_with_int_sort(method) -> None:
     h_int = HilbertCurveFloat(data.copy(), range_reduction_method=method, check_range=False).to_int()
     h_int.sort()
     np.testing.assert_array_equal(sorted_then_mapped, h_int.array)
+
+
+@pytest.mark.parametrize("N, d", ((2, 2), (3, 4), (100, 3)))
+def test_whiten_cholesky_singular_cov(N, d) -> None:
+    """Singular/rank-deficient covariance must not break the Cholesky decomposition."""
+    rng = np.random.default_rng(1)
+    data = rng.normal(size=(N, d))
+    # make the last axis an exact linear combination of the others
+    data[:, -1] = data[:, :-1].sum(axis=1)
+    mean, W_T = gen_f8_to_u8_args_func["whiten_cholesky"](data)
+    assert np.isfinite(W_T).all()
+
+    h = HilbertCurveFloat(data.copy(), range_reduction_method="whiten_cholesky", check_range=False)
+    h.sort()
+    np.testing.assert_array_equal(np.sort(h.array, axis=0), np.sort(data, axis=0))
+    assert h.to_int().array.shape == (N, d)

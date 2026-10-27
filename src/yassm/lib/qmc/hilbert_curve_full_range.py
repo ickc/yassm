@@ -34,6 +34,7 @@ if TYPE_CHECKING:
     HilbertSortInplace = Callable[[npt.NDArray[np.float64], int], None]
 
 SQRT2_INV = np.power(2.0, -0.5)
+EPS = np.finfo(np.float64).eps
 
 
 # _f8_to_u8 ####################################################################
@@ -113,11 +114,12 @@ def gen_f8_to_u8_args_whiten_cholesky(data: npt.NDArray[np.float64]) -> Args:
     cov_inv = np.linalg.pinv(cov)
     # force symmetric
     cov_inv = 0.5 * (cov_inv + cov_inv.T)
-    # minimum eigenvalue
-    eigen_min = np.linalg.eigvalsh(cov_inv)[0]
-    # force eigen_min >= 0
-    if eigen_min < 0.0:
-        cov_inv += eigen_min * np.eye(d)
+    # force positive definiteness, e.g. for singular cov:
+    # shift the spectrum so that its minimum is at least a tiny positive number
+    eigen = np.linalg.eigvalsh(cov_inv)
+    eigen_floor = d * EPS * max(eigen[-1], 1.0)
+    if eigen[0] < eigen_floor:
+        cov_inv += (eigen_floor - eigen[0]) * np.eye(d)
 
     # W_T = L = U.T
     W_T = np.linalg.cholesky(cov_inv)

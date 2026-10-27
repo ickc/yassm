@@ -16,6 +16,7 @@ if TYPE_CHECKING:
 
 SQRT2 = np.sqrt(2.0)
 SQRT2_INV = np.power(2.0, -0.5)
+EPS = np.finfo(np.float64).eps
 logger = getLogger(__name__)
 
 
@@ -90,16 +91,18 @@ def whitening_transform(
         cov_inv = linalg.pinv(cov)
         # force symmetric
         cov_inv = 0.5 * (cov_inv + cov_inv.T)
-        # minimum eigenvalue
-        eigen_min = linalg.eigvalsh(cov_inv)[0]
-        # force eigen_min >= 0
-        if eigen_min < 0.0:
+        # force positive definiteness, e.g. for singular cov:
+        # shift the spectrum so that its minimum is at least a tiny positive number
+        d = cov_inv.shape[0]
+        eigen = linalg.eigvalsh(cov_inv)
+        eigen_floor = d * EPS * max(eigen[-1], 1.0)
+        if eigen[0] < eigen_floor:
             logger.warning(
-                "cov_inv is not positive definite with min eigenvalue λ=%f. "
-                "Forcing it to be positive semi-definite by adding λΙ.",
-                eigen_min,
+                "cov_inv is not positive definite with min eigenvalue λ=%g. Shifting its spectrum by %g.",
+                eigen[0],
+                eigen_floor - eigen[0],
             )
-            cov_inv += eigen_min * np.eye(cov_inv.shape[0])
+            cov_inv += (eigen_floor - eigen[0]) * np.eye(d)
 
         # W_T = L = U.T
         W_T = linalg.cholesky(cov_inv, lower=True)
