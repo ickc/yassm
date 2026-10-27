@@ -27,6 +27,7 @@ from ..lib.linear_gaussian import (
     one_step_ahead_inplace,
     smoothing_backward_recursion_inplace,
 )
+from ..util import as_c_array
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Sequence
@@ -701,10 +702,10 @@ class GeneralLinearGaussianStateSpaceModelFit(AbstractFit):
         mle_return_chain = self.mle_return_chain
         param_names = self.param_names
 
-        y = np.ascontiguousarray(self._y, dtype=np.float64)
-        params = np.ascontiguousarray(self._params, dtype=np.float64)
-        μ_0 = np.ascontiguousarray(self._μ_0, dtype=np.float64)
-        Γ_0 = np.ascontiguousarray(self._Γ_0, dtype=np.float64)
+        y = as_c_array(self._y)
+        params = as_c_array(self._params)
+        μ_0 = as_c_array(self._μ_0)
+        Γ_0 = as_c_array(self._Γ_0)
         if n == 1 and y.ndim == 1:
             y = y.reshape((-1, 1))
         if d == 1 and Γ_0.ndim == 1:
@@ -1441,7 +1442,7 @@ class GenericLinearGaussianStateSpaceModel:
         param_names
             optional names of parameters
         """
-        y = np.ascontiguousarray(y, dtype=np.float64)
+        y = as_c_array(y)
         if params is None:
             logger.info("Estimating initial parameters using the data with law of large number...")
             params = self.params_guess(y)

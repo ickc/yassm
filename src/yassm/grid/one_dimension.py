@@ -17,6 +17,7 @@ from ..lib.grid.one_dimension import (
     ps_to_mQ,
     smoothing_backward_recursion_inplace,
 )
+from ..util import as_c_array
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -112,6 +113,9 @@ class General1DStateSpaceModelFit:
     param_names: list[str] | None = None
 
     def __post_init__(self) -> None:
+        self.y = as_c_array(self.y)
+        self.params = as_c_array(self.params)
+        self.p_0 = as_c_array(self.p_0)
         self.size = self.y.size
         self.G = self.p_0.size
         self.N = self.params.size

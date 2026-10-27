@@ -10,6 +10,7 @@ from numba import jit
 
 from yassm.lib.qmc.hilbert_curve import FLOAT_ORDER, hilbert_sort_inplace
 from yassm.lib.qmc.hilbert_curve_full_range import f8_to_u8_func, gen_f8_to_u8_args_func, hilbert_sort_inplace_func
+from yassm.util import as_c_array
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -35,7 +36,7 @@ class AbstractHilbertCurve:
     dtype: ClassVar[NumberDType | None] = None
 
     def __post_init__(self) -> None:
-        self.array = np.ascontiguousarray(self.array, dtype=self.dtype)
+        self.array = as_c_array(self.array, dtype=self.dtype)
         if self.dimension >= 64:
             raise ValueError("dimension must be less than 64")
         if not (0 <= self.order < 64):

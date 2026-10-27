@@ -57,3 +57,14 @@ def test_deprecated_aliases() -> None:
         GeneralNonLinearBootstrapParticleFitlerStateSpaceModel is GeneralNonLinearBootstrapParticleFilterStateSpaceModel
     )
     assert hilbert_curve_full_range.hilber_sort_inplace_func is hilbert_curve_full_range.hilbert_sort_inplace_func
+
+
+def test_fit_accepts_readonly_input() -> None:
+    """e.g. DataFrame.values is read-only under pandas' Copy-on-Write."""
+    from tests import y
+    from yassm.linear_gaussian.model.local_level import local_level_model
+
+    y_ro = y.copy()
+    y_ro.flags.writeable = False
+    fit = local_level_model.fit(y_ro, [1.0, 1.0], 0.0, 1e8)
+    np.testing.assert_allclose(fit.log_likelihood, local_level_model.fit(y.copy(), [1.0, 1.0], 0.0, 1e8).log_likelihood)

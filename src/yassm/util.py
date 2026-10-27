@@ -5,6 +5,12 @@ from __future__ import annotations
 import logging
 import os
 from logging import Formatter
+from typing import TYPE_CHECKING
+
+import numpy as np
+
+if TYPE_CHECKING:
+    import numpy.typing as npt
 
 # never emit "No handlers could be found" style warnings from the library
 logging.getLogger("yassm").addHandler(logging.NullHandler())
@@ -43,3 +49,15 @@ def setup_logging(
     else:
         logger.setLevel(level=level)
     return logger
+
+
+def as_c_array(
+    array: npt.ArrayLike,
+    dtype: npt.DTypeLike = np.float64,
+) -> npt.NDArray[np.generic]:
+    """Return `array` as a C-contiguous (ndim >= 1), writeable array of `dtype`, copying only if needed.
+
+    Numba functions with explicit signatures reject read-only arrays, which are
+    e.g. returned by ``DataFrame.values`` under pandas' Copy-on-Write.
+    """
+    return np.require(np.ascontiguousarray(array, dtype=dtype), requirements="W")

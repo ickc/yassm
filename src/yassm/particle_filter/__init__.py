@@ -13,6 +13,7 @@ from numba import get_num_threads, jit, objmode, prange
 from ..lib import random_choice_weighted_inplace, sqrt_diag
 from ..lib.linear_gaussian import cov_from_samples
 from ..linear_gaussian import AbstractFit, GeneralLinearGaussianStateSpaceModel, GenericLinearGaussianStateSpaceModel
+from ..util import as_c_array
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -189,8 +190,8 @@ class GenericParticleFilterStateSpaceModelFit(AbstractFit):
         n_sample = self.n_sample
         param_names = self.param_names
 
-        y = np.ascontiguousarray(self._y, dtype=np.float64)
-        params = np.ascontiguousarray(self._params, dtype=np.float64)
+        y = as_c_array(self._y)
+        params = as_c_array(self._params)
         if n == 1 and y.ndim == 1:
             y = y.reshape((-1, 1))
 
@@ -847,7 +848,7 @@ class GenericParticleFilterStateSpaceModel(GenericLinearGaussianStateSpaceModel)
 
         TODO: tailor for particle filter
         """
-        y = np.ascontiguousarray(y, dtype=np.float64)
+        y = as_c_array(y)
         if params is None:
             logger.info("Estimating initial parameters using the data with law of large number...")
             params = self.params_guess(y)
