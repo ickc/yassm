@@ -53,8 +53,6 @@ from numba import jit, types
 from numba.extending import overload
 
 if TYPE_CHECKING:
-    from typing import Any, Callable
-
     import numpy.typing as npt
 
 #: Hilbert used for floating point numbers.

@@ -19,7 +19,8 @@ from ..lib.grid.one_dimension import (
 )
 
 if TYPE_CHECKING:
-    from typing import Any, Callable
+    from collections.abc import Callable
+    from typing import Any
 
     import numpy.typing as npt
     from typing_extensions import Protocol
@@ -265,7 +266,6 @@ class General1DStateSpaceModel:
             :return: p_t_given_tMinus1, p_t_given_t
             """
             size = y.shape[0]
-            G = p_t_given_tMinus1.size
 
             # initialize
             p_t_given_tMinus1[0] = p_0
@@ -569,7 +569,7 @@ class General1DStateSpaceModel:
                 logger.warning("n_iter %s is ignored when using scipy.optimize.minimize.", n_iter)
 
             chain: list[npt.NDArray[np.float64]] = []
-            callack: Callable[[npt.NDArray[np.float64]], None] | None
+            callback: Callable[[npt.NDArray[np.float64]], None] | None
             if return_chain:
                 chain.append(params0)
                 callback = _callback
@@ -593,7 +593,7 @@ class General1DStateSpaceModel:
         mle_method: str = "scipy_minimize",
         mle_n_iter: int = 0,
         mle_return_chain: bool = False,
-        mle_kwargs: dict[Any, Any] = {},
+        mle_kwargs: dict[Any, Any] | None = None,
         t: npt.NDArray[Any] | None = None,
         param_names: list[str] | None = None,
     ) -> General1DStateSpaceModelFit:
@@ -605,7 +605,7 @@ class General1DStateSpaceModel:
             mle_method=mle_method,
             mle_n_iter=mle_n_iter,
             mle_return_chain=mle_return_chain,
-            mle_kwargs=mle_kwargs,
+            mle_kwargs=mle_kwargs or {},
             t=t,
             param_names=param_names or self.param_names,
         )

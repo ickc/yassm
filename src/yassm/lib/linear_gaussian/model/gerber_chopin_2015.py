@@ -11,7 +11,7 @@ import numpy as np
 from numba import jit
 
 if TYPE_CHECKING:
-    from typing import Callable
+    from collections.abc import Callable
 
     import numpy.typing as npt
 

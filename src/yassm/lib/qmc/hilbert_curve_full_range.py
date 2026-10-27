@@ -24,7 +24,7 @@ from .hilbert_curve import FLOAT_ORDER, _bitset_flip, _bitset_test
 from .random import correlation_variance_decomposition
 
 if TYPE_CHECKING:
-    from typing import Callable
+    from collections.abc import Callable
 
     import numpy.typing as npt
 

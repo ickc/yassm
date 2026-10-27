@@ -222,8 +222,11 @@ ignore = [
     "RUF002",
     "RUF003",
     "NPY002",  # legacy np.random.* is required inside Numba-jitted functions
+    "PT006",   # parametrize names as a comma-separated string is fine
+    "PT007",
     "PT009",   # unittest-style assertions in TestCase classes
     "PT027",
+    "RUF059",  # unused unpacked variables document shapes, e.g. `N, d = x.shape`
 ]
 
 [tool.ruff.lint.isort]

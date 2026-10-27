@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 import numpy as np
-from numba import jit, prange
+from numba import jit
 
 if TYPE_CHECKING:
     import numpy.typing as npt

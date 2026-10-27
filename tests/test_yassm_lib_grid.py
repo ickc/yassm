@@ -29,7 +29,6 @@ from yassm.lib.linear_gaussian.model.local_ratio import (
 if TYPE_CHECKING:
     import numpy.typing as npt
 
-    from yassm.lib import FloatMaybeArray
 
 logger = getLogger(__name__)
 

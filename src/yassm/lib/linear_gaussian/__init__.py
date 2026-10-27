@@ -23,9 +23,7 @@ def prob_cauchy(
 ) -> npt.NDArray[np.float64]:
     """Probability of a Cauchy distribution."""
     return (
-        τ_sq / (τ_sq + np.square((x - x_0)))
-        if norm_peak_to_1
-        else (np.sqrt(τ_sq) / np.pi) / (τ_sq + np.square((x - x_0)))
+        τ_sq / (τ_sq + np.square(x - x_0)) if norm_peak_to_1 else (np.sqrt(τ_sq) / np.pi) / (τ_sq + np.square(x - x_0))
     )
 
 

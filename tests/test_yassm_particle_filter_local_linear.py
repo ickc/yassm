@@ -6,11 +6,10 @@ from unittest import TestCase
 import numpy as np
 from numba import jit
 
+from tests import y
 from yassm.lib.linear_gaussian.model.local_linear import A0, B0, R0, Σ0
 from yassm.linear_gaussian.model.local_linear import local_linear_model
 from yassm.particle_filter import GeneralLinearGaussianParticleFilterStateSpaceModel
-
-from tests import y
 
 if TYPE_CHECKING:
     import numpy.typing as npt

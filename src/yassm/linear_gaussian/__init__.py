@@ -29,8 +29,8 @@ from ..lib.linear_gaussian import (
 )
 
 if TYPE_CHECKING:
-    from collections.abc import Sequence
-    from typing import Any, Callable
+    from collections.abc import Callable, Sequence
+    from typing import Any
 
     import matplotlib as mpl
     import numpy.typing as npt
@@ -584,7 +584,7 @@ class AbstractFit:
                         color=colors[1],
                     )
 
-        for i, ax in enumerate(axes):
+        for ax in axes:
             ax.legend()
         return fig, axes
 
@@ -1305,7 +1305,7 @@ class GenericLinearGaussianStateSpaceModel:
                 logger.warning("n_iter %s is ignored when using scipy.optimize.minimize.", n_iter)
 
             chain: list[npt.NDArray[np.float64]] = []
-            callack: Callable[[npt.NDArray[np.float64]], None] | None
+            callback: Callable[[npt.NDArray[np.float64]], None] | None
             if return_chain:
                 chain.append(params0)
                 callback = _callback
@@ -1345,7 +1345,7 @@ class GenericLinearGaussianStateSpaceModel:
         mle_method: str = "",
         mle_n_iter: int = 0,
         mle_return_chain: bool = False,
-        mle_kwargs: dict[Any, Any] = {},
+        mle_kwargs: dict[Any, Any] | None = None,
         n_sample: int = 0,
         gibbs_burn_in: int = 0,
         t: npt.NDArray[Any] | None = None,
@@ -1379,7 +1379,7 @@ class GenericLinearGaussianStateSpaceModel:
             mle_method=mle_method,
             mle_n_iter=mle_n_iter,
             mle_return_chain=mle_return_chain,
-            mle_kwargs=mle_kwargs,
+            mle_kwargs=mle_kwargs or {},
             n_sample=n_sample,
             gibbs_burn_in=gibbs_burn_in,
             t=t,

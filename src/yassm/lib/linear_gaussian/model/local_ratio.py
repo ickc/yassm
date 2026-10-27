@@ -6,7 +6,7 @@ import numpy as np
 from numba import jit
 
 # smoothed_state_to_obs is for export
-from .local_level import filter_update, smoothed_state_to_obs
+from .local_level import filter_update, smoothed_state_to_obs  # noqa: F401  (re-exported)
 
 if TYPE_CHECKING:
     import numpy.typing as npt

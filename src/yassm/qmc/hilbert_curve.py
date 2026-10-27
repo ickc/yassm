@@ -12,7 +12,8 @@ from yassm.lib.qmc.hilbert_curve import FLOAT_ORDER, hilbert_sort_inplace
 from yassm.lib.qmc.hilbert_curve_full_range import f8_to_u8_func, gen_f8_to_u8_args_func, hilber_sort_inplace_func
 
 if TYPE_CHECKING:
-    from typing import Any, Callable
+    from collections.abc import Callable
+    from typing import Any
 
     import numpy.typing as npt
     from matplotlib.axes._axes import Axes
