@@ -95,7 +95,7 @@ packages = ["src/yassm"]
 
 [tool.pytest.ini_options]
 minversion = "8"
-addopts = ["-ra", "--strict-markers", "--strict-config"]
+addopts = ["-ra", "--strict-markers", "--strict-config", "-m", "not examples"]
 testpaths = ["tests"]
 xfail_strict = true
 markers = [
