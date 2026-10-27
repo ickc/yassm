@@ -66,7 +66,7 @@ def f8_to_u8_linear(x: npt.NDArray[np.float64], i: int, args: Args) -> int:
     low, high, scale = args
 
     if x[i] == high[i]:
-        return 1 << FLOAT_ORDER - 1
+        return (1 << FLOAT_ORDER) - 1
     # this transformation goes to [0, 1],
     # but 1 is special-cased above.
     # i.e. to [0, 1)
