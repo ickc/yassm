@@ -11,7 +11,7 @@ import numpy as np
 from numba import jit
 
 if TYPE_CHECKING:
-    from typing import Callable
+    from collections.abc import Callable
 
     import numpy.typing as npt
 
@@ -52,10 +52,19 @@ def get_ABΣR(d: int) -> tuple[ΑΒΣR0, ΑΒΣR0, ΑΒΣR0, ΑΒΣR0]:
 def generate_Y(T: int, d: int, params: npt.NDArray[np.float64]) -> npt.NDArray[np.float64]:
     """Generate Y.
 
-    :param T: number of time step. 0 <= t <= T.
-    :param d: number of dimensions.
-    :param params: parameters α.
-    :return: Y, shape of (T + 1, d)
+    Parameters
+    ----------
+    T
+        number of time step. 0 <= t <= T.
+    d
+        number of dimensions.
+    params
+        parameters α.
+
+    Returns
+    -------
+    npt.NDArray[np.float64]
+        Y, shape of (T + 1, d)
     """
     α = params[0]
 

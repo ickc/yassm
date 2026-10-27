@@ -6,11 +6,10 @@ from unittest import TestCase
 import numpy as np
 from numba import jit
 
+from tests import y, y_nan
 from yassm.linear_gaussian import GeneralLinearGaussianStateSpaceModel
 from yassm.linear_gaussian.model.local_level import local_level_model
 from yassm.linear_gaussian.model.local_ratio import local_ratio_model
-
-from tests import y, y_nan
 
 if TYPE_CHECKING:
     import numpy.typing as npt
@@ -74,7 +73,7 @@ class TestLocalLevelGaussian(TestCase):
         self.fit_ratio = local_ratio_model.fit(
             self.y,
             # use a fixed parameters from local-level
-            np.array(list(self.fit.params) + [1.0]),
+            np.array([*self.fit.params, 1.0]),
             self.μ_0,
             self.Γ_0,
         )

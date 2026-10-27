@@ -6,7 +6,7 @@ import numpy as np
 from numba import jit
 
 # smoothed_state_to_obs is for export
-from .local_level import filter_update, smoothed_state_to_obs
+from .local_level import filter_update, smoothed_state_to_obs  # noqa: F401  (re-exported)
 
 if TYPE_CHECKING:
     import numpy.typing as npt
@@ -29,7 +29,10 @@ def one_step_ahead(
 ) -> tuple[float, float]:
     """Calculate one step ahead prediction.
 
-    :return: (m_s_given_t, Q_s_given_t).
+    Returns
+    -------
+    tuple[float, float]
+        (m_s_given_t, Q_s_given_t).
     """
     # σ_Z_sq = Σ_s
     m_s_given_t = φ * m_sMinus1_given_t
@@ -53,7 +56,10 @@ def smoothing_backward_recursion(
 ) -> tuple[float, float]:
     """Calculate filter update.
 
-    :return: (m_s_given_t, Q_s_given_t).
+    Returns
+    -------
+    tuple[float, float]
+        (m_s_given_t, Q_s_given_t).
     """
     σ_Z_sq = Σ
     Q_s_given_s_φ = Q_s_given_s * φ
@@ -87,11 +93,18 @@ def _kalman_filtering_1d_inplace(
 ) -> None:
     """Kalman filtering.
 
-    :param m_t_given_tMinus1: output array.
-    :param Q_t_given_tMinus1: output array.
-    :param m_t_given_t: output array.
-    :param Q_t_given_t: output array.
-    :param params: paramters of the model, θ.
+    Parameters
+    ----------
+    m_t_given_tMinus1
+        output array.
+    Q_t_given_tMinus1
+        output array.
+    m_t_given_t
+        output array.
+    Q_t_given_t
+        output array.
+    params
+        parameters of the model, θ.
     """
     size = y.shape[0]
 
@@ -135,8 +148,15 @@ def kalman_filtering(
 ) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64], npt.NDArray[np.float64], npt.NDArray[np.float64]]:
     """Kalman filtering.
 
-    :param params: paramters of the model, θ.
-    :return: m_t_given_tMinus1, Q_t_given_tMinus1, m_t_given_t, Q_t_given_t
+    Parameters
+    ----------
+    params
+        parameters of the model, θ.
+
+    Returns
+    -------
+    tuple[npt.NDArray[np.float64], npt.NDArray[np.float64], npt.NDArray[np.float64], npt.NDArray[np.float64]]
+        m_t_given_tMinus1, Q_t_given_tMinus1, m_t_given_t, Q_t_given_t
     """
     size = y_2d.shape[0]
     # to 1d
@@ -261,8 +281,13 @@ def _backward_sampling_1d_inplace(
 ) -> None:
     """FFBSampling algorithm.
 
-    :param N: Number of samples to generate.
+    Parameters
+    ----------
+    N
+        Number of samples to generate.
 
+    Notes
+    -----
     Modified from `local_level._backward_sampling_1d_inplace`.
     """
     size = m_t_given_t.size
@@ -382,8 +407,13 @@ def gibbs_sampling(
 ) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]]:
     """Gibbs sampling.
 
-    :return: the parameters chain and the Xs chain.
+    Returns
+    -------
+    tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]]
+        the parameters chain and the Xs chain.
 
+    Notes
+    -----
     Same as `local_level.gibbs_sampling`.
     """
     n_params = params.size
@@ -549,8 +579,12 @@ def score_inplace(
 ) -> None:
     """Calculate the score vector from data.
 
-    :param out: output parameters of length 3.
-    :param temp: holding the intermediate ?_s_given_t stuffs.
+    Parameters
+    ----------
+    out
+        output parameters of length 3.
+    temp
+        holding the intermediate ?_s_given_t stuffs.
     """
     σ_ε_sq, σ_Z_sq, φ = params
     σ_ε = np.sqrt(σ_ε_sq)
@@ -739,8 +773,13 @@ def gibbs_sampling_debug(
 ) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]]:
     """Gibbs sampling.
 
-    :return: the parameters chain and the Xs chain.
+    Returns
+    -------
+    tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]]
+        the parameters chain and the Xs chain.
 
+    Notes
+    -----
     Same as `local_level.gibbs_sampling`.
     """
     n_params = 10

@@ -19,7 +19,7 @@ from ...lib.linear_gaussian.model.local_level import smoothed_state_to_obs as _s
 from .. import GenericLinearGaussianStateSpaceModel
 
 if TYPE_CHECKING:
-    from typing import Callable
+    from collections.abc import Callable
 
     import numpy.typing as npt
 

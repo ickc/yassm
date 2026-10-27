@@ -1,5 +1,4 @@
-"""General 1-dimensional state space model.
-"""
+"""General 1-dimensional state space model."""
 
 from __future__ import annotations
 
@@ -18,9 +17,11 @@ from ..lib.grid.one_dimension import (
     ps_to_mQ,
     smoothing_backward_recursion_inplace,
 )
+from ..util import as_c_array, as_scipy_objective
 
 if TYPE_CHECKING:
-    from typing import Any, Callable
+    from collections.abc import Callable
+    from typing import Any
 
     import numpy.typing as npt
     from typing_extensions import Protocol
@@ -92,8 +93,7 @@ if TYPE_CHECKING:
             n_iter: int,
             return_chain: bool,
             **kwargs: dict[str, Any],
-        ) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]]:
-            ...
+        ) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]]: ...
 
 
 logger = getLogger(__name__)
@@ -101,7 +101,6 @@ logger = getLogger(__name__)
 
 @dataclass
 class General1DStateSpaceModelFit:
-
     parent: General1DStateSpaceModel
     y: npt.NDArray[np.float64]
     params: npt.NDArray[np.float64]
@@ -114,6 +113,9 @@ class General1DStateSpaceModelFit:
     param_names: list[str] | None = None
 
     def __post_init__(self) -> None:
+        self.y = as_c_array(self.y)
+        self.params = as_c_array(self.params)
+        self.p_0 = as_c_array(self.p_0)
         self.size = self.y.size
         self.G = self.p_0.size
         self.N = self.params.size
@@ -142,7 +144,10 @@ class General1DStateSpaceModelFit:
 
     def _run_kalman_filtering(self) -> None:
         logger.info("Running kalman filtering...")
-        (self._p_t_given_tMinus1, self._p_t_given_t,) = self.parent.kalman_filtering(
+        (
+            self._p_t_given_tMinus1,
+            self._p_t_given_t,
+        ) = self.parent.kalman_filtering(
             self.y,
             self.params,
             self.p_0,
@@ -257,15 +262,26 @@ class General1DStateSpaceModel:
             p_0: npt.NDArray[np.float64],
         ) -> None:
             """
-            :param p_t_given_tMinus1: out array.
-            :param p_t_given_t: out array.
-            :param y: data.
-            :param params: params.
-            :param p_0: initial density.
-            :return: p_t_given_tMinus1, p_t_given_t
+
+            Parameters
+            ----------
+            p_t_given_tMinus1
+                out array.
+            p_t_given_t
+                out array.
+            y
+                data.
+            params
+                params.
+            p_0
+                initial density.
+
+            Returns
+            -------
+            None
+                p_t_given_tMinus1, p_t_given_t
             """
             size = y.shape[0]
-            G = p_t_given_tMinus1.size
 
             # initialize
             p_t_given_tMinus1[0] = p_0
@@ -439,11 +455,23 @@ class General1DStateSpaceModel:
             p_0: npt.NDArray[np.float64],
         ) -> float:
             """
-            :param y: data.
-            :param params: params.
-            :param p_0: initial density.
-            :return: negative log-likelihood up to a constant
 
+            Parameters
+            ----------
+            y
+                data.
+            params
+                params.
+            p_0
+                initial density.
+
+            Returns
+            -------
+            float
+                negative log-likelihood up to a constant
+
+            Notes
+            -----
             Modified from Kalman filter.
             """
             size = y.shape[0]
@@ -557,29 +585,29 @@ class General1DStateSpaceModel:
         ) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]]:
             """Calculate MLE from log-likelihood using scipy.optimize.minimize.
 
-            Tips: include `bounds` for constrainted variables.
+            Tips: include `bounds` for constrained variables.
             """
             from scipy.optimize import minimize
 
             def _callback(xk: npt.NDArray[np.float64]) -> None:
                 """Store iterations."""
-                chain.append(xk)
+                chain.append(np.array(xk))
 
             if n_iter:
                 logger.warning("n_iter %s is ignored when using scipy.optimize.minimize.", n_iter)
 
             chain: list[npt.NDArray[np.float64]] = []
-            callack: Callable[[npt.NDArray[np.float64]], None] | None
+            callback: Callable[[npt.NDArray[np.float64]], None] | None
             if return_chain:
                 chain.append(params0)
                 callback = _callback
             else:
                 callback = None
 
-            opt = minimize(neg_log_likelihood, params0, args=(y, p_0), callback=callback, **kwargs)
+            opt = minimize(as_scipy_objective(neg_log_likelihood), params0, args=(y, p_0), callback=callback, **kwargs)
             msg = opt.message
             if not opt.success:
-                raise RuntimeError(f"MLE unccessful with message: {msg}")
+                raise RuntimeError(f"MLE unsuccessful with message: {msg}")
             logger.info("MLE constructed with message: %s", msg)
             return opt.x, np.array(chain)
 
@@ -593,7 +621,7 @@ class General1DStateSpaceModel:
         mle_method: str = "scipy_minimize",
         mle_n_iter: int = 0,
         mle_return_chain: bool = False,
-        mle_kwargs: dict[Any, Any] = {},
+        mle_kwargs: dict[Any, Any] | None = None,
         t: npt.NDArray[Any] | None = None,
         param_names: list[str] | None = None,
     ) -> General1DStateSpaceModelFit:
@@ -605,7 +633,7 @@ class General1DStateSpaceModel:
             mle_method=mle_method,
             mle_n_iter=mle_n_iter,
             mle_return_chain=mle_return_chain,
-            mle_kwargs=mle_kwargs,
+            mle_kwargs=mle_kwargs or {},
             t=t,
             param_names=param_names or self.param_names,
         )

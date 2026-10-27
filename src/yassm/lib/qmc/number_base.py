@@ -23,12 +23,17 @@ if TYPE_CHECKING:
 def n_digits(N: int, base: int) -> int:
     """Return the number of digits of N in base base.
 
-    Args:
-        N (int): A positive integer to be written in base base.
-        base (int): base of the number.
+    Parameters
+    ----------
+    N
+        A positive integer to be written in base `base`.
+    base
+        Base of the number.
 
-    Returns:
-        int: The number of digits of N in base base.
+    Returns
+    -------
+    int
+        The number of digits of N in base `base`.
     """
     return int(np.ceil(np.log(N + 1) / np.log(base)))
 
@@ -37,9 +42,17 @@ def n_digits(N: int, base: int) -> int:
 def base_repr_u1(N: int, base: int) -> npt.NDArray[np.uint8]:
     """Return the base representation of a number in a base.
 
-    :param N: The number to be represented.
-    :param base: The base of the number.
-    :return: The base representation of the number in little endian convention.
+    Parameters
+    ----------
+    N
+        The number to be represented.
+    base
+        The base of the number.
+
+    Returns
+    -------
+    npt.NDArray[np.uint8]
+        The base representation of the number in little endian convention.
     """
     n = n_digits(N, base)
     base_repr = np.empty(n, dtype=np.uint8)
@@ -53,9 +66,17 @@ def base_repr_u1(N: int, base: int) -> npt.NDArray[np.uint8]:
 def base_repr_u2(N: int, base: int) -> npt.NDArray[np.uint16]:
     """Return the base representation of a number in a base.
 
-    :param N: The number to be represented.
-    :param base: The base of the number.
-    :return: The base representation of the number in little endian convention.
+    Parameters
+    ----------
+    N
+        The number to be represented.
+    base
+        The base of the number.
+
+    Returns
+    -------
+    npt.NDArray[np.uint16]
+        The base representation of the number in little endian convention.
     """
     n = n_digits(N, base)
     base_repr = np.empty(n, dtype=np.uint16)
@@ -69,9 +90,17 @@ def base_repr_u2(N: int, base: int) -> npt.NDArray[np.uint16]:
 def int_repr(array: npt.NDArray[np.integer[Any]], base: int) -> int:
     """Return the integer representation of an array in a base.
 
-    :param array: The array in base representation with little endian convention.
-    :param base: The base of the number.
-    :return: The integer representation of the array.
+    Parameters
+    ----------
+    array
+        The array in base representation with little endian convention.
+    base
+        The base of the number.
+
+    Returns
+    -------
+    int
+        The integer representation of the array.
     """
     n = array.size
     res: int = 0
@@ -86,10 +115,20 @@ def int_repr(array: npt.NDArray[np.integer[Any]], base: int) -> int:
 def increment_inplace(array: npt.NDArray[np.integer[Any]], base: int) -> None:
     """Increment the array inplace.
 
-    :param array: A number in base n in little-endian convention.
-    :param base: The base of the number.
-    :return: None.
+    Parameters
+    ----------
+    array
+        A number in base n in little-endian convention.
+    base
+        The base of the number.
 
+    Returns
+    -------
+    None
+        None.
+
+    Notes
+    -----
     This does not check if the most significant bit is overflow.
     """
     n_digits = array.size

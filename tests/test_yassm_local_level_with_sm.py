@@ -6,9 +6,8 @@ from unittest import TestCase
 import numpy as np
 import statsmodels.tsa.api as tsa
 
-from yassm.linear_gaussian.model.local_level import local_level_model
-
 from tests import y
+from yassm.linear_gaussian.model.local_level import local_level_model
 
 if TYPE_CHECKING:
     from yassm.linear_gaussian import GeneralLinearGaussianStateSpaceModelFit

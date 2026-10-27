@@ -24,7 +24,7 @@ from .hilbert_curve import FLOAT_ORDER, _bitset_flip, _bitset_test
 from .random import correlation_variance_decomposition
 
 if TYPE_CHECKING:
-    from typing import Callable
+    from collections.abc import Callable
 
     import numpy.typing as npt
 
@@ -34,6 +34,7 @@ if TYPE_CHECKING:
     HilbertSortInplace = Callable[[npt.NDArray[np.float64], int], None]
 
 SQRT2_INV = np.power(2.0, -0.5)
+EPS = np.finfo(np.float64).eps
 
 
 # _f8_to_u8 ####################################################################
@@ -66,7 +67,7 @@ def f8_to_u8_linear(x: npt.NDArray[np.float64], i: int, args: Args) -> int:
     low, high, scale = args
 
     if x[i] == high[i]:
-        return 1 << FLOAT_ORDER - 1
+        return (1 << FLOAT_ORDER) - 1
     # this transformation goes to [0, 1],
     # but 1 is special-cased above.
     # i.e. to [0, 1)
@@ -113,11 +114,12 @@ def gen_f8_to_u8_args_whiten_cholesky(data: npt.NDArray[np.float64]) -> Args:
     cov_inv = np.linalg.pinv(cov)
     # force symmetric
     cov_inv = 0.5 * (cov_inv + cov_inv.T)
-    # minimum eigenvalue
-    eigen_min = np.linalg.eigvalsh(cov_inv)[0]
-    # force eigen_min >= 0
-    if eigen_min < 0.0:
-        cov_inv += eigen_min * np.eye(d)
+    # force positive definiteness, e.g. for singular cov:
+    # shift the spectrum so that its minimum is at least a tiny positive number
+    eigen = np.linalg.eigvalsh(cov_inv)
+    eigen_floor = d * EPS * max(eigen[-1], 1.0)
+    if eigen[0] < eigen_floor:
+        cov_inv += (eigen_floor - eigen[0]) * np.eye(d)
 
     # W_T = L = U.T
     W_T = np.linalg.cholesky(cov_inv)
@@ -176,13 +178,22 @@ def _partition_inplace_float(
 ) -> int:
     """The function partition arranges data in a similar way as the famous partition function in quick sort.
 
-    :param array: The array to be sorted.
-    :param i_start: The start index of the array.
-    :param i_end: The end index of the array.
-    :param order: The order of interest.
-    :param axis: The axis number to be divided.
-    :param direction: False for ascending, True for descending.
-    :param f8_to_u8: The function to convert float to uint64.
+    Parameters
+    ----------
+    array
+        The array to be sorted.
+    i_start
+        The start index of the array.
+    i_end
+        The end index of the array.
+    order
+        The order of interest.
+    axis
+        The axis number to be divided.
+    direction
+        False for ascending, True for descending.
+    f8_to_u8
+        The function to convert float to uint64.
     """
     N, d = array.shape
     temp = np.empty(d, dtype=array.dtype)
@@ -220,16 +231,28 @@ def _hilbert_sort_inplace(
 ) -> None:
     """Perform Hilbert sort on the array inplace.
 
-    :param array: The array to be sorted.
-    :param i_start: The start index of the array.
-    :param i_end: The end index of the array.
-    :param order: The current order of the Hilbert curve.
-    :param axis_counter: Axis counter in current order.
-    :param axis_start: Start positions of axes.
-    :param axis_division: Axis number of 1st division on current order.
-    :param direction: Direction of previous division. False for ascending, True for descending.
-    :param n_cont_direction: Number of continuous occurrences of direction at same order.
-    :param f8_to_u8: The function to convert float to uint64.
+    Parameters
+    ----------
+    array
+        The array to be sorted.
+    i_start
+        The start index of the array.
+    i_end
+        The end index of the array.
+    order
+        The current order of the Hilbert curve.
+    axis_counter
+        Axis counter in current order.
+    axis_start
+        Start positions of axes.
+    axis_division
+        Axis number of 1st division on current order.
+    direction
+        Direction of previous division. False for ascending, True for descending.
+    n_cont_direction
+        Number of continuous occurrences of direction at same order.
+    f8_to_u8
+        The function to convert float to uint64.
     """
     dimension = array.shape[1]
 
@@ -336,11 +359,18 @@ def hilbert_sort_inplace_linear(
 ) -> None:
     """Perform Hilbert sort on the array inplace.
 
-    :param array: The array to be sorted, dtype of uint64, shape of (N, d),
+    Parameters
+    ----------
+    array
+        The array to be sorted, dtype of uint64, shape of (N, d),
         where N is the number of data, and d is the dimension of data.
-    :param order: The order of the Hilbert curve, 1 <= order <= 64.
+    order
+        The order of the Hilbert curve, 1 <= order <= 64.
     """
     N = array.shape[0]
+    if order <= 0 or N < 2:
+        # a single cell or at most a single point: nothing to sort
+        return
     args = gen_f8_to_u8_args_linear(array)
 
     _hilbert_sort_inplace(
@@ -365,11 +395,18 @@ def hilbert_sort_inplace_logistic(
 ) -> None:
     """Perform Hilbert sort on the array inplace.
 
-    :param array: The array to be sorted, dtype of uint64, shape of (N, d),
+    Parameters
+    ----------
+    array
+        The array to be sorted, dtype of uint64, shape of (N, d),
         where N is the number of data, and d is the dimension of data.
-    :param order: The order of the Hilbert curve, 1 <= order <= 64.
+    order
+        The order of the Hilbert curve, 1 <= order <= 64.
     """
     N = array.shape[0]
+    if order <= 0 or N < 2:
+        # a single cell or at most a single point: nothing to sort
+        return
     args = gen_f8_to_u8_args_logistic(array)
 
     _hilbert_sort_inplace(
@@ -394,11 +431,18 @@ def hilbert_sort_inplace_whiten_cholesky(
 ) -> None:
     """Perform Hilbert sort on the array inplace.
 
-    :param array: The array to be sorted, dtype of uint64, shape of (N, d),
+    Parameters
+    ----------
+    array
+        The array to be sorted, dtype of uint64, shape of (N, d),
         where N is the number of data, and d is the dimension of data.
-    :param order: The order of the Hilbert curve, 1 <= order <= 64.
+    order
+        The order of the Hilbert curve, 1 <= order <= 64.
     """
     N = array.shape[0]
+    if order <= 0 or N < 2:
+        # a single cell or at most a single point: nothing to sort
+        return
     args = gen_f8_to_u8_args_whiten_cholesky(array)
 
     _hilbert_sort_inplace(
@@ -423,11 +467,18 @@ def hilbert_sort_inplace_whiten_ZCA(
 ) -> None:
     """Perform Hilbert sort on the array inplace.
 
-    :param array: The array to be sorted, dtype of uint64, shape of (N, d),
+    Parameters
+    ----------
+    array
+        The array to be sorted, dtype of uint64, shape of (N, d),
         where N is the number of data, and d is the dimension of data.
-    :param order: The order of the Hilbert curve, 1 <= order <= 64.
+    order
+        The order of the Hilbert curve, 1 <= order <= 64.
     """
     N = array.shape[0]
+    if order <= 0 or N < 2:
+        # a single cell or at most a single point: nothing to sort
+        return
     args = gen_f8_to_u8_args_whiten_ZCA(array)
 
     _hilbert_sort_inplace(
@@ -452,11 +503,18 @@ def hilbert_sort_inplace_whiten_ZCA_cor(
 ) -> None:
     """Perform Hilbert sort on the array inplace.
 
-    :param array: The array to be sorted, dtype of uint64, shape of (N, d),
+    Parameters
+    ----------
+    array
+        The array to be sorted, dtype of uint64, shape of (N, d),
         where N is the number of data, and d is the dimension of data.
-    :param order: The order of the Hilbert curve, 1 <= order <= 64.
+    order
+        The order of the Hilbert curve, 1 <= order <= 64.
     """
     N = array.shape[0]
+    if order <= 0 or N < 2:
+        # a single cell or at most a single point: nothing to sort
+        return
     args = gen_f8_to_u8_args_whiten_ZCA_cor(array)
 
     _hilbert_sort_inplace(
@@ -490,10 +548,13 @@ f8_to_u8_func: dict[str, F8ToU8] = {
     "whiten_ZCA_cor": f8_to_u8_whiten,
 }
 
-hilber_sort_inplace_func: dict[str, HilbertSortInplace] = {
+hilbert_sort_inplace_func: dict[str, HilbertSortInplace] = {
     "linear": hilbert_sort_inplace_linear,
     "logistic": hilbert_sort_inplace_logistic,
     "whiten_cholesky": hilbert_sort_inplace_whiten_cholesky,
     "whiten_ZCA": hilbert_sort_inplace_whiten_ZCA,
     "whiten_ZCA_cor": hilbert_sort_inplace_whiten_ZCA_cor,
 }
+
+#: Deprecated misspelt alias kept for backward compatibility.
+hilber_sort_inplace_func = hilbert_sort_inplace_func

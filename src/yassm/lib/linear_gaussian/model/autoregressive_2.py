@@ -21,8 +21,12 @@ def neg_log_likelihood(
 ) -> float:
     """Log likelihood of the AR(2) model up to a constant.
 
-    :param params: σ_Z_sq, φ_0, φ_1, φ_2, σ_Z_sq must be positive.
-    :param y: Observations from 0 to T.
+    Parameters
+    ----------
+    params
+        σ_Z_sq, φ_0, φ_1, φ_2, σ_Z_sq must be positive.
+    y
+        Observations from 0 to T.
     """
     size = y.size
     T = size + 1
@@ -37,8 +41,12 @@ def direct_sampling(
 ) -> npt.NDArray[np.float64]:
     """Direct sampling from the AR(2) model.
 
-    :param Y: Observations from 0 to T.
-    :param N: Number of samples.
+    Parameters
+    ----------
+    Y
+        Observations from 0 to T.
+    N
+        Number of samples.
     """
     Y = y[2:]
     size = Y.size

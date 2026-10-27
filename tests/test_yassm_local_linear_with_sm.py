@@ -6,9 +6,8 @@ from unittest import TestCase
 import numpy as np
 import statsmodels.tsa.api as tsa
 
-from yassm.linear_gaussian.model.local_linear import local_linear_model
-
 from tests import y
+from yassm.linear_gaussian.model.local_linear import local_linear_model
 
 if TYPE_CHECKING:
     from typing import Any

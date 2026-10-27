@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 import numpy as np
-from numba import jit, prange
+from numba import jit
 
 if TYPE_CHECKING:
     import numpy.typing as npt
@@ -25,7 +25,10 @@ def one_step_ahead(
 ) -> tuple[float, float]:
     """Calculate one step ahead prediction.
 
-    :return: (m_s_given_t, Q_s_given_t).
+    Returns
+    -------
+    tuple[float, float]
+        (m_s_given_t, Q_s_given_t).
     """
     # σ_Z_sq = Σ_s
     m_s_given_t = m_sMinus1_given_t
@@ -47,7 +50,10 @@ def filter_update(
 ) -> tuple[float, float]:
     """Calculate filter update.
 
-    :return: (m_t_given_t, Q_t_given_t).
+    Returns
+    -------
+    tuple[float, float]
+        (m_t_given_t, Q_t_given_t).
     """
     if np.isnan(y_t):
         return m_t_given_tMinus1, Q_t_given_tMinus1
@@ -79,7 +85,10 @@ def smoothing_backward_recursion(
 ) -> tuple[float, float]:
     """Calculate filter update.
 
-    :return: (m_s_given_t, Q_s_given_t).
+    Returns
+    -------
+    tuple[float, float]
+        (m_s_given_t, Q_s_given_t).
     """
     # this algorithm uses 3 divisions instead of 1 written in a more straight forward way
     # written this way so that Q = ∞ works
@@ -115,11 +124,18 @@ def _kalman_filtering_1d_inplace(
 ) -> None:
     """Kalman filtering.
 
-    :param m_t_given_tMinus1: output array.
-    :param Q_t_given_tMinus1: output array.
-    :param m_t_given_t: output array.
-    :param Q_t_given_t: output array.
-    :param params: paramters of the model, θ.
+    Parameters
+    ----------
+    m_t_given_tMinus1
+        output array.
+    Q_t_given_tMinus1
+        output array.
+    m_t_given_t
+        output array.
+    Q_t_given_t
+        output array.
+    params
+        parameters of the model, θ.
     """
     size = y.shape[0]
 
@@ -163,8 +179,15 @@ def kalman_filtering(
 ) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64], npt.NDArray[np.float64], npt.NDArray[np.float64]]:
     """Kalman filtering.
 
-    :param params: paramters of the model, θ.
-    :return: m_t_given_tMinus1, Q_t_given_tMinus1, m_t_given_t, Q_t_given_t
+    Parameters
+    ----------
+    params
+        parameters of the model, θ.
+
+    Returns
+    -------
+    tuple[npt.NDArray[np.float64], npt.NDArray[np.float64], npt.NDArray[np.float64], npt.NDArray[np.float64]]
+        m_t_given_tMinus1, Q_t_given_tMinus1, m_t_given_t, Q_t_given_t
     """
     size = y_2d.shape[0]
     # to 1d
@@ -287,8 +310,13 @@ def _backward_sampling_1d_inplace(
 ) -> None:
     """FFBSampling algorithm.
 
-    :param N: Number of samples to generate.
+    Parameters
+    ----------
+    N
+        Number of samples to generate.
 
+    Notes
+    -----
     Modified from `kalman_smoothing_inplace` as they share
     the same prerequisites.
     """
@@ -395,7 +423,10 @@ def gibbs_sampling(
 ) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]]:
     """Gibbs sampling.
 
-    :return: the parameters chain and the Xs chain.
+    Returns
+    -------
+    tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]]
+        the parameters chain and the Xs chain.
     """
     n_params = params.size
     y = y_2d.flatten()

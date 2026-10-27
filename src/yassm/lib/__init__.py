@@ -47,12 +47,13 @@ def random_choice_weighted_inplace(
     # see footnote of numpy.digitize
     # that when b is monotonic increasing, the 2 algorithm are the same
     idxs = np.searchsorted(b, u, side="right")
+    n_bin = b.size
     for i in range(size):
         idx = idxs[i]
         # numerical issue might result in some u >= b[-1]
         # this is the only exception in digitize/searchsorted
         # that the index can fall outside
-        choice[i] = x[size - 1 if idx == size else idx]
+        choice[i] = x[n_bin - 1 if idx == n_bin else idx]
 
 
 @jit("f8[:, ::1](f8[:, ::1], i8, f8[::1])", nopython=True, nogil=True, cache=True)
@@ -63,10 +64,17 @@ def random_choice_weighted(
 ) -> npt.NDArray[np.float64]:
     """weighted random choice with replacement.
 
-    :param: x: 2d-array to be chosen from, shape of (n_bin, d).
-    :param: size: number of samples.
-    :param: p: probability of each element in x, assumes to be positive, shape of (n_bin,) without checking.
+    Parameters
+    ----------
+    x
+        2d-array to be chosen from, shape of (n_bin, d).
+    size
+        number of samples.
+    p
+        probability of each element in x, assumes to be positive, shape of (n_bin,) without checking.
 
+    Notes
+    -----
     Similar to `np.random.default_rng().choice(x, size=size, p=p)`,
     but p can be non-normalized.
     """

@@ -16,7 +16,6 @@ from logging import getLogger
 from typing import TYPE_CHECKING
 
 import numpy as np
-import pandas as pd
 from numba import jit, objmode, prange
 from scipy import stats
 
@@ -28,13 +27,15 @@ from ..lib.linear_gaussian import (
     one_step_ahead_inplace,
     smoothing_backward_recursion_inplace,
 )
+from ..util import as_c_array, as_scipy_objective
 
 if TYPE_CHECKING:
-    from collections.abc import Sequence
-    from typing import Any, Callable
+    from collections.abc import Callable, Sequence
+    from typing import Any
 
     import matplotlib as mpl
     import numpy.typing as npt
+    import pandas as pd
     from typing_extensions import Protocol
 
     KalmanFilteringInplace = Callable[
@@ -187,8 +188,7 @@ if TYPE_CHECKING:
             n_iter: int,
             return_chain: bool,
             **kwargs: dict[str, Any],
-        ) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]]:
-            ...
+        ) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]]: ...
 
 
 logger = getLogger(__name__)
@@ -223,11 +223,11 @@ class AbstractFit:
             dt = self.t[1] - self.t[0]
             start = self.t[-1] + dt
             stop = self.t[-1] + T_forecast * dt
-            return (
-                pd.date_range(start, stop, T_forecast)
-                if np.issubdtype(self.t.dtype, np.datetime64)
-                else np.linspace(start, stop, T_forecast)
-            )
+            if np.issubdtype(self.t.dtype, np.datetime64):
+                import pandas as pd
+
+                return pd.date_range(start, stop, T_forecast)
+            return np.linspace(start, stop, T_forecast)
 
     # running functions and cache: _run_*
 
@@ -288,9 +288,17 @@ class AbstractFit:
     ) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64], npt.NDArray[np.float64]]:
         """Filtered observations confidence intervals.
 
-        :param α: Confidence level.
-        :param with_obs_cov: Whether to include observation covariance.
-        :return: tuple of 3 arrays of shape (size, n).
+        Parameters
+        ----------
+        α
+            Confidence level.
+        with_obs_cov
+            Whether to include observation covariance.
+
+        Returns
+        -------
+        tuple[npt.NDArray[np.float64], npt.NDArray[np.float64], npt.NDArray[np.float64]]
+            tuple of 3 arrays of shape (size, n).
             They are the lower, central and upper confidence intervals.
         """
         raise NotImplementedError
@@ -303,9 +311,17 @@ class AbstractFit:
     ) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64], npt.NDArray[np.float64]]:
         """Smoothed observations confidence intervals.
 
-        :param α: Confidence level.
-        :param with_obs_cov: Whether to include observation covariance.
-        :return: tuple of 3 arrays of shape (size, n).
+        Parameters
+        ----------
+        α
+            Confidence level.
+        with_obs_cov
+            Whether to include observation covariance.
+
+        Returns
+        -------
+        tuple[npt.NDArray[np.float64], npt.NDArray[np.float64], npt.NDArray[np.float64]]
+            tuple of 3 arrays of shape (size, n).
             They are the lower, central and upper confidence intervals.
         """
         raise NotImplementedError
@@ -317,9 +333,17 @@ class AbstractFit:
     ) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64], npt.NDArray[np.float64]]:
         """Smoothed observations confidence intervals from sampling.
 
-        :param α: Confidence level.
-        :param with_obs_cov: Whether to include observation covariance.
-        :return: tuple of 3 arrays of shape (size, n).
+        Parameters
+        ----------
+        α
+            Confidence level.
+        with_obs_cov
+            Whether to include observation covariance.
+
+        Returns
+        -------
+        tuple[npt.NDArray[np.float64], npt.NDArray[np.float64], npt.NDArray[np.float64]]
+            tuple of 3 arrays of shape (size, n).
             They are the lower, central and upper confidence intervals.
         """
         raise NotImplementedError
@@ -331,9 +355,17 @@ class AbstractFit:
     ) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64], npt.NDArray[np.float64]]:
         """Smoothed observations confidence intervals from Gibbs sampling.
 
-        :param α: Confidence level.
-        :param with_obs_cov: Whether to include observation covariance.
-        :return: tuple of 3 arrays of shape (size, n).
+        Parameters
+        ----------
+        α
+            Confidence level.
+        with_obs_cov
+            Whether to include observation covariance.
+
+        Returns
+        -------
+        tuple[npt.NDArray[np.float64], npt.NDArray[np.float64], npt.NDArray[np.float64]]
+            tuple of 3 arrays of shape (size, n).
             They are the lower, central and upper confidence intervals.
         """
         raise NotImplementedError
@@ -347,9 +379,17 @@ class AbstractFit:
     ) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64], npt.NDArray[np.float64]]:
         """Forecast with confidence intervals.
 
-        :param T_forecast: Number of forecast time steps.
-        :param α: Confidence level.
-        :return: tuple of 3 arrays of shape (size, n).
+        Parameters
+        ----------
+        T_forecast
+            Number of forecast time steps.
+        α
+            Confidence level.
+
+        Returns
+        -------
+        tuple[npt.NDArray[np.float64], npt.NDArray[np.float64], npt.NDArray[np.float64]]
+            tuple of 3 arrays of shape (size, n).
             They are the lower, central and upper confidence intervals.
         """
         raise NotImplementedError
@@ -358,10 +398,14 @@ class AbstractFit:
 
     @property
     def mle_params_chain_to_frame(self) -> pd.DataFrame:
+        import pandas as pd
+
         return pd.DataFrame(self.mle_params_chain, columns=self.param_names)
 
     @property
     def params_to_series(self) -> pd.Series:
+        import pandas as pd
+
         return pd.Series(self.params, index=self.param_names)
 
     # plot
@@ -389,12 +433,20 @@ class AbstractFit:
     ) -> tuple[mpl.figure.Figure, list[mpl.axes._subplots.AxesSubplot]]:
         """Plotting.
 
-        :param α: α-value for C.I.
-        :param axes: matplotlib axis, no. of rows should match the dimension of observations.
-        :param alpha: transparency level of `ax.fill_between`.
-        :param color: a sequence of color of at least 12 elements. Every 2 colors must be pair of light and dark.
+        Parameters
+        ----------
+        α
+            α-value for C.I.
+        axes
+            matplotlib axis, no. of rows should match the dimension of observations.
+        alpha
+            transparency level of `ax.fill_between`.
+        color
+            a sequence of color of at least 12 elements. Every 2 colors must be pair of light and dark.
             If None, `sns.color_palette("Paired")` is used.
 
+        Notes
+        -----
         TODO: refactor to a DataFrame first and plot from its data.
         """
         import matplotlib.pyplot as plt
@@ -441,7 +493,7 @@ class AbstractFit:
             )
         )
 
-        str_CI = f" w/ ${(1. - α) * 100.:.3g} \\%%$ C.I." if n_std is None else f" w/ {n_std:.3g}σ C.I."
+        str_CI = f" w/ ${(1.0 - α) * 100.0:.3g} \\%$ C.I." if n_std is None else f" w/ {n_std:.3g}σ C.I."
 
         colors = colors_obs
         if plot_obs:
@@ -581,7 +633,7 @@ class AbstractFit:
                         color=colors[1],
                     )
 
-        for i, ax in enumerate(axes):
+        for ax in axes:
             ax.legend()
         return fig, axes
 
@@ -590,19 +642,34 @@ class AbstractFit:
 class GeneralLinearGaussianStateSpaceModelFit(AbstractFit):
     """A class performing the General linear gaussian state space model pipelines.
 
-    :param parent: a GenericLinearGaussianStateSpaceModel instance.
-    :param y: observed data (Y)
-    :param params: parameters of the model
-    :param μ_0: mean of X0
-    :param Γ_0: covariance of X0
-    :param mle_method: method used to estimate MLE
-    :param mle_n_iter: number of iteration run with MLE
-    :param mle_return_chain: if True, return the chain of parameters during MLE
-    :param mle_kwargs: pass to self.parent.mle
-    :param n_sample: number of samples used in FFBSampling algorithm
-    :param gibbs_burn_in: number of burn-in iterations in GibbsSampling algorithm
-    :param t: optional time axis
-    :param param_names: optional names of parameters
+    Parameters
+    ----------
+    parent
+        a GenericLinearGaussianStateSpaceModel instance.
+    y
+        observed data (Y)
+    params
+        parameters of the model
+    μ_0
+        mean of X0
+    Γ_0
+        covariance of X0
+    mle_method
+        method used to estimate MLE
+    mle_n_iter
+        number of iteration run with MLE
+    mle_return_chain
+        if True, return the chain of parameters during MLE
+    mle_kwargs
+        pass to self.parent.mle
+    n_sample
+        number of samples used in FFBSampling algorithm
+    gibbs_burn_in
+        number of burn-in iterations in GibbsSampling algorithm
+    t
+        optional time axis
+    param_names
+        optional names of parameters
     """
 
     parent: GenericLinearGaussianStateSpaceModel
@@ -637,10 +704,10 @@ class GeneralLinearGaussianStateSpaceModelFit(AbstractFit):
         mle_return_chain = self.mle_return_chain
         param_names = self.param_names
 
-        y = np.ascontiguousarray(self._y, dtype=np.float64)
-        params = np.ascontiguousarray(self._params, dtype=np.float64)
-        μ_0 = np.ascontiguousarray(self._μ_0, dtype=np.float64)
-        Γ_0 = np.ascontiguousarray(self._Γ_0, dtype=np.float64)
+        y = as_c_array(self._y)
+        params = as_c_array(self._params)
+        μ_0 = as_c_array(self._μ_0)
+        Γ_0 = as_c_array(self._Γ_0)
         if n == 1 and y.ndim == 1:
             y = y.reshape((-1, 1))
         if d == 1 and Γ_0.ndim == 1:
@@ -711,7 +778,10 @@ class GeneralLinearGaussianStateSpaceModelFit(AbstractFit):
 
     def _run_kalman_smoothing(self) -> None:
         logger.info("Running kalman smoothing...")
-        (self._m_t_given_T, self._Q_t_given_T,) = self.parent.kalman_smoothing(
+        (
+            self._m_t_given_T,
+            self._Q_t_given_T,
+        ) = self.parent.kalman_smoothing(
             self.params,
             self.m_t_given_tMinus1,
             self.Q_t_given_tMinus1,
@@ -721,7 +791,10 @@ class GeneralLinearGaussianStateSpaceModelFit(AbstractFit):
 
     def _run_filtered_state_to_obs(self) -> None:
         logger.info("Running smoothed_state_to_obs for filtered states...")
-        (self._filtered_obs, self._filtered_obs_cov,) = self.parent.smoothed_state_to_obs(
+        (
+            self._filtered_obs,
+            self._filtered_obs_cov,
+        ) = self.parent.smoothed_state_to_obs(
             self.params,
             self.m_t_given_t,
             self.Q_t_given_t,
@@ -731,7 +804,10 @@ class GeneralLinearGaussianStateSpaceModelFit(AbstractFit):
 
     def _run_smoothed_state_to_obs(self) -> None:
         logger.info("Running smoothed_state_to_obs...")
-        (self._smoothed_obs, self._smoothed_obs_cov,) = self.parent.smoothed_state_to_obs(
+        (
+            self._smoothed_obs,
+            self._smoothed_obs_cov,
+        ) = self.parent.smoothed_state_to_obs(
             self.params,
             self.m_t_given_T,
             self.Q_t_given_T,
@@ -741,7 +817,10 @@ class GeneralLinearGaussianStateSpaceModelFit(AbstractFit):
 
     def _run_filtered_state_to_obs_with_obs_cov(self) -> None:
         logger.info("Running smoothed_state_to_obs with obs_cov for filtered states...")
-        (self._filtered_obs, self._filtered_obs_cov_with_obs_cov,) = self.parent.smoothed_state_to_obs(
+        (
+            self._filtered_obs,
+            self._filtered_obs_cov_with_obs_cov,
+        ) = self.parent.smoothed_state_to_obs(
             self.params,
             self.m_t_given_t,
             self.Q_t_given_t,
@@ -751,7 +830,10 @@ class GeneralLinearGaussianStateSpaceModelFit(AbstractFit):
 
     def _run_smoothed_state_to_obs_with_obs_cov(self) -> None:
         logger.info("Running smoothed_state_to_obs with obs_cov...")
-        (self._smoothed_obs, self._smoothed_obs_cov_with_obs_cov,) = self.parent.smoothed_state_to_obs(
+        (
+            self._smoothed_obs,
+            self._smoothed_obs_cov_with_obs_cov,
+        ) = self.parent.smoothed_state_to_obs(
             self.params,
             self.m_t_given_T,
             self.Q_t_given_T,
@@ -761,7 +843,10 @@ class GeneralLinearGaussianStateSpaceModelFit(AbstractFit):
 
     def _run_smoothed_state_to_obs_from_samples(self) -> None:
         logger.info("Running smoothed_state_to_obs from samples...")
-        (self._smoothed_obs_from_samples, self._smoothed_obs_cov_from_samples,) = self.parent.smoothed_state_to_obs(
+        (
+            self._smoothed_obs_from_samples,
+            self._smoothed_obs_cov_from_samples,
+        ) = self.parent.smoothed_state_to_obs(
             self.params,
             self.m_t_given_T_from_samples,
             self.Q_t_given_T_from_samples,
@@ -823,7 +908,10 @@ class GeneralLinearGaussianStateSpaceModelFit(AbstractFit):
     def _run_gibbs_sampling(self, filter_n_std: float | None = None) -> None:
         """Run Gibbs sampler.
 
-        :param filter_n_std: if not None, the samples are filtered with the given number of standard deviations.
+        Parameters
+        ----------
+        filter_n_std
+            if not None, the samples are filtered with the given number of standard deviations.
         """
         logger.info("Running gibbs_sampling...")
         self.gibbs_params_chain_with_burn_in, self.gibbs_X_chain_with_burn_in = self.parent.gibbs_sampling(
@@ -835,8 +923,7 @@ class GeneralLinearGaussianStateSpaceModelFit(AbstractFit):
         )
         if filter_n_std is not None:
             mask = (
-                self.log_likelihoods(self.gibbs_params_chain_with_burn_in)
-                > self.log_likelihood - 0.5 * filter_n_std**2
+                self.log_likelihoods(self.gibbs_params_chain_with_burn_in) > self.log_likelihood - 0.5 * filter_n_std**2
             )
             n_sample_used = self.n_sample - self.gibbs_burn_in
             self.n_sample = mask.sum()
@@ -1153,7 +1240,10 @@ class GeneralLinearGaussianStateSpaceModelFit(AbstractFit):
 class GenericLinearGaussianStateSpaceModel:
     """Abstract class for any linear gaussian state space model.
 
-    :param N: no. of params.
+    Parameters
+    ----------
+    N
+        no. of params.
     """
 
     N: int
@@ -1273,29 +1363,31 @@ class GenericLinearGaussianStateSpaceModel:
         ) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]]:
             """Calculate MLE from log-likelihood using scipy.optimize.minimize.
 
-            Tips: include `bounds` for constrainted variables.
+            Tips: include `bounds` for constrained variables.
             """
             from scipy.optimize import minimize
 
             def _callback(xk: npt.NDArray[np.float64]) -> None:
                 """Store iterations."""
-                chain.append(xk)
+                chain.append(np.array(xk))
 
             if n_iter:
                 logger.warning("n_iter %s is ignored when using scipy.optimize.minimize.", n_iter)
 
             chain: list[npt.NDArray[np.float64]] = []
-            callack: Callable[[npt.NDArray[np.float64]], None] | None
+            callback: Callable[[npt.NDArray[np.float64]], None] | None
             if return_chain:
                 chain.append(params0)
                 callback = _callback
             else:
                 callback = None
 
-            opt = minimize(neg2_log_likelihood, params0, args=(y, μ_0, Γ_0), callback=callback, **kwargs)
+            opt = minimize(
+                as_scipy_objective(neg2_log_likelihood), params0, args=(y, μ_0, Γ_0), callback=callback, **kwargs
+            )
             msg = opt.message
             if not opt.success:
-                raise RuntimeError(f"MLE unccessful with message: {msg}")
+                raise RuntimeError(f"MLE unsuccessful with message: {msg}")
             logger.info("MLE constructed with message: %s", msg)
             return opt.x, np.array(chain)
 
@@ -1325,7 +1417,7 @@ class GenericLinearGaussianStateSpaceModel:
         mle_method: str = "",
         mle_n_iter: int = 0,
         mle_return_chain: bool = False,
-        mle_kwargs: dict[Any, Any] = {},
+        mle_kwargs: dict[Any, Any] | None = None,
         n_sample: int = 0,
         gibbs_burn_in: int = 0,
         t: npt.NDArray[Any] | None = None,
@@ -1333,17 +1425,28 @@ class GenericLinearGaussianStateSpaceModel:
     ) -> GeneralLinearGaussianStateSpaceModelFit:
         """Return a GeneralLinearGaussianStateSpaceModelFit instance.
 
-        :param y: observed data (Y)
-        :param params: parameters of the model
-        :param μ_0: mean of X0
-        :param Γ_0: covariance of X0
-        :param mle_method: method used to estimate MLE
-        :param mle_n_iter: number of iteration run with MLE
-        :param mle_return_chain: if True, return the chain of parameters during MLE
-        :param t: optional time axis
-        :param param_names: optional names of parameters
+        Parameters
+        ----------
+        y
+            observed data (Y)
+        params
+            parameters of the model
+        μ_0
+            mean of X0
+        Γ_0
+            covariance of X0
+        mle_method
+            method used to estimate MLE
+        mle_n_iter
+            number of iteration run with MLE
+        mle_return_chain
+            if True, return the chain of parameters during MLE
+        t
+            optional time axis
+        param_names
+            optional names of parameters
         """
-        y = np.ascontiguousarray(y, dtype=np.float64)
+        y = as_c_array(y)
         if params is None:
             logger.info("Estimating initial parameters using the data with law of large number...")
             params = self.params_guess(y)
@@ -1359,7 +1462,7 @@ class GenericLinearGaussianStateSpaceModel:
             mle_method=mle_method,
             mle_n_iter=mle_n_iter,
             mle_return_chain=mle_return_chain,
-            mle_kwargs=mle_kwargs,
+            mle_kwargs=mle_kwargs or {},
             n_sample=n_sample,
             gibbs_burn_in=gibbs_burn_in,
             t=t,
@@ -1371,23 +1474,41 @@ class GenericLinearGaussianStateSpaceModel:
 class GeneralLinearGaussianStateSpaceModel(GenericLinearGaussianStateSpaceModel):
     """General linear gaussian state space model.
 
-    :param N: no. of params.
-    :param A0: a Numba-jitted function of (params) initializing transition, shape of (d, d).
-    :param B0: a Numba-jitted function of (params) initializing design, shape of (n, d).
-    :param Σ0: a Numba-jitted function of (params) initializing state covariance, shape of (d, d).
-    :param R0: a Numba-jitted function of (params) initializing observation coariance, shape of (n, n).
-    :param A: If None, Numba-jit should optimized this away to have no cost, else, a Numba-jitted function of (out, params, t) updating out as transition, shape of (d, d).
-    :param B: If None, Numba-jit should optimized this away to have no cost, else, a Numba-jitted function of (out, params, t) updating out as design, shape of (n, d).
-    :param Σ: If None, Numba-jit should optimized this away to have no cost, else, a Numba-jitted function of (out, params, t) updating out as state covariance, shape of (d, d).
-    :param R: If None, Numba-jit should optimized this away to have no cost, else, a Numba-jitted function of (out, params, t) updating out as observation coariance, shape of (n, n).
-    :param B0_forecast: If None, B0 is used for forecasting, Numba-jit should optimized this away to have no cost, else, a Numba-jitted function of (params) initializing design for forecasting, shape of (n, d).
-    :param B_forecast: If not None, B0_forecast should be specified. If None, Numba-jit should optimized this away to have no cost, else, a Numba-jitted function of (out, params, t) updating out as design for forecasting, shape of (n, d).
-    :param X0: If None, Numba-jit should optimized this away to have no cost, else, a Numba-jitted function of (params) generating μ_0, Γ_0, where the μ_0, Γ_0 passed to `fit` will be ignored.
-    :param mle_kwargs: pass to self.mle.
-    :param param_names: list of names of the parameters.
+    Parameters
+    ----------
+    N
+        no. of params.
+    A0
+        a Numba-jitted function of (params) initializing transition, shape of (d, d).
+    B0
+        a Numba-jitted function of (params) initializing design, shape of (n, d).
+    Σ0
+        a Numba-jitted function of (params) initializing state covariance, shape of (d, d).
+    R0
+        a Numba-jitted function of (params) initializing observation coariance, shape of (n, n).
+    A
+        If None, Numba-jit should optimized this away to have no cost, else, a Numba-jitted function of (out, params, t) updating out as transition, shape of (d, d).
+    B
+        If None, Numba-jit should optimized this away to have no cost, else, a Numba-jitted function of (out, params, t) updating out as design, shape of (n, d).
+    Σ
+        If None, Numba-jit should optimized this away to have no cost, else, a Numba-jitted function of (out, params, t) updating out as state covariance, shape of (d, d).
+    R
+        If None, Numba-jit should optimized this away to have no cost, else, a Numba-jitted function of (out, params, t) updating out as observation coariance, shape of (n, n).
+    B0_forecast
+        If None, B0 is used for forecasting, Numba-jit should optimized this away to have no cost, else, a Numba-jitted function of (params) initializing design for forecasting, shape of (n, d).
+    B_forecast
+        If not None, B0_forecast should be specified. If None, Numba-jit should optimized this away to have no cost, else, a Numba-jitted function of (out, params, t) updating out as design for forecasting, shape of (n, d).
+    X0
+        If None, Numba-jit should optimized this away to have no cost, else, a Numba-jitted function of (params) generating μ_0, Γ_0, where the μ_0, Γ_0 passed to `fit` will be ignored.
+    mle_kwargs
+        pass to self.mle.
+    param_names
+        list of names of the parameters.
 
+    Notes
+    -----
     Y is of n-dimension,
-    X is of d-dimension.
+    X is of d-dimension::
 
         X_0 ~ N(μ_0, Γ_0)
         X_t = A_t X_(t-1) + U_t
@@ -1472,11 +1593,18 @@ class GeneralLinearGaussianStateSpaceModel(GenericLinearGaussianStateSpaceModel)
         ) -> None:
             """Kalman filtering.
 
-            :param m_t_given_tMinus1: output array.
-            :param Q_t_given_tMinus1: output array.
-            :param m_t_given_t: output array.
-            :param Q_t_given_t: output array.
-            :param params: paramters of the model, θ.
+            Parameters
+            ----------
+            m_t_given_tMinus1
+                output array.
+            Q_t_given_tMinus1
+                output array.
+            m_t_given_t
+                output array.
+            Q_t_given_t
+                output array.
+            params
+                parameters of the model, θ.
             """
             size = y.shape[0]
 
@@ -1560,8 +1688,16 @@ class GeneralLinearGaussianStateSpaceModel(GenericLinearGaussianStateSpaceModel)
             Γ_0: npt.NDArray[np.float64],
         ) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64], npt.NDArray[np.float64], npt.NDArray[np.float64]]:
             """Kalman filtering.
-            :param params: paramters of the model, θ.
-            :return: m_t_given_tMinus1, Q_t_given_tMinus1, m_t_given_t, Q_t_given_t
+
+            Parameters
+            ----------
+            params
+                parameters of the model, θ.
+
+            Returns
+            -------
+            tuple[npt.NDArray[np.float64], npt.NDArray[np.float64], npt.NDArray[np.float64], npt.NDArray[np.float64]]
+                m_t_given_tMinus1, Q_t_given_tMinus1, m_t_given_t, Q_t_given_t
             """
             size = y.shape[0]
 
@@ -1695,8 +1831,13 @@ class GeneralLinearGaussianStateSpaceModel(GenericLinearGaussianStateSpaceModel)
         ) -> npt.NDArray[np.float64]:
             """FFBSampling algorithm.
 
-            :param N: Number of samples to generate.
+            Parameters
+            ----------
+            N
+                Number of samples to generate.
 
+            Notes
+            -----
             Modified from `kalman_smoothing_inplace` as they share
             the same prerequisites.
             """
@@ -1757,7 +1898,10 @@ class GeneralLinearGaussianStateSpaceModel(GenericLinearGaussianStateSpaceModel)
         ) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]]:
             """Gibbs sampling.
 
-            :return: the parameters chain and the Xs chain.
+            Returns
+            -------
+            tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]]
+                the parameters chain and the Xs chain.
             """
             n_params = params.size
             size = y.shape[0]
@@ -1768,7 +1912,12 @@ class GeneralLinearGaussianStateSpaceModel(GenericLinearGaussianStateSpaceModel)
 
             params_cur = params
             for i in range(N):
-                (m_t_given_tMinus1, Q_t_given_tMinus1, m_t_given_t, Q_t_given_t,) = kalman_filtering(
+                (
+                    m_t_given_tMinus1,
+                    Q_t_given_tMinus1,
+                    m_t_given_t,
+                    Q_t_given_t,
+                ) = kalman_filtering(
                     y,
                     params_cur,
                     μ_0,
