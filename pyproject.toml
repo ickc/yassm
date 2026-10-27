@@ -195,3 +195,42 @@ py312 = ["py312", "test"]
 py313 = ["py313", "test"]
 py314 = ["py314", "test"]
 py315 = ["py315", "test"]
+
+# ruff #########################################################################
+
+[tool.ruff]
+line-length = 120
+target-version = "py311"
+extend-exclude = ["docs/conf.py"]
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "F",   # pyflakes
+    "I",   # isort
+    "UP",  # pyupgrade
+    "B",   # flake8-bugbear
+    "NPY", # NumPy-specific rules
+    "PT",  # flake8-pytest-style
+    "RUF", # ruff-specific rules
+]
+ignore = [
+    "E501",    # line length is handled by the formatter
+    "E741",    # ambiguous variable names: single-letter math names follow the literature
+    "RUF001",  # Greek letters (σ, Γ, Σ, ...) are intentional
+    "RUF002",
+    "RUF003",
+    "NPY002",  # legacy np.random.* is required inside Numba-jitted functions
+    "PT009",   # unittest-style assertions in TestCase classes
+    "PT027",
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["yassm"]
+
+[tool.ruff.lint.per-file-ignores]
+"examples/**" = ["E402", "B018", "F811"]
+
+[tool.ruff.format]
+docstring-code-format = true
