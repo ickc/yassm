@@ -1,27 +1,62 @@
 # yassm
 
-*Yet Another State Space Model package*: state space models for time series analysis,
-implemented from scratch in Python and [Numba](https://numba.pydata.org/).
+*Yet Another State Space Model package*: state space models for time series analysis in Python,
+with every algorithm compiled by [Numba](https://numba.pydata.org/).
 
-yassm was written for the STAT 248 *Analysis of Time Series* course at UC Berkeley (spring 2022),
-which was taught in R, as a reimplementation of its methods in Python:
+::::{grid} 1 1 2 2
+:gutter: 2
 
-- **Linear Gaussian state space models**: Kalman filter, smoother and forecast,
-  maximum likelihood by EM or `scipy.optimize`, forward-filtering backward-sampling and Gibbs sampling,
-  with ready-made local level, local linear trend, local ratio, AR(2) and MA(1) models;
-- **Grid methods** for non-Gaussian one-dimensional models;
-- **Particle filters**: bootstrap and optimal (locally adapted) proposals,
-  including non-linear models, with likelihood maximisation by grid search or `scipy.optimize`;
-- **Quasi-Monte Carlo** building blocks for sequential quasi-Monte Carlo:
-  Hilbert sort in any dimension, Halton sequences and Gaussian transformations.
+:::{grid-item-card} Linear Gaussian models
+Kalman filter, smoother and forecasts; maximum likelihood by EM, gradient ascent or `scipy.optimize`;
+simulation smoothing and Gibbs sampling. Ready-made local level, local linear trend, AR(1) plus noise and MA(1)
+models, or your own from a few Numba functions.
+:::
+
+:::{grid-item-card} Grid filters
+Exact filtering and smoothing of any one-dimensional model, Gaussian or not,
+on a discretised state space.
+:::
+
+:::{grid-item-card} Particle filters
+Bootstrap and optimal (locally adapted) proposals for linear Gaussian models,
+and bootstrap particle filters for arbitrary non-linear, non-Gaussian models, with likelihood estimation.
+:::
+
+:::{grid-item-card} Quasi-Monte Carlo
+Building blocks of sequential quasi-Monte Carlo: Hilbert sort in any dimension, Halton sequences,
+and their transformation to correlated Gaussians.
+:::
+::::
+
+## Quick start
+
+```python
+import numpy as np
+from yassm import local_level_model
+
+rng = np.random.default_rng(0)
+y = np.cumsum(rng.normal(size=200)) + rng.normal(scale=2.0, size=200)
+
+# local level model with a diffuse prior; MLE of (σ_ε², σ_Z²) by EM
+fit = local_level_model.fit(y, None, μ_0=0.0, Γ_0=np.inf, mle_method="em", mle_n_iter=100)
+print(fit.params_to_series)
+fit.plot(T_forecast=20)  # smoothed state and forecast with 95% intervals
+```
+
+Start with {doc}`examples/01_kalman_filter`, or browse the {doc}`examples`.
 
 ```{toctree}
-:maxdepth: 2
+:hidden:
 
 installation
-qmc
 examples
+qmc
 api
 contributing
 changelog
 ```
+
+## History
+
+yassm started in 2022 as a from-scratch implementation of the methods of a time series course at UC Berkeley,
+which was taught in R.

@@ -1,19 +1,27 @@
-# STAT 248 homework
+# Examples
 
-These are my solutions to the homework of STAT 248 *Analysis of Time Series* (UC Berkeley, spring 2022)
-that use yassm, kept as [jupytext](https://jupytext.readthedocs.io/) scripts in
-[`examples/stat248`](https://github.com/ickc/yassm/tree/main/examples/stat248).
-They also serve as integration tests (`pixi run examples`).
-
-:::{note}
-The homework 4 problem 6 and homework 5 (particle filter) examples take minutes to hours at full scale,
-so they are shown here without outputs. Run them locally with
-`pixi run python examples/stat248/hw5_q1.py`, or open them as notebooks with jupytext.
-:::
+Each example is a [jupytext](https://jupytext.readthedocs.io/) script in
+[`examples/`](https://github.com/ickc/yassm/tree/main/examples),
+which runs as a plain Python script or opens as a notebook,
+and is tested as part of the integration tests (`pixi run examples`).
 
 ```{toctree}
+:caption: Linear Gaussian models
 :maxdepth: 1
-:glob:
 
-_generated/examples/stat248/hw*
+examples/01_kalman_filter
+examples/02_maximum_likelihood
+examples/03_custom_models
+examples/04_bayesian_inference
+examples/05_arma_models
+```
+
+```{toctree}
+:caption: Beyond linear Gaussian models
+:maxdepth: 1
+
+examples/06_grid_filter
+examples/07_particle_filters
+examples/08_heavy_tailed_noise
+examples/09_change_points
 ```

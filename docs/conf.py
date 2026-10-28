@@ -10,9 +10,9 @@ import yassm
 DOCS = Path(__file__).parent
 ROOT = DOCS.parent
 
-# The homework examples live in examples/; copy them next to the docs so that
+# The examples live in examples/; copy them next to the docs so that
 # myst-nb can render (and execute) them in place with their data.
-_examples_dst = DOCS / "_generated" / "examples"
+_examples_dst = DOCS / "examples"
 shutil.rmtree(_examples_dst, ignore_errors=True)
 shutil.copytree(ROOT / "examples", _examples_dst, ignore=shutil.ignore_patterns("__pycache__", "*.png"))
 
@@ -30,16 +30,16 @@ extensions = [
     "sphinx.ext.napoleon",
     "sphinx.ext.viewcode",
     "sphinx_copybutton",
+    "sphinx_design",
 ]
 
 exclude_patterns = [
     "_build",
     "conf.py",
     "**/.ipynb_checkpoints",
-    "_generated/examples/README.md",
-    "_generated/examples/**/README.md",
-    "_generated/examples/**/stat248_data.py",
-    "_generated/examples/**/data/**",
+    "examples/README.md",
+    "examples/example_data.py",
+    "examples/data/**",
 ]
 
 # MyST / myst-nb ###############################################################
@@ -51,18 +51,14 @@ nb_execution_mode = "cache"
 nb_execution_timeout = 1800
 nb_execution_raise_on_error = True
 nb_execution_show_tb = True
-# these take minutes to hours at full scale: render them without outputs
-nb_execution_excludepatterns = [
-    "_generated/examples/stat248/hw4_q6.py",
-    "_generated/examples/stat248/hw5_*.py",
-]
 nb_merge_streams = True
 
 # autodoc ######################################################################
 
 autosummary_generate = True
 autosummary_imported_members = False
-autodoc_default_options = {"members": True, "show-inheritance": True}
+# ignore-module-all: document each object once, in its own module, not again where it is re-exported (yassm.__all__)
+autodoc_default_options = {"members": True, "show-inheritance": True, "ignore-module-all": True}
 autodoc_member_order = "bysource"
 # annotations are postponed (PEP 563) and refer to TYPE_CHECKING-only names:
 # render them as written instead of resolving them

@@ -1,6 +1,6 @@
 # Installation
 
-yassm is not published on PyPI (the name is taken by an unrelated project). Install it from GitHub.
+yassm is not published on PyPI yet. Install it from GitHub.
 
 ## With pixi (recommended for development)
 
@@ -10,7 +10,7 @@ yassm is not published on PyPI (the name is taken by an unrelated project). Inst
 git clone https://github.com/ickc/yassm.git
 cd yassm
 pixi run test        # unit tests
-pixi run examples    # run the homework examples as integration tests
+pixi run examples    # run the examples as integration tests
 pixi run docs        # build this documentation into dist/docs
 pixi task list       # everything else
 ```
