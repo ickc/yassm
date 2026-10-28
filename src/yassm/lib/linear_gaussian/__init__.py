@@ -33,6 +33,7 @@ def logdet(a: npt.NDArray[np.float64]) -> float:
         return np.log(a[0, 0])
     return np.log(np.linalg.det(a))
 
+
 # probaility functions #########################################################
 
 
