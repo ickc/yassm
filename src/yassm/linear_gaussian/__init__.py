@@ -35,9 +35,10 @@ if TYPE_CHECKING:
     from collections.abc import Callable, Sequence
     from typing import Any
 
-    import matplotlib as mpl
     import numpy.typing as npt
     import pandas as pd
+    from matplotlib.axes import Axes
+    from matplotlib.figure import Figure
     from typing_extensions import Protocol
 
     KalmanFilteringInplace = Callable[
@@ -189,7 +190,7 @@ if TYPE_CHECKING:
             Γ_0: npt.NDArray[np.float64],
             n_iter: int,
             return_chain: bool,
-            **kwargs: dict[str, Any],
+            **kwargs: Any,
         ) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]]: ...
 
 
@@ -416,7 +417,7 @@ class AbstractFit:
         self,
         T_forecast: int = 0,
         α: float = 0.05,
-        axes: list[mpl.axes._subplots.AxesSubplot] | None = None,
+        axes: Sequence[Axes] | None = None,
         alpha: float = 0.2,
         plot_obs: bool = True,
         plot_smoothed_CI_with_obs_cov: bool = True,
@@ -432,7 +433,7 @@ class AbstractFit:
         forecast_CI_with_obs_cov: bool = True,
         n_std: float | None = None,
         color: Sequence[tuple[float, float, float]] | None = None,
-    ) -> tuple[mpl.figure.Figure, list[mpl.axes._subplots.AxesSubplot]]:
+    ) -> tuple[Figure, list[Axes]]:
         """Plotting.
 
         Parameters
@@ -465,6 +466,7 @@ class AbstractFit:
         else:
             fig, axs = plt.subplots(n, squeeze=False)
             axes = list(axs[:, 0])
+        assert fig is not None
 
         # default colors
         if color is not None and len(color) < 12:
@@ -1403,7 +1405,7 @@ class BaseLinearGaussianModel:
             Γ_0: npt.NDArray[np.float64],
             n_iter: int,
             return_chain: bool,
-            **kwargs: dict[str, Any],
+            **kwargs: Any,
         ) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]]:
             """Calculate MLE from log-likelihood using scipy.optimize.minimize.
 
@@ -1419,15 +1421,15 @@ class BaseLinearGaussianModel:
                 logger.warning("n_iter %s is ignored when using scipy.optimize.minimize.", n_iter)
 
             chain: list[npt.NDArray[np.float64]] = []
-            callback: Callable[[npt.NDArray[np.float64]], None] | None
             if return_chain:
                 chain.append(params0)
-                callback = _callback
-            else:
-                callback = None
 
             opt = minimize(
-                as_scipy_objective(neg2_log_likelihood), params0, args=(y, μ_0, Γ_0), callback=callback, **kwargs
+                as_scipy_objective(neg2_log_likelihood),
+                params0,
+                args=(y, μ_0, Γ_0),
+                callback=_callback if return_chain else None,
+                **kwargs,
             )
             msg = opt.message
             if not opt.success:
@@ -1497,7 +1499,7 @@ class BaseLinearGaussianModel:
             params = self.params_guess(y)
         # using default if exists
         if not mle_kwargs and hasattr(self, "mle_kwargs"):
-            mle_kwargs = self.mle_kwargs  # type: ignore[attr-defined]
+            mle_kwargs = self.mle_kwargs
         return LinearGaussianFit(
             self,
             y,

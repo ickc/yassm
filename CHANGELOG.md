@@ -30,7 +30,7 @@
 ### Added
 
 - The main classes and ready-made models are exported from the top level, e.g. `from yassm import local_level_model`,
-  and the package ships type information (`py.typed`).
+  and the package ships type information (`py.typed`), checked with mypy.
 - `LinearGaussianFit.run_gibbs_sampling(filter_n_std=...)` re-runs the Gibbs sampler,
   optionally keeping only the draws near the MLE.
 - `GridFilterFit.params_to_series`, like the other fits.

@@ -69,7 +69,7 @@ class AbstractHilbertCurve:
     def plot_2d(
         self,
         ax: Axes | None = None,
-        **kwargs: dict[str, Any],
+        **kwargs: Any,
     ) -> FigAx:
         import matplotlib.pyplot as plt
 
@@ -79,6 +79,7 @@ class AbstractHilbertCurve:
             fig = ax.get_figure(root=True)
         else:
             fig, ax = plt.subplots()
+        assert fig is not None
         ax.plot(array[:, 0], array[:, 1], **kwargs)
         ax.set_aspect("equal")
         return fig, ax
@@ -86,7 +87,7 @@ class AbstractHilbertCurve:
     def plot_3d(
         self,
         ax: Axes | None = None,
-        **kwargs: dict[str, Any],
+        **kwargs: Any,
     ) -> FigAx:
         import matplotlib.pyplot as plt
         from mpl_toolkits.mplot3d import Axes3D
@@ -98,6 +99,7 @@ class AbstractHilbertCurve:
         else:
             fig = plt.figure()
             ax = fig.add_subplot(projection="3d")
+        assert fig is not None
         if not isinstance(ax, Axes3D):
             raise ValueError("ax must be a 3D axes, e.g. from fig.add_subplot(projection='3d')")
         ax.plot(array[:, 0], array[:, 1], zs=array[:, 2], zdir="z", **kwargs)
@@ -106,7 +108,7 @@ class AbstractHilbertCurve:
     def plot(
         self,
         ax: Axes | None = None,
-        **kwargs: dict[str, Any],
+        **kwargs: Any,
     ) -> FigAx:
         """Plot the Hilbert curve.
 
@@ -142,9 +144,9 @@ class HilbertCurveInt(AbstractHilbertCurve):
             self.order = 0
         super().__post_init__()
         if auto_order:
-            self.order = int(np.ceil(np.log2(self.array.max() + 1)))
+            self.order = int(np.ceil(np.log2(np.max(self.array) + 1)))
             logger.info("Auto choosing Hilbert order: %d", self.order)
-        elif self.check_range and self.array.max() + 1 > (1 << self.order):
+        elif self.check_range and np.max(self.array) + 1 > (1 << self.order):
             raise ValueError("Requires array.max() < 2 ** order")
 
     @classmethod
@@ -196,9 +198,9 @@ class HilbertCurveFloat01(AbstractHilbertCurveFloat):
     def __post_init__(self) -> None:
         super().__post_init__()
         if self.check_range:
-            if self.array.max() >= 1.0:
+            if np.max(self.array) >= 1.0:
                 raise ValueError("Requires array.max() < 1")
-            elif self.array.min() < 0.0:
+            elif np.min(self.array) < 0.0:
                 raise ValueError("Requires array.min() >= 0")
 
     @classmethod

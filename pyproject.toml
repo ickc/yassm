@@ -65,6 +65,12 @@ test = [
     "pytest-xdist>=3",
     "statsmodels>=0.14",
 ]
+typecheck = [
+    "yassm[all]",
+    "mypy>=1.15",
+    "scipy-stubs>=1.15",
+    "pandas-stubs>=2",
+]
 examples = [
     "yassm[all]",
     "jupytext>=1.16",
@@ -81,6 +87,7 @@ docs = [
 dev = [
     { include-group = "test" },
     { include-group = "docs" },
+    { include-group = "typecheck" },
 ]
 
 [tool.hatch.version]
@@ -107,6 +114,19 @@ markers = [
 filterwarnings = [
     "error::pytest.PytestReturnNotNoneWarning",
 ]
+
+# mypy #########################################################################
+
+[tool.mypy]
+files = ["src"]
+python_version = "3.11"
+warn_unused_ignores = true
+warn_redundant_casts = true
+
+[[tool.mypy.overrides]]
+# no type information published
+module = ["seaborn", "numdifftools", "mpl_toolkits.*"]
+ignore_missing_imports = true
 
 # coverage #####################################################################
 
@@ -149,6 +169,11 @@ pytest-cov = ">=5"
 pytest-xdist = ">=3"
 statsmodels = ">=0.14"
 
+[tool.pixi.feature.typecheck.dependencies]
+mypy = ">=1.15"
+scipy-stubs = ">=1.15"
+pandas-stubs = ">=2"
+
 [tool.pixi.feature.examples.dependencies]
 ipython = "*"
 jupytext = ">=1.16"
@@ -190,6 +215,9 @@ examples = { cmd = "pytest -n auto -m examples tests/test_examples.py", env = { 
 lint = { cmd = "ruff check && ruff format --check", description = "Lint and check formatting" }
 fmt = { cmd = "ruff check --fix && ruff format", description = "Auto-fix lint and format" }
 
+[tool.pixi.feature.typecheck.tasks]
+typecheck = { cmd = "mypy", description = "Type check the package with mypy" }
+
 [tool.pixi.feature.build.tasks]
 dist = { cmd = "python -m build --no-isolation --outdir dist/pkg", description = "Build the sdist and wheel into dist/pkg" }
 check-dist = { cmd = "twine check --strict dist/pkg/*", depends-on = ["dist"], description = "Build the sdist and wheel, and check their metadata" }
@@ -199,9 +227,10 @@ docs = { cmd = "sphinx-build -W --keep-going -b dirhtml docs dist/docs", descrip
 docs-serve = { cmd = "python -m http.server -d dist/docs 8000", depends-on = ["docs"], description = "Build and serve the docs locally" }
 
 [tool.pixi.environments]
-default = { features = ["test", "examples", "lint"], solve-group = "default" }
+default = { features = ["test", "examples", "lint", "typecheck"], solve-group = "default" }
 docs = { features = ["docs", "examples"], solve-group = "default" }
 lint = { features = ["lint"], solve-group = "default" }
+typecheck = { features = ["typecheck"], solve-group = "default" }
 build = { features = ["build"], solve-group = "default" }
 py311 = ["py311", "test"]
 py312 = ["py312", "test"]

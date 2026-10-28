@@ -125,7 +125,7 @@ if TYPE_CHECKING:
             n_iter: int,
             n_sample: int,
             return_chain: bool,
-            **kwargs: dict[str, Any],
+            **kwargs: Any,
         ) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]]: ...
 
 
@@ -753,11 +753,12 @@ class BaseParticleFilterModel(BaseLinearGaussianModel):
         transform_params = self.transform_params
         untransform_params = self.untransform_params
 
+        minimization_func: Callable[[npt.NDArray[np.float64], npt.NDArray[np.float64], int], float]
         if transform_params is not None:
             logger.info("Calculating MLE using transformed parameter space, possibly for unconstrained optimization.")
 
             @jit("f8(f8[::1], f8[:, ::1], i8)", nopython=True, nogil=True, cache=False)
-            def minimization_func(
+            def _minimization_func(
                 unconstrained: npt.NDArray[np.float64],
                 y: npt.NDArray[np.float64],
                 N: int,
@@ -769,9 +770,10 @@ class BaseParticleFilterModel(BaseLinearGaussianModel):
                 unconstrained
                     unconstrained parameters in optimization space.
                 """
-                constrained = transform_params(unconstrained)  # type: ignore[misc]  # type limitation
+                constrained = transform_params(unconstrained)
                 return neg_log_likelihood(constrained, y, N)
 
+            minimization_func = _minimization_func
         else:
             minimization_func = neg_log_likelihood
 
@@ -781,7 +783,7 @@ class BaseParticleFilterModel(BaseLinearGaussianModel):
             n_iter: int,
             n_sample: int,
             return_chain: bool,
-            **kwargs: dict[str, Any],
+            **kwargs: Any,
         ) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]]:
             """Calculate MLE from log-likelihood using scipy.optimize.minimize.
 
@@ -789,27 +791,23 @@ class BaseParticleFilterModel(BaseLinearGaussianModel):
             """
             from scipy.optimize import minimize
 
-            def _callback(unconstrained: npt.NDArray[np.float64]) -> None:
+            def _callback(xk: npt.NDArray[np.float64]) -> None:
                 """Store iterations."""
-                unconstrained = np.ascontiguousarray(unconstrained, dtype=np.float64)
-                chain.append(np.array(unconstrained) if transform_params is None else transform_params(unconstrained))
+                xk = np.ascontiguousarray(xk, dtype=np.float64)
+                chain.append(np.array(xk) if transform_params is None else transform_params(xk))
 
             if n_iter > 1:
                 logger.warning("n_iter %s is ignored when using scipy.optimize.minimize.", n_iter)
 
             chain: list[npt.NDArray[np.float64]] = []
-            callback: Callable[[npt.NDArray[np.float64]], None] | None
             if return_chain:
                 chain.append(params0)
-                callback = _callback
-            else:
-                callback = None
 
             opt = minimize(
                 as_scipy_objective(minimization_func),
                 params0 if untransform_params is None else untransform_params(params0),
                 args=(y, n_sample),
-                callback=callback,
+                callback=_callback if return_chain else None,
                 **kwargs,
             )
             msg = opt.message
@@ -868,7 +866,7 @@ class BaseParticleFilterModel(BaseLinearGaussianModel):
         y = as_c_array(y)
         # using default if exists
         if not mle_kwargs and hasattr(self, "mle_kwargs"):
-            mle_kwargs = self.mle_kwargs  # type: ignore[attr-defined]
+            mle_kwargs = self.mle_kwargs
         if params is None:
             if mle_method == "grid_search" and mle_kwargs:
                 # a grid search needs no initial parameters

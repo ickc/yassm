@@ -31,7 +31,7 @@ if TYPE_CHECKING:
 
     Args = tuple[npt.NDArray[np.float64], ...]
     Gen = Callable[[npt.NDArray[np.float64]], Args]
-    F8ToU8 = Callable[[np.float64, int, Args], int]
+    F8ToU8 = Callable[[npt.NDArray[np.float64], int, Args], int]
     HilbertSortInplace = Callable[[npt.NDArray[np.float64], int], None]
 
 SQRT2_INV = np.power(2.0, -0.5)

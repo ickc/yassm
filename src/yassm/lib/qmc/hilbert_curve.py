@@ -216,7 +216,7 @@ def _partition_inplace(
 
 
 @overload(_partition_inplace, jit_options={"nogil": True})
-def _partition_inplace_overload(array, i_start, i_end, order, axis, direction):  # type: ignore[no-untyped-def]
+def _partition_inplace_overload(array, i_start, i_end, order, axis, direction):
     # no annotations here: numba requires the overload and the implementation to have identical signatures
     if isinstance(array.dtype, types.Integer):
         return lambda array, i_start, i_end, order, axis, direction: _partition_inplace_int(

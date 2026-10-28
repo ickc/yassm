@@ -7,13 +7,12 @@ import os
 import sys
 import warnings
 from logging import Formatter
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, overload
 
 import numpy as np
 
 if TYPE_CHECKING:
     from collections.abc import Callable
-    from typing import Any
 
     import numpy.typing as npt
 
@@ -60,11 +59,17 @@ def setup_logging(
     return logger
 
 
+@overload
+def as_c_array(array: npt.ArrayLike) -> npt.NDArray[np.float64]: ...
+@overload
+def as_c_array(array: npt.ArrayLike, dtype: npt.DTypeLike | None) -> npt.NDArray[Any]: ...
 def as_c_array(
     array: npt.ArrayLike,
-    dtype: npt.DTypeLike = np.float64,
-) -> npt.NDArray[np.generic]:
+    dtype: npt.DTypeLike | None = np.float64,
+) -> npt.NDArray[Any]:
     """Return `array` as a C-contiguous (ndim >= 1), writeable array of `dtype`, copying only if needed.
+
+    With ``dtype=None``, the dtype of `array` is kept.
 
     Numba functions with explicit signatures reject read-only arrays, which are
     e.g. returned by ``DataFrame.values`` under pandas' Copy-on-Write.
