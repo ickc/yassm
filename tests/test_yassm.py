@@ -230,6 +230,48 @@ def test_posterior_normal_approximation(model_name: str) -> None:
     assert np.all(np.linalg.eigvalsh(cov) > 0.0)
 
 
+@pytest.mark.parametrize("params", [[4.0, 0.25], [4.0, 1e-3]])
+def test_mle_hessian_matches_finite_differences(params: list[float]) -> None:
+    """The Hessian of the log-likelihood, against central differences with steps relative to each parameter,
+    also for parameters of very different scales."""
+    pytest.importorskip("numdifftools")
+    from yassm import local_level_model
+
+    rng = np.random.default_rng(0)
+    σ_ε, σ_Z = np.sqrt(params)
+    y = np.cumsum(rng.normal(scale=σ_Z, size=300)) + rng.normal(scale=σ_ε, size=300)
+    params = np.array(params)
+
+    def log_likelihood(params: np.ndarray) -> float:
+        return local_level_model.fit(y, params, 0.0, 1e8).log_likelihood
+
+    h = 1e-3 * params
+    expected = np.empty((2, 2))
+    for i in range(2):
+        for j in range(2):
+            e_i = np.eye(2)[i] * h[i]
+            e_j = np.eye(2)[j] * h[j]
+            expected[i, j] = (
+                log_likelihood(params + e_i + e_j)
+                - log_likelihood(params + e_i - e_j)
+                - log_likelihood(params - e_i + e_j)
+                + log_likelihood(params - e_i - e_j)
+            ) / (4.0 * h[i] * h[j])
+    actual = local_level_model.fit(y, params, 0.0, 1e8).mle_hessian_log_likelihood
+    np.testing.assert_allclose(actual, expected, rtol=1e-3)
+
+
+def test_mle_hessian_at_variance_bound() -> None:
+    """An MLE on the variance bound, e.g. a vanishing state noise, has a finite Hessian."""
+    pytest.importorskip("numdifftools")
+    from yassm import local_level_model
+    from yassm.util import VARIANCE_BOUNDS
+
+    y = np.random.default_rng(0).normal(scale=2.0, size=300)
+    fit = local_level_model.fit(y, [4.0, VARIANCE_BOUNDS[0]], 0.0, 1e8)
+    assert np.all(np.isfinite(fit.mle_hessian_log_likelihood))
+
+
 def test_ar2_conditional_mle_is_ols() -> None:
     """The conditional MLE of an AR(2) is ordinary least squares, with σ² the mean squared residual."""
     from scipy.optimize import minimize

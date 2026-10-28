@@ -1144,14 +1144,17 @@ class LinearGaussianFit(AbstractFit):
         logger.info("Computing MLE Hessian, assumes MLE is attained during fit.")
         neg2_log_likelihood = self.parent.neg2_log_likelihood
 
-        # positional arguments: the built-in models name them differently (e.g. y_2d)
-        def func(params: npt.NDArray[np.float64]) -> float:
-            return neg2_log_likelihood(as_c_array(params), self.y, self.μ_0, self.Γ_0)
-
-        # steps relative to each parameter: the default absolute steps can make small variances negative
+        # differentiate w.r.t. params / scale, i.e. with steps relative to each parameter:
+        # absolute steps can make small variances negative.
+        # (An array `step` would not do: numdifftools takes it as the sequence of steps to extrapolate from.)
         params = np.asarray(self.params, dtype=np.float64)
-        step = 1e-4 * np.where(params != 0.0, np.abs(params), 1.0)
-        return -0.5 * nd.Hessian(func, step=step)(params)
+        scale = np.where(params != 0.0, np.abs(params), 1.0)
+
+        # positional arguments: the built-in models name them differently (e.g. y_2d)
+        def func(params_scaled: npt.NDArray[np.float64]) -> float:
+            return neg2_log_likelihood(as_c_array(params_scaled * scale), self.y, self.μ_0, self.Γ_0)
+
+        return -0.5 * nd.Hessian(func, step=1e-4)(params / scale) / np.outer(scale, scale)
 
     @cached_property
     def posterior_normal_approximation_cov_inv(self) -> npt.NDArray[np.float64]:
