@@ -165,3 +165,37 @@ def test_full_range_sort_single_point(method) -> None:
     array = np.array([[1.0, 2.0, 3.0]])
     hilbert_sort_inplace_func[method](array, FLOAT_ORDER)
     np.testing.assert_array_equal(array, [[1.0, 2.0, 3.0]])
+
+
+@pytest.mark.parametrize("dimension", [2, 3])
+def test_plot_axes(dimension: int) -> None:
+    """The curve is drawn on a single axes: the given one, or a new one of the right projection."""
+    import matplotlib
+
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+
+    curve = HilbertCurveFloat01(np.random.default_rng(0).random((16, dimension))).sorted()
+
+    fig, ax = curve.plot()
+    assert fig.axes == [ax]
+    assert ax.name == ("rectilinear" if dimension == 2 else "3d")
+    plt.close(fig)
+
+    fig = plt.figure()
+    given = fig.add_subplot(projection=None if dimension == 2 else "3d")
+    assert curve.plot(ax=given) == (fig, given)
+    assert len(given.lines) == 1
+    plt.close(fig)
+
+
+def test_plot_3d_requires_3d_axes() -> None:
+    import matplotlib
+
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+
+    fig, ax = plt.subplots()
+    with pytest.raises(ValueError, match="3D axes"):
+        HilbertCurveFloat01(np.random.default_rng(0).random((16, 3))).plot(ax=ax)
+    plt.close(fig)

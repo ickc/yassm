@@ -51,6 +51,8 @@
 - `gibbs_params_chain_with_burn_in` and `gibbs_X_chain_with_burn_in` did not exist until another Gibbs result
   was accessed.
 - `mle_n_iter` was reported as ignored by `scipy_minimize` and `grid_search` even though a positive value is required.
+- `HilbertCurve*.plot` drew 3-D curves on a 3-D axes stacked over a stray 2-D one, and ignored a given 3-D axes;
+  `plot` of the fits and of 2-D curves used the current figure instead of the one of the given axes.
 - Halton/van der Corput sequences truncated bases to `int8`, breaking `halton_sequence` for dimensions ≥ 32.
 - The linear range reduction of the full-range Hilbert sort mapped the maximum of each axis to the middle of the range.
 - The whitening Cholesky decomposition was made "positive definite" by shifting its spectrum the wrong way,

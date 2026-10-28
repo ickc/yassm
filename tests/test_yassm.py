@@ -132,6 +132,25 @@ def test_fit_plot_renders() -> None:
     plt.close(fig)
 
 
+def test_fit_plot_given_axes() -> None:
+    """The fit is drawn on the given axes and their figure, even if another figure is current."""
+    import matplotlib
+
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+
+    from tests import y
+    from yassm.linear_gaussian.model.local_level import local_level_model
+
+    fit = local_level_model.fit(y, [1.0, 1.0], 0.0, 1e8)
+    fig, ax = plt.subplots()
+    other = plt.figure()
+    assert fit.plot(axes=[ax]) == (fig, [ax])
+    assert ax.lines
+    plt.close(fig)
+    plt.close(other)
+
+
 def test_as_scipy_objective_singular() -> None:
     """A singular matrix at the boundary of the parameter space is +inf, not an error."""
     from numba import jit
