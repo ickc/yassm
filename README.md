@@ -50,7 +50,7 @@ yassm is not on PyPI yet. Install it from GitHub:
 uv pip install "yassm[all] @ git+https://github.com/ickc/yassm.git"
 ```
 
-The core dependencies are NumPy, SciPy and Numba; the extras are `plot` (matplotlib, seaborn),
+The core dependencies are NumPy, SciPy, Numba and jaxtyping; the extras are `plot` (matplotlib, seaborn),
 `pandas`, `hessian` (numdifftools) and `all`.
 
 ## Development

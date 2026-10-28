@@ -23,7 +23,7 @@ uv pip install "yassm[all] @ git+https://github.com/ickc/yassm.git"
 pip install "yassm[all] @ git+https://github.com/ickc/yassm.git"
 ```
 
-The core dependencies are only NumPy, SciPy and Numba. The optional extras are
+The core dependencies are only NumPy, SciPy, Numba and jaxtyping (for the array annotations). The optional extras are
 
 `plot`
 : matplotlib and seaborn, for the `plot` methods;

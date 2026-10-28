@@ -24,6 +24,26 @@ The main classes and ready-made models can be imported from `yassm` directly, e.
    ~yassm.qmc.hilbert_curve.HilbertCurveFloat
 ```
 
+## Array shapes
+
+Arrays are annotated with their dtype and shape using [jaxtyping](https://docs.kidger.site/jaxtyping/),
+e.g. `Float64[ndarray, 'T d']` is a float64 array of shape `(T, d)`. The dimensions are named:
+
+| Name | Dimension |
+| --- | --- |
+| `T` | time steps |
+| `n` | observations |
+| `d` | states |
+| `p` | parameters |
+| `N` | draws: samples, particles, or iterations of a chain |
+| `K` | parameter sets, e.g. a grid of parameters |
+| `G` | grid points of a grid filter |
+| `T_forecast` | forecast time steps |
+
+The test suite checks these annotations at runtime with [beartype](https://beartype.readthedocs.io).
+To check them in your own code too, set the environment variable `YASSM_TYPECHECK=1` before importing yassm,
+with beartype installed.
+
 ## Modules
 
 ```{eval-rst}
