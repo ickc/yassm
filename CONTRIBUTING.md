@@ -13,7 +13,7 @@ git clone https://github.com/ickc/yassm.git
 cd yassm
 pixi run test              # unit tests
 pixi run test-boundscheck  # unit tests with Numba bounds checking, to catch out-of-bounds accesses
-pixi run examples          # the homework examples as integration tests
+pixi run examples          # the examples as integration tests
 pixi run lint              # ruff lint and format check
 pixi run fmt               # ruff auto-fix and format
 pixi run docs              # build the documentation into dist/docs

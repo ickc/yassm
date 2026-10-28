@@ -1,4 +1,4 @@
-"""Run the STAT 248 homework scripts in examples/ as integration tests.
+"""Run the examples in examples/ as integration tests.
 
 They are excluded from the default test run, use ``pixi run examples`` or
 ``pytest -m examples``. Sample sizes are reduced via ``YASSM_EXAMPLES_FAST=1``.
@@ -14,7 +14,7 @@ from pathlib import Path
 import pytest
 
 EXAMPLES = Path(__file__).parent.parent / "examples"
-SCRIPTS = sorted(EXAMPLES.glob("*/hw*.py"))
+SCRIPTS = sorted(EXAMPLES.glob("[0-9][0-9]_*.py"))
 
 # run the script, then draw every figure: with a non-interactive backend,
 # errors such as invalid mathtext only surface when a figure is rendered

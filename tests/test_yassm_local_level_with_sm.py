@@ -10,7 +10,7 @@ from tests import y
 from yassm.linear_gaussian.model.local_level import local_level_model
 
 if TYPE_CHECKING:
-    from yassm.linear_gaussian import GeneralLinearGaussianStateSpaceModelFit
+    from yassm.linear_gaussian import LinearGaussianFit
 
 
 class TestLinearGaussian(TestCase):
@@ -33,7 +33,7 @@ class TestLinearGaussian(TestCase):
         mod = tsa.UnobservedComponents(self.y, "local level")
         return mod.fit()
 
-    def setUpYassm(self) -> GeneralLinearGaussianStateSpaceModelFit:
+    def setUpYassm(self) -> LinearGaussianFit:
         return local_level_model.fit(
             self.y,
             None,
@@ -43,7 +43,7 @@ class TestLinearGaussian(TestCase):
             mle_method="EM",
         )
 
-    def setUpYassm_mle_by_likelihood(self) -> GeneralLinearGaussianStateSpaceModelFit:
+    def setUpYassm_mle_by_likelihood(self) -> LinearGaussianFit:
         return local_level_model.fit(
             self.y,
             None,

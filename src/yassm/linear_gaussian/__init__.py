@@ -10,7 +10,7 @@ These cannot be cached as they are compiled using closure.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from functools import cached_property, partial
+from functools import cached_property
 from itertools import cycle
 from logging import getLogger
 from typing import TYPE_CHECKING
@@ -24,10 +24,12 @@ from ..lib.linear_gaussian import (
     cov_from_gibbs_samples,
     cov_from_samples,
     filter_update_inplace,
+    logdet,
     one_step_ahead_inplace,
     smoothing_backward_recursion_inplace,
+    solve,
 )
-from ..util import as_c_array, as_scipy_objective
+from ..util import as_c_array, as_scipy_objective, deprecated_aliases
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Sequence
@@ -639,13 +641,13 @@ class AbstractFit:
 
 
 @dataclass
-class GeneralLinearGaussianStateSpaceModelFit(AbstractFit):
+class LinearGaussianFit(AbstractFit):
     """A class performing the General linear gaussian state space model pipelines.
 
     Parameters
     ----------
     parent
-        a GenericLinearGaussianStateSpaceModel instance.
+        a BaseLinearGaussianModel instance.
     y
         observed data (Y)
     params
@@ -657,7 +659,8 @@ class GeneralLinearGaussianStateSpaceModelFit(AbstractFit):
     mle_method
         method used to estimate MLE
     mle_n_iter
-        number of iteration run with MLE
+        number of iterations of the MLE (EM or gradient ascent); 0 skips the MLE.
+        Iterative optimisers such as ``scipy_minimize`` run to convergence for any positive value.
     mle_return_chain
         if True, return the chain of parameters during MLE
     mle_kwargs
@@ -672,7 +675,7 @@ class GeneralLinearGaussianStateSpaceModelFit(AbstractFit):
         optional names of parameters
     """
 
-    parent: GenericLinearGaussianStateSpaceModel
+    parent: BaseLinearGaussianModel
     _y: npt.ArrayLike
     _params: npt.ArrayLike
     _μ_0: npt.ArrayLike
@@ -905,34 +908,53 @@ class GeneralLinearGaussianStateSpaceModelFit(AbstractFit):
             True,
         )
 
-    def _run_gibbs_sampling(self, filter_n_std: float | None = None) -> None:
-        """Run Gibbs sampler.
+    def run_gibbs_sampling(self, filter_n_std: float | None = None) -> None:
+        """Run, or re-run, the Gibbs sampler.
+
+        The sampler otherwise runs lazily on the first access to `gibbs_params_chain` or `gibbs_X_chain`.
+        Re-running it discards every result derived from the previous chain;
+        if it raises, the previous chain is kept.
 
         Parameters
         ----------
         filter_n_std
-            if not None, the samples are filtered with the given number of standard deviations.
+            If given, drop the samples whose log-likelihood is more than ``filter_n_std**2 / 2`` below
+            the one at the MLE, i.e. outside ``filter_n_std`` standard deviations under a normal approximation.
+            This trims the long tails of a slowly mixing chain.
+            The number of samples kept after burn-in is unchanged, so `n_sample` must be large enough.
         """
         logger.info("Running gibbs_sampling...")
-        self.gibbs_params_chain_with_burn_in, self.gibbs_X_chain_with_burn_in = self.parent.gibbs_sampling(
+        params_chain, X_chain = self.parent.gibbs_sampling(
             self.y,
             self.params,
             self.μ_0,
             self.Γ_0,
             self.n_sample,
         )
+        n_sample = self.n_sample
+        gibbs_burn_in = self.gibbs_burn_in
         if filter_n_std is not None:
-            mask = (
-                self.log_likelihoods(self.gibbs_params_chain_with_burn_in) > self.log_likelihood - 0.5 * filter_n_std**2
-            )
-            n_sample_used = self.n_sample - self.gibbs_burn_in
-            self.n_sample = mask.sum()
-            self.gibbs_burn_in = self.n_sample - n_sample_used
-            assert self.gibbs_burn_in >= 0
-            self.gibbs_params_chain_with_burn_in = np.ascontiguousarray(self.gibbs_params_chain_with_burn_in[mask])
-            self.gibbs_X_chain_with_burn_in = np.ascontiguousarray(self.gibbs_X_chain_with_burn_in[mask])
-        self._gibbs_params_chain = self.gibbs_params_chain_with_burn_in[self.gibbs_burn_in :]
-        self._gibbs_X_chain = self.gibbs_X_chain_with_burn_in[self.gibbs_burn_in :]
+            mask = self.log_likelihoods(params_chain) > self.log_likelihood - 0.5 * filter_n_std**2
+            n_sample_used = n_sample - gibbs_burn_in
+            n_sample = int(mask.sum())
+            gibbs_burn_in = n_sample - n_sample_used
+            if gibbs_burn_in < 0:
+                raise ValueError(
+                    f"Only {n_sample} of {self.n_sample} samples are within {filter_n_std} standard deviations, "
+                    f"fewer than the {n_sample_used} requested: increase n_sample or filter_n_std."
+                )
+            params_chain = np.ascontiguousarray(params_chain[mask])
+            X_chain = np.ascontiguousarray(X_chain[mask])
+
+        # the new chain is complete: replace the old one and everything derived from it
+        for name in [name for name in vars(self) if "from_gibbs_samples" in name]:
+            delattr(self, name)
+        self.n_sample = n_sample
+        self.gibbs_burn_in = gibbs_burn_in
+        self._gibbs_params_chain_with_burn_in = params_chain
+        self._gibbs_X_chain_with_burn_in = X_chain
+        self._gibbs_params_chain = params_chain[gibbs_burn_in:]
+        self._gibbs_X_chain = X_chain[gibbs_burn_in:]
 
     # cached parameters from _run_*
 
@@ -1017,15 +1039,29 @@ class GeneralLinearGaussianStateSpaceModelFit(AbstractFit):
         return self._smoothed_obs_cov_with_obs_cov_from_samples
 
     @property
+    def gibbs_params_chain_with_burn_in(self) -> npt.NDArray[np.float64]:
+        """Every parameter draw of the Gibbs sampler, including the burn-in."""
+        if not hasattr(self, "_gibbs_params_chain_with_burn_in"):
+            self.run_gibbs_sampling()
+        return self._gibbs_params_chain_with_burn_in
+
+    @property
+    def gibbs_X_chain_with_burn_in(self) -> npt.NDArray[np.float64]:
+        """Every state draw of the Gibbs sampler, including the burn-in."""
+        if not hasattr(self, "_gibbs_X_chain_with_burn_in"):
+            self.run_gibbs_sampling()
+        return self._gibbs_X_chain_with_burn_in
+
+    @property
     def gibbs_params_chain(self) -> npt.NDArray[np.float64]:
         if not hasattr(self, "_gibbs_params_chain"):
-            self._run_gibbs_sampling()
+            self.run_gibbs_sampling()
         return self._gibbs_params_chain
 
     @property
     def gibbs_X_chain(self) -> npt.NDArray[np.float64]:
         if not hasattr(self, "_gibbs_X_chain"):
-            self._run_gibbs_sampling()
+            self.run_gibbs_sampling()
         return self._gibbs_X_chain
 
     @cached_property
@@ -1056,6 +1092,12 @@ class GeneralLinearGaussianStateSpaceModelFit(AbstractFit):
 
     @property
     def log_likelihood(self) -> float:
+        """Log-likelihood ``log p(y_2, ..., y_T | y_1)`` at `params`.
+
+        Conditioning on the first observation drops its term ``log p(y_1)``,
+        so that a diffuse prior on the initial state gives a finite likelihood.
+        Add ``log p(y_1)`` to compare it with the full likelihood of a particle filter.
+        """
         return -0.5 * self.neg2_log_likelihood
 
     # alias of statsmodels terminology
@@ -1098,14 +1140,16 @@ class GeneralLinearGaussianStateSpaceModelFit(AbstractFit):
         import numdifftools as nd
 
         logger.info("Computing MLE Hessian, assumes MLE is attained during fit.")
-        return -0.5 * nd.Hessian(
-            partial(
-                self.parent.neg2_log_likelihood,
-                y=self.y,
-                μ_0=self.μ_0,
-                Γ_0=self.Γ_0,
-            )
-        )(self.params)
+        neg2_log_likelihood = self.parent.neg2_log_likelihood
+
+        # positional arguments: the built-in models name them differently (e.g. y_2d)
+        def func(params: npt.NDArray[np.float64]) -> float:
+            return neg2_log_likelihood(as_c_array(params), self.y, self.μ_0, self.Γ_0)
+
+        # steps relative to each parameter: the default absolute steps can make small variances negative
+        params = np.asarray(self.params, dtype=np.float64)
+        step = 1e-4 * np.where(params != 0.0, np.abs(params), 1.0)
+        return -0.5 * nd.Hessian(func, step=step)(params)
 
     @cached_property
     def posterior_normal_approximation_cov_inv(self) -> npt.NDArray[np.float64]:
@@ -1237,7 +1281,7 @@ class GeneralLinearGaussianStateSpaceModelFit(AbstractFit):
 
 
 @dataclass
-class GenericLinearGaussianStateSpaceModel:
+class BaseLinearGaussianModel:
     """Abstract class for any linear gaussian state space model.
 
     Parameters
@@ -1371,7 +1415,7 @@ class GenericLinearGaussianStateSpaceModel:
                 """Store iterations."""
                 chain.append(np.array(xk))
 
-            if n_iter:
+            if n_iter > 1:
                 logger.warning("n_iter %s is ignored when using scipy.optimize.minimize.", n_iter)
 
             chain: list[npt.NDArray[np.float64]] = []
@@ -1422,8 +1466,8 @@ class GenericLinearGaussianStateSpaceModel:
         gibbs_burn_in: int = 0,
         t: npt.NDArray[Any] | None = None,
         param_names: list[str] | None = None,
-    ) -> GeneralLinearGaussianStateSpaceModelFit:
-        """Return a GeneralLinearGaussianStateSpaceModelFit instance.
+    ) -> LinearGaussianFit:
+        """Return a LinearGaussianFit instance.
 
         Parameters
         ----------
@@ -1438,7 +1482,8 @@ class GenericLinearGaussianStateSpaceModel:
         mle_method
             method used to estimate MLE
         mle_n_iter
-            number of iteration run with MLE
+            number of iterations of the MLE (EM or gradient ascent); 0 skips the MLE.
+            Iterative optimisers such as ``scipy_minimize`` run to convergence for any positive value.
         mle_return_chain
             if True, return the chain of parameters during MLE
         t
@@ -1453,7 +1498,7 @@ class GenericLinearGaussianStateSpaceModel:
         # using default if exists
         if not mle_kwargs and hasattr(self, "mle_kwargs"):
             mle_kwargs = self.mle_kwargs  # type: ignore[attr-defined]
-        return GeneralLinearGaussianStateSpaceModelFit(
+        return LinearGaussianFit(
             self,
             y,
             params,
@@ -1471,7 +1516,7 @@ class GenericLinearGaussianStateSpaceModel:
 
 
 @dataclass
-class GeneralLinearGaussianStateSpaceModel(GenericLinearGaussianStateSpaceModel):
+class LinearGaussianModel(BaseLinearGaussianModel):
     """General linear gaussian state space model.
 
     Parameters
@@ -2160,7 +2205,17 @@ class GeneralLinearGaussianStateSpaceModel(GenericLinearGaussianStateSpaceModel)
 
                 ε_t[:] = y_t - B_t @ m_t_given_tMinus1
                 H_t[:] = B_t @ Q_t_given_tMinus1 @ B_t.transpose() + R_t
-                res += np.log(np.linalg.det(H_t)) + ε_t @ np.linalg.solve(H_t, ε_t)
+                res += logdet(H_t) + ε_t @ solve(H_t, ε_t)
             return res
 
         return neg2_log_likelihood
+
+
+__getattr__ = deprecated_aliases(
+    __name__,
+    {
+        "GeneralLinearGaussianStateSpaceModelFit": "LinearGaussianFit",
+        "GeneralLinearGaussianStateSpaceModel": "LinearGaussianModel",
+        "GenericLinearGaussianStateSpaceModel": "BaseLinearGaussianModel",
+    },
+)

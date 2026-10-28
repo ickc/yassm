@@ -1,0 +1,22 @@
+cff-version: 1.2.0
+message: If you use yassm in your work, please cite it as below.
+type: software
+title: "yassm: Yet Another State Space Model package"
+abstract: >-
+  State space models for time series analysis in Python, compiled with Numba:
+  Kalman filters and smoothers, maximum likelihood and Bayesian inference,
+  grid filters, particle filters, and quasi-Monte Carlo building blocks.
+authors:
+  - family-names: Cheung
+    given-names: Kolen
+license: BSD-3-Clause
+repository-code: https://github.com/ickc/yassm
+url: https://ickc.github.io/yassm
+keywords:
+  - state space model
+  - time series
+  - Kalman filter
+  - particle filter
+  - sequential Monte Carlo
+  - quasi-Monte Carlo
+  - numba

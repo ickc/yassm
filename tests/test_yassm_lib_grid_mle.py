@@ -13,7 +13,7 @@ import numpy as np
 from numba import jit
 
 from tests import y
-from yassm.grid.one_dimension import General1DStateSpaceModel
+from yassm.grid.one_dimension import GridFilterModel
 from yassm.lib.grid.one_dimension import prob_normal
 from yassm.linear_gaussian.model.local_level import local_level_model
 
@@ -73,7 +73,7 @@ class TestGrid(TestCase):
         x_f = y_mid + r * y_range
         p_0 = np.full(G, 1.0 / G)
 
-        mod = General1DStateSpaceModel(
+        mod = GridFilterModel(
             2,
             transition_func,
             design_func,
@@ -96,3 +96,5 @@ class TestGrid(TestCase):
             y, self.params0, self.p_0, mle_n_iter=1, mle_kwargs={"bounds": ((0.0, None), (0.0, None))}
         )
         np.testing.assert_allclose(self.res.params, self.ref.params, rtol=0.01)
+        np.testing.assert_array_equal(self.res.params_to_series.to_numpy(), self.res.params)
+        assert list(self.res.params_to_series.index) == self.mod.param_names

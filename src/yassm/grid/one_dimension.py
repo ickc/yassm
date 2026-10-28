@@ -17,13 +17,14 @@ from ..lib.grid.one_dimension import (
     ps_to_mQ,
     smoothing_backward_recursion_inplace,
 )
-from ..util import as_c_array, as_scipy_objective
+from ..util import as_c_array, as_scipy_objective, deprecated_aliases
 
 if TYPE_CHECKING:
     from collections.abc import Callable
     from typing import Any
 
     import numpy.typing as npt
+    import pandas as pd
     from typing_extensions import Protocol
 
     from ..lib.grid.one_dimension import DesignFunc, TransitionFunc
@@ -100,8 +101,8 @@ logger = getLogger(__name__)
 
 
 @dataclass
-class General1DStateSpaceModelFit:
-    parent: General1DStateSpaceModel
+class GridFilterFit:
+    parent: GridFilterModel
     y: npt.NDArray[np.float64]
     params: npt.NDArray[np.float64]
     p_0: npt.NDArray[np.float64]
@@ -139,6 +140,12 @@ class General1DStateSpaceModelFit:
     @cached_property
     def x_array(self) -> npt.NDArray[np.float64]:
         return np.linspace(self.parent.x_0, self.parent.x_f, self.G)
+
+    @property
+    def params_to_series(self) -> pd.Series:
+        import pandas as pd
+
+        return pd.Series(self.params, index=self.param_names)
 
     # running functions and cache: _run_*
 
@@ -223,11 +230,17 @@ class General1DStateSpaceModelFit:
 
     @property
     def log_likelihood(self) -> float:
+        """Log-likelihood ``log p(y_2, ..., y_T | y_1)`` at `params`.
+
+        Conditioning on the first observation drops its term ``log p(y_1)``,
+        so that a diffuse prior on the initial state gives a finite likelihood.
+        Add ``log p(y_1)`` to compare it with the full likelihood of a particle filter.
+        """
         return -self.neg_log_likelihood
 
 
 @dataclass
-class General1DStateSpaceModel:
+class GridFilterModel:
     N: int
     transition_func: TransitionFunc
     design_func: DesignFunc
@@ -565,7 +578,7 @@ class General1DStateSpaceModel:
 
     def mle(self, method: str = "scipy_minimize") -> Mle:
         """
-        Similar to `yassm.linear_gaussian.GeneralLinearGaussianStateSpaceModel.mle`.
+        Similar to `yassm.linear_gaussian.LinearGaussianModel.mle`.
         """
         method_lower = method.lower()
         if method_lower != "scipy_minimize":
@@ -593,7 +606,7 @@ class General1DStateSpaceModel:
                 """Store iterations."""
                 chain.append(np.array(xk))
 
-            if n_iter:
+            if n_iter > 1:
                 logger.warning("n_iter %s is ignored when using scipy.optimize.minimize.", n_iter)
 
             chain: list[npt.NDArray[np.float64]] = []
@@ -624,8 +637,8 @@ class General1DStateSpaceModel:
         mle_kwargs: dict[Any, Any] | None = None,
         t: npt.NDArray[Any] | None = None,
         param_names: list[str] | None = None,
-    ) -> General1DStateSpaceModelFit:
-        return General1DStateSpaceModelFit(
+    ) -> GridFilterFit:
+        return GridFilterFit(
             self,
             y,
             params,
@@ -637,3 +650,12 @@ class General1DStateSpaceModel:
             t=t,
             param_names=param_names or self.param_names,
         )
+
+
+__getattr__ = deprecated_aliases(
+    __name__,
+    {
+        "General1DStateSpaceModelFit": "GridFilterFit",
+        "General1DStateSpaceModel": "GridFilterModel",
+    },
+)

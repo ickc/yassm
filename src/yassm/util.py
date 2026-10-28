@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import logging
 import os
+import sys
+import warnings
 from logging import Formatter
 from typing import TYPE_CHECKING
 
@@ -14,6 +16,10 @@ if TYPE_CHECKING:
     from typing import Any
 
     import numpy.typing as npt
+
+#: ``scipy.optimize`` bounds for a variance. Strictly positive: at exactly zero, covariance matrices can be
+#: singular, making the objective infinite, and L-BFGS-B then stops early while reporting success.
+VARIANCE_BOUNDS: tuple[float, None] = (float(np.finfo(np.float64).eps), None)
 
 # never emit "No handlers could be found" style warnings from the library
 logging.getLogger("yassm").addHandler(logging.NullHandler())
@@ -84,3 +90,33 @@ def as_scipy_objective(func: Callable[..., float]) -> Callable[..., float]:
             return np.inf
 
     return wrapped
+
+
+def deprecated_aliases(module: str, aliases: dict[str, str]) -> Callable[[str], Any]:
+    """Return a module ``__getattr__`` resolving deprecated names with a `DeprecationWarning`.
+
+    Parameters
+    ----------
+    module
+        ``__name__`` of the module defining the new names.
+    aliases
+        Mapping from each deprecated name to its replacement.
+
+    Examples
+    --------
+    >>> __getattr__ = deprecated_aliases(__name__, {"OldName": "NewName"})  # doctest: +SKIP
+    """
+
+    def __getattr__(name: str) -> Any:
+        try:
+            new = aliases[name]
+        except KeyError:
+            raise AttributeError(f"module {module!r} has no attribute {name!r}") from None
+        warnings.warn(
+            f"{module}.{name} is deprecated, use {module}.{new} instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return getattr(sys.modules[module], new)
+
+    return __getattr__

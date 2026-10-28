@@ -9,8 +9,9 @@ from typing import TYPE_CHECKING
 import numpy as np
 from numba import jit
 
-from yassm.linear_gaussian import GeneralLinearGaussianStateSpaceModel
+from yassm.linear_gaussian import LinearGaussianModel
 from yassm.linear_gaussian.model.local_ratio import local_ratio_model
+from yassm.util import VARIANCE_BOUNDS
 
 if TYPE_CHECKING:
     import numpy.typing as npt
@@ -41,7 +42,7 @@ def R0(params: npt.NDArray[np.float64]) -> npt.NDArray[np.float64]:
     return np.array([[σ_ε_sq]])
 
 
-general_local_ratio_model = GeneralLinearGaussianStateSpaceModel(
+general_local_ratio_model = LinearGaussianModel(
     3,
     A0,
     B0,
@@ -49,7 +50,7 @@ general_local_ratio_model = GeneralLinearGaussianStateSpaceModel(
     R0,
     param_names=local_ratio_model.param_names,
     mle_kwargs={
-        "bounds": ((0.0, None), (0.0, None), (0.0, None)),
+        "bounds": (VARIANCE_BOUNDS, VARIANCE_BOUNDS, (0.0, None)),
         "method": "L-BFGS-B",
     },
 )
