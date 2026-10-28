@@ -24,6 +24,7 @@ if TYPE_CHECKING:
     from typing import Any
 
     import numpy.typing as npt
+    import pandas as pd
     from typing_extensions import Protocol
 
     from ..lib.grid.one_dimension import DesignFunc, TransitionFunc
@@ -139,6 +140,12 @@ class GridFilterFit:
     @cached_property
     def x_array(self) -> npt.NDArray[np.float64]:
         return np.linspace(self.parent.x_0, self.parent.x_f, self.G)
+
+    @property
+    def params_to_series(self) -> pd.Series:
+        import pandas as pd
+
+        return pd.Series(self.params, index=self.param_names)
 
     # running functions and cache: _run_*
 
