@@ -6,8 +6,9 @@
 
 - Support Python 3.11–3.15, NumPy 2 and Numba ≥ 0.59 (`numba.generated_jit` was removed).
 - Packaging: PEP 621 metadata built with hatchling; development environments and tasks managed by pixi.
-- The core dependencies are now only NumPy, SciPy and Numba; matplotlib/seaborn, pandas and numdifftools are optional
-  extras (`plot`, `pandas`, `hessian`, `all`). seaborn, used by `plot`, was previously undeclared.
+- The core dependencies are now only NumPy, SciPy, Numba and jaxtyping; matplotlib (≥ 3.10)/seaborn, pandas and
+  numdifftools are optional extras (`plot`, `pandas`, `hessian`, `all`). seaborn, used by `plot`, was previously
+  undeclared.
 - Importing yassm no longer configures logging; set `YASSMLOGLEVEL` or call `yassm.util.setup_logging()`.
 - Docstrings use the NumPy style.
 - Shorter class names; the old names still work but emit a `DeprecationWarning`:
@@ -30,7 +31,9 @@
 ### Added
 
 - The main classes and ready-made models are exported from the top level, e.g. `from yassm import local_level_model`,
-  and the package ships type information (`py.typed`).
+  and the package ships type information (`py.typed`), checked with mypy.
+- The arrays returned by the fits and the QMC transforms are annotated with their shapes (jaxtyping),
+  checked at runtime in the test suite, or with `YASSM_TYPECHECK=1`.
 - `LinearGaussianFit.run_gibbs_sampling(filter_n_std=...)` re-runs the Gibbs sampler,
   optionally keeping only the draws near the MLE.
 - `GridFilterFit.params_to_series`, like the other fits.
@@ -51,6 +54,8 @@
 - `gibbs_params_chain_with_burn_in` and `gibbs_X_chain_with_burn_in` did not exist until another Gibbs result
   was accessed.
 - `mle_n_iter` was reported as ignored by `scipy_minimize` and `grid_search` even though a positive value is required.
+- `HilbertCurve*.plot` drew 3-D curves on a 3-D axes stacked over a stray 2-D one, and ignored a given 3-D axes;
+  `plot` of the fits and of 2-D curves used the current figure instead of the one of the given axes.
 - Halton/van der Corput sequences truncated bases to `int8`, breaking `halton_sequence` for dimensions ≥ 32.
 - The linear range reduction of the full-range Hilbert sort mapped the maximum of each axis to the middle of the range.
 - The whitening Cholesky decomposition was made "positive definite" by shifting its spectrum the wrong way,

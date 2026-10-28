@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from functools import cached_property
 from logging import getLogger
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
 import numpy as np
 from numba import jit
@@ -186,7 +186,8 @@ class LocalLevelModel(BaseLinearGaussianModel):
                     chain[i] = params
             return params, chain
 
-        return mle
+        # EM takes no keyword arguments: `Mle` allows them for scipy.optimize.minimize
+        return cast("Mle", mle)
 
     @cached_property
     def mle_em(self) -> Mle:

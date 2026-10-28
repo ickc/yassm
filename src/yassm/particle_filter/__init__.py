@@ -8,8 +8,10 @@ from logging import getLogger
 from typing import TYPE_CHECKING
 
 import numpy as np
+from jaxtyping import Float64
 from numba import get_num_threads, jit, objmode, prange
 
+from .._typing import typechecked
 from ..lib import random_choice_weighted_inplace, sqrt_diag
 from ..lib.linear_gaussian import cov_from_samples, logdet, solve
 from ..linear_gaussian import LOG2Π, AbstractFit, BaseLinearGaussianModel, LinearGaussianModel
@@ -125,7 +127,7 @@ if TYPE_CHECKING:
             n_iter: int,
             n_sample: int,
             return_chain: bool,
-            **kwargs: dict[str, Any],
+            **kwargs: Any,
         ) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]]: ...
 
 
@@ -234,7 +236,8 @@ class ParticleFilterFit(AbstractFit):
 
     # running functions depending on parameters: get_*
 
-    def get_forecast_state(self, T_forecast: int) -> npt.NDArray[np.float64]:
+    @typechecked
+    def get_forecast_state(self, T_forecast: int) -> Float64[np.ndarray, "T_forecast N d"]:
         forecast: Forecast = self.parent.forecast
         return forecast(
             self.params,
@@ -242,11 +245,12 @@ class ParticleFilterFit(AbstractFit):
             T_forecast,
         )
 
+    @typechecked
     def get_forecast_obs(
         self,
         T_forecast: int,
         with_obs_cov: bool = True,
-    ) -> npt.NDArray[np.float64]:
+    ) -> Float64[np.ndarray, "T_forecast N n"]:
         if with_obs_cov:
             raise NotImplementedError("with_obs_cov is not implemented yet.")
         forecast_state = self.get_forecast_state(T_forecast)
@@ -272,21 +276,24 @@ class ParticleFilterFit(AbstractFit):
     # cached parameters from _run_*
 
     @property
-    def x_t_tilde(self) -> npt.NDArray[np.float64]:
+    @typechecked
+    def x_t_tilde(self) -> Float64[np.ndarray, "T N d"]:
         """x_t_tilde of shape (size, N, d)."""
         if not hasattr(self, "_x_t_tilde"):
             self._run_particle_filter()
         return self._x_t_tilde
 
     @property
-    def x_t(self) -> npt.NDArray[np.float64]:
+    @typechecked
+    def x_t(self) -> Float64[np.ndarray, "T N d"]:
         """x_t of shape (size, N, d)."""
         if not hasattr(self, "_x_t"):
             self._run_particle_filter()
         return self._x_t
 
     @property
-    def w_t(self) -> npt.NDArray[np.float64]:
+    @typechecked
+    def w_t(self) -> Float64[np.ndarray, "T N"]:
         """w_t of shape (size, N)."""
         if not hasattr(self, "_w_t"):
             self._run_particle_filter()
@@ -295,31 +302,36 @@ class ParticleFilterFit(AbstractFit):
     # Gassian-like descriptions
 
     @cached_property
-    def m_t_given_tMinus1(self) -> npt.NDArray[np.float64]:
+    @typechecked
+    def m_t_given_tMinus1(self) -> Float64[np.ndarray, "T d"]:
         """m_t_given_tMinus1 of shape (size, d)."""
         if self.parent.particle_filter_method != "bootstrap":
             raise NotImplementedError("m_t_given_tMinus1 is only implemented for bootstrap")
         return self.x_t_tilde.mean(axis=1)
 
     @cached_property
-    def Q_t_given_tMinus1(self) -> npt.NDArray[np.float64]:
+    @typechecked
+    def Q_t_given_tMinus1(self) -> Float64[np.ndarray, "T d d"]:
         """Q_t_given_tMinus1 of shape (size, d, d)."""
         if self.parent.particle_filter_method != "bootstrap":
             raise NotImplementedError("Q_t_given_tMinus1 is only implemented for bootstrap")
         return cov_from_samples(self.x_t_tilde)
 
     @cached_property
-    def m_t_given_t(self) -> npt.NDArray[np.float64]:
+    @typechecked
+    def m_t_given_t(self) -> Float64[np.ndarray, "T d"]:
         """m_t_given_t of shape (size, d)."""
         return self.x_t.mean(axis=1)
 
     @cached_property
-    def Q_t_given_t(self) -> npt.NDArray[np.float64]:
+    @typechecked
+    def Q_t_given_t(self) -> Float64[np.ndarray, "T d d"]:
         """Q_t_given_t of shape (size, d)."""
         return cov_from_samples(self.x_t)
 
     @cached_property
-    def filtered_obs_samples(self) -> npt.NDArray[np.float64]:
+    @typechecked
+    def filtered_obs_samples(self) -> Float64[np.ndarray, "T N n"]:
         """Return all samples of filtered states in observation space.
 
         Returns
@@ -330,31 +342,35 @@ class ParticleFilterFit(AbstractFit):
         return self.parent.smoothed_state_to_obs(self.params, self.x_t, 0)
 
     @cached_property
-    def m_t_given_t_obs(self) -> npt.NDArray[np.float64]:
+    @typechecked
+    def m_t_given_t_obs(self) -> Float64[np.ndarray, "T n"]:
         """m_t_given_t in observation space of shape (size, n)."""
         return self.filtered_obs_samples.mean(axis=1)
 
     @cached_property
-    def Q_t_given_t_obs(self) -> npt.NDArray[np.float64]:
+    @typechecked
+    def Q_t_given_t_obs(self) -> Float64[np.ndarray, "T n n"]:
         """Q_t_given_t in observation space of shape (size, n)."""
         return cov_from_samples(self.filtered_obs_samples)
 
     # misc
 
+    @typechecked
     def log_likelihoods(
         self,
-        params_chain: npt.NDArray[np.float64],
-    ) -> npt.NDArray[np.float64]:
+        params_chain: Float64[np.ndarray, "K p"],
+    ) -> Float64[np.ndarray, " K"]:
         return -self.parent.neg_log_likelihoods(params_chain, self.y, self.n_sample)
 
     # CI
 
+    @typechecked
     def filtered_obs_CI(
         self,
         α: float,
         with_obs_cov: bool = True,
         n_std: float | None = None,
-    ) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64], npt.NDArray[np.float64]]:
+    ) -> tuple[Float64[np.ndarray, "T n"], Float64[np.ndarray, "T n"], Float64[np.ndarray, "T n"]]:
         """Filtered observations confidence intervals.
 
         Parameters
@@ -382,13 +398,16 @@ class ParticleFilterFit(AbstractFit):
             Δ = filtered_obs_std * n_std
             return m_t_given_t_obs - Δ, m_t_given_t_obs, m_t_given_t_obs + Δ
 
+    @typechecked
     def forecast_obs_CI(
         self,
         T_forecast: int,
         α: float,
         n_std: float | None = None,
         with_obs_cov: bool = True,
-    ) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64], npt.NDArray[np.float64]]:
+    ) -> tuple[
+        Float64[np.ndarray, "T_forecast n"], Float64[np.ndarray, "T_forecast n"], Float64[np.ndarray, "T_forecast n"]
+    ]:
         """Forecast with confidence intervals.
 
         Parameters
@@ -753,11 +772,12 @@ class BaseParticleFilterModel(BaseLinearGaussianModel):
         transform_params = self.transform_params
         untransform_params = self.untransform_params
 
+        minimization_func: Callable[[npt.NDArray[np.float64], npt.NDArray[np.float64], int], float]
         if transform_params is not None:
             logger.info("Calculating MLE using transformed parameter space, possibly for unconstrained optimization.")
 
             @jit("f8(f8[::1], f8[:, ::1], i8)", nopython=True, nogil=True, cache=False)
-            def minimization_func(
+            def _minimization_func(
                 unconstrained: npt.NDArray[np.float64],
                 y: npt.NDArray[np.float64],
                 N: int,
@@ -769,9 +789,10 @@ class BaseParticleFilterModel(BaseLinearGaussianModel):
                 unconstrained
                     unconstrained parameters in optimization space.
                 """
-                constrained = transform_params(unconstrained)  # type: ignore[misc]  # type limitation
+                constrained = transform_params(unconstrained)
                 return neg_log_likelihood(constrained, y, N)
 
+            minimization_func = _minimization_func
         else:
             minimization_func = neg_log_likelihood
 
@@ -781,7 +802,7 @@ class BaseParticleFilterModel(BaseLinearGaussianModel):
             n_iter: int,
             n_sample: int,
             return_chain: bool,
-            **kwargs: dict[str, Any],
+            **kwargs: Any,
         ) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]]:
             """Calculate MLE from log-likelihood using scipy.optimize.minimize.
 
@@ -789,27 +810,23 @@ class BaseParticleFilterModel(BaseLinearGaussianModel):
             """
             from scipy.optimize import minimize
 
-            def _callback(unconstrained: npt.NDArray[np.float64]) -> None:
+            def _callback(xk: npt.NDArray[np.float64]) -> None:
                 """Store iterations."""
-                unconstrained = np.ascontiguousarray(unconstrained, dtype=np.float64)
-                chain.append(np.array(unconstrained) if transform_params is None else transform_params(unconstrained))
+                xk = np.ascontiguousarray(xk, dtype=np.float64)
+                chain.append(np.array(xk) if transform_params is None else transform_params(xk))
 
             if n_iter > 1:
                 logger.warning("n_iter %s is ignored when using scipy.optimize.minimize.", n_iter)
 
             chain: list[npt.NDArray[np.float64]] = []
-            callback: Callable[[npt.NDArray[np.float64]], None] | None
             if return_chain:
                 chain.append(params0)
-                callback = _callback
-            else:
-                callback = None
 
             opt = minimize(
                 as_scipy_objective(minimization_func),
                 params0 if untransform_params is None else untransform_params(params0),
                 args=(y, n_sample),
-                callback=callback,
+                callback=_callback if return_chain else None,
                 **kwargs,
             )
             msg = opt.message
@@ -868,7 +885,7 @@ class BaseParticleFilterModel(BaseLinearGaussianModel):
         y = as_c_array(y)
         # using default if exists
         if not mle_kwargs and hasattr(self, "mle_kwargs"):
-            mle_kwargs = self.mle_kwargs  # type: ignore[attr-defined]
+            mle_kwargs = self.mle_kwargs
         if params is None:
             if mle_method == "grid_search" and mle_kwargs:
                 # a grid search needs no initial parameters

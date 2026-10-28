@@ -8,8 +8,10 @@ from logging import getLogger
 from typing import TYPE_CHECKING
 
 import numpy as np
+from jaxtyping import Float64
 from numba import jit
 
+from .._typing import typechecked
 from ..lib.grid.one_dimension import (
     filter_update_inplace,
     get_grid_to_position,
@@ -93,7 +95,7 @@ if TYPE_CHECKING:
             p_0: npt.NDArray[np.float64],
             n_iter: int,
             return_chain: bool,
-            **kwargs: dict[str, Any],
+            **kwargs: Any,
         ) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]]: ...
 
 
@@ -138,7 +140,8 @@ class GridFilterFit:
         return range(self.size) if self.t is None else self.t
 
     @cached_property
-    def x_array(self) -> npt.NDArray[np.float64]:
+    @typechecked
+    def x_array(self) -> Float64[np.ndarray, " G"]:
         return np.linspace(self.parent.x_0, self.parent.x_f, self.G)
 
     @property
@@ -171,19 +174,22 @@ class GridFilterFit:
     # cached parameters from _run_*
 
     @property
-    def p_t_given_tMinus1(self) -> npt.NDArray[np.float64]:
+    @typechecked
+    def p_t_given_tMinus1(self) -> Float64[np.ndarray, "T G"]:
         if not hasattr(self, "_p_t_given_tMinus1"):
             self._run_kalman_filtering()
         return self._p_t_given_tMinus1
 
     @property
-    def p_t_given_t(self) -> npt.NDArray[np.float64]:
+    @typechecked
+    def p_t_given_t(self) -> Float64[np.ndarray, "T G"]:
         if not hasattr(self, "_p_t_given_t"):
             self._run_kalman_filtering()
         return self._p_t_given_t
 
     @property
-    def p_t_given_T(self) -> npt.NDArray[np.float64]:
+    @typechecked
+    def p_t_given_T(self) -> Float64[np.ndarray, "T G"]:
         if not hasattr(self, "_p_t_given_T"):
             self._run_kalman_smoothing()
         return self._p_t_given_T
@@ -194,13 +200,15 @@ class GridFilterFit:
         self._Q_t_given_t = np.ascontiguousarray(mQs[:, 1])
 
     @property
-    def m_t_given_t(self) -> npt.NDArray[np.float64]:
+    @typechecked
+    def m_t_given_t(self) -> Float64[np.ndarray, " T"]:
         if not hasattr(self, "_m_t_given_t"):
             self._run_p_t_given_t_to_mQ()
         return self._m_t_given_t
 
     @property
-    def Q_t_given_t(self) -> npt.NDArray[np.float64]:
+    @typechecked
+    def Q_t_given_t(self) -> Float64[np.ndarray, " T"]:
         if not hasattr(self, "_Q_t_given_t"):
             self._run_p_t_given_t_to_mQ()
         return self._Q_t_given_t
@@ -211,13 +219,15 @@ class GridFilterFit:
         self._Q_t_given_T = np.ascontiguousarray(mQs[:, 1])
 
     @property
-    def m_t_given_T(self) -> npt.NDArray[np.float64]:
+    @typechecked
+    def m_t_given_T(self) -> Float64[np.ndarray, " T"]:
         if not hasattr(self, "_m_t_given_T"):
             self._run_p_t_given_T_to_mQ()
         return self._m_t_given_T
 
     @property
-    def Q_t_given_T(self) -> npt.NDArray[np.float64]:
+    @typechecked
+    def Q_t_given_T(self) -> Float64[np.ndarray, " T"]:
         if not hasattr(self, "_Q_t_given_T"):
             self._run_p_t_given_T_to_mQ()
         return self._Q_t_given_T
@@ -594,7 +604,7 @@ class GridFilterModel:
             p_0: npt.NDArray[np.float64],
             n_iter: int,
             return_chain: bool,
-            **kwargs: dict[str, Any],
+            **kwargs: Any,
         ) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]]:
             """Calculate MLE from log-likelihood using scipy.optimize.minimize.
 
@@ -610,14 +620,16 @@ class GridFilterModel:
                 logger.warning("n_iter %s is ignored when using scipy.optimize.minimize.", n_iter)
 
             chain: list[npt.NDArray[np.float64]] = []
-            callback: Callable[[npt.NDArray[np.float64]], None] | None
             if return_chain:
                 chain.append(params0)
-                callback = _callback
-            else:
-                callback = None
 
-            opt = minimize(as_scipy_objective(neg_log_likelihood), params0, args=(y, p_0), callback=callback, **kwargs)
+            opt = minimize(
+                as_scipy_objective(neg_log_likelihood),
+                params0,
+                args=(y, p_0),
+                callback=_callback if return_chain else None,
+                **kwargs,
+            )
             msg = opt.message
             if not opt.success:
                 raise RuntimeError(f"MLE unsuccessful with message: {msg}")
