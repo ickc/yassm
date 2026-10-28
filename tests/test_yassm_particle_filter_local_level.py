@@ -116,3 +116,23 @@ class TestLinearGaussianParticleFilterModelBootstrap(TestCase):
         np.testing.assert_allclose(
             self.fit_optimal.m_t_given_t[self.t_min :], self.fit.m_t_given_t[self.t_min :], rtol=self.rtol
         )
+
+    def test_log_likelihood(self):
+        """The particle filters estimate the full likelihood: the Kalman one plus log p(y_1)."""
+        σ_ε_sq = self.params[0]
+        log_p_y1 = -0.5 * (np.log(2.0 * np.pi * (Γ_0 + σ_ε_sq)) + (y[0] - μ_0) ** 2 / (Γ_0 + σ_ε_sq))
+        expected = self.fit.log_likelihood + log_p_y1
+        # Monte Carlo error and bias are below 1 with 5000 particles;
+        # dropping log p(y_1) from the optimal filter made it about 7 off
+        np.testing.assert_allclose(self.fit_optimal.log_likelihood, expected, atol=2.0)
+        np.testing.assert_allclose(self.fit_bootstrap.log_likelihood, expected, atol=2.0)
+
+    def test_grid_search_without_params(self):
+        params_grid = np.ascontiguousarray(self.params * np.array([[1.0, 1.0], [2.0, 2.0], [0.5, 0.5]]))
+        model = LinearGaussianParticleFilterModel(
+            2, A0, B0, Σ0, R0, X0=X0, param_names=["obs_cov", "state_cov"], particle_filter_method="optimal"
+        )
+        fit = model.fit(
+            y, None, mle_method="grid_search", mle_n_iter=1, mle_kwargs={"params_grid": params_grid}, n_sample=500
+        )
+        np.testing.assert_array_equal(fit.params, self.params)
