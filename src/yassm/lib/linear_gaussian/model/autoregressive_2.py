@@ -19,7 +19,7 @@ def neg_log_likelihood(
     params: npt.NDArray[np.float64],
     y: npt.NDArray[np.float64],
 ) -> float:
-    """Log likelihood of the AR(2) model up to a constant.
+    """Negative log-likelihood of the AR(2) model conditional on the first 2 observations, up to a constant.
 
     Parameters
     ----------
@@ -28,10 +28,10 @@ def neg_log_likelihood(
     y
         Observations from 0 to T.
     """
-    size = y.size
-    T = size + 1
+    # conditional on the first 2 observations: one residual per remaining observation
+    n = y.size - 2
     σ_Z_sq, φ_0, φ_1, φ_2 = params
-    return 0.5 * T * np.log(σ_Z_sq) + 0.5 / σ_Z_sq * np.square(y[2:] - φ_0 - φ_1 * y[1:-1] - φ_2 * y[0:-2]).sum()
+    return 0.5 * n * np.log(σ_Z_sq) + 0.5 / σ_Z_sq * np.square(y[2:] - φ_0 - φ_1 * y[1:-1] - φ_2 * y[0:-2]).sum()
 
 
 @jit("f8[:, ::1](f8[::1], i8)", nopython=True, nogil=True)
