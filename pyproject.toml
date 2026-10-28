@@ -75,6 +75,7 @@ docs = [
     "furo>=2024.8.6",
     "myst-nb>=1.1",
     "sphinx-copybutton>=0.5",
+    "sphinx-design>=0.6",
 ]
 dev = [
     { include-group = "test" },
@@ -98,7 +99,7 @@ addopts = ["-ra", "--strict-markers", "--strict-config", "-m", "not examples"]
 testpaths = ["tests"]
 xfail_strict = true
 markers = [
-    "examples: run the STAT 248 homework scripts in examples/ (slow)",
+    "examples: run the examples in examples/ as integration tests (slow)",
 ]
 filterwarnings = [
     "error::pytest.PytestReturnNotNoneWarning",
@@ -155,6 +156,7 @@ sphinx = ">=8"
 furo = ">=2024.8.6"
 myst-nb = ">=1.1"
 sphinx-copybutton = ">=0.5"
+sphinx-design = ">=0.6"
 
 [tool.pixi.feature.lint.dependencies]
 ruff = ">=0.8"
@@ -174,7 +176,7 @@ python = "3.15.*"
 test = { cmd = "pytest -n auto", description = "Run the unit tests" }
 test-cov = { cmd = "pytest -n auto --cov --cov-report=term --cov-report=xml", description = "Run the unit tests with coverage" }
 test-boundscheck = { cmd = "pytest -n auto", env = { NUMBA_BOUNDSCHECK = "1" }, description = "Run the unit tests with Numba bounds checking enabled" }
-examples = { cmd = "pytest -n auto -m examples tests/test_examples.py", env = { MPLBACKEND = "Agg" }, description = "Run every homework script in examples/ as an integration test" }
+examples = { cmd = "pytest -n auto -m examples tests/test_examples.py", env = { MPLBACKEND = "Agg" }, description = "Run every example in examples/ as an integration test" }
 
 [tool.pixi.feature.lint.tasks]
 lint = { cmd = "ruff check && ruff format --check", description = "Lint and check formatting" }
