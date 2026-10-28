@@ -26,7 +26,7 @@ SQRT_2Π_INV = 1.0 / np.sqrt(2.0 * np.pi)
 
 
 @overload
-def prob_normal(  # type: ignore[misc]
+def prob_normal(  # type: ignore[overload-overlap]
     x: float,
     μ: float,
     Σ: float,

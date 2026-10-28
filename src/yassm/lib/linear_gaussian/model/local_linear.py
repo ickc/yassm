@@ -53,8 +53,8 @@ def _sampling_parameters_1d_inplace(
     size = y.size
     T = size - 1
     # x is from t = -1 to T
-    params[0] = 1.0 / np.random.gamma(0.5 * size, 2.0 / np.square(y - x[1:]).sum())
-    params[1] = 1.0 / np.random.gamma(0.5 * T, 2.0 / np.square(np.diff(x, n=2)).sum())
+    params[0] = 1.0 / np.random.gamma(0.5 * size, 2.0 / float(np.square(y - x[1:]).sum()))
+    params[1] = 1.0 / np.random.gamma(0.5 * T, 2.0 / float(np.square(np.diff(x, n=2)).sum()))
 
 
 @jit("f8[::1](f8[:, ::1], f8[:, ::1])", nopython=True, nogil=True, cache=True)

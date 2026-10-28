@@ -93,7 +93,7 @@ if TYPE_CHECKING:
             p_0: npt.NDArray[np.float64],
             n_iter: int,
             return_chain: bool,
-            **kwargs: dict[str, Any],
+            **kwargs: Any,
         ) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]]: ...
 
 
@@ -594,7 +594,7 @@ class GridFilterModel:
             p_0: npt.NDArray[np.float64],
             n_iter: int,
             return_chain: bool,
-            **kwargs: dict[str, Any],
+            **kwargs: Any,
         ) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]]:
             """Calculate MLE from log-likelihood using scipy.optimize.minimize.
 
@@ -610,14 +610,16 @@ class GridFilterModel:
                 logger.warning("n_iter %s is ignored when using scipy.optimize.minimize.", n_iter)
 
             chain: list[npt.NDArray[np.float64]] = []
-            callback: Callable[[npt.NDArray[np.float64]], None] | None
             if return_chain:
                 chain.append(params0)
-                callback = _callback
-            else:
-                callback = None
 
-            opt = minimize(as_scipy_objective(neg_log_likelihood), params0, args=(y, p_0), callback=callback, **kwargs)
+            opt = minimize(
+                as_scipy_objective(neg_log_likelihood),
+                params0,
+                args=(y, p_0),
+                callback=_callback if return_chain else None,
+                **kwargs,
+            )
             msg = opt.message
             if not opt.success:
                 raise RuntimeError(f"MLE unsuccessful with message: {msg}")
