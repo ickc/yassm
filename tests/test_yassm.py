@@ -153,6 +153,7 @@ def test_run_gibbs_sampling_filter() -> None:
     set_seed(20220501)
     n_kept = 200
     fit = local_level_model.fit(y.copy(), None, 0.0, np.inf, mle_n_iter=100, n_sample=2000, gibbs_burn_in=2000 - n_kept)
+    assert fit.gibbs_params_chain_with_burn_in.shape[0] == 2000
     m_unfiltered = fit.m_t_given_T_from_gibbs_samples
 
     n_std = 1.0
