@@ -923,7 +923,7 @@ class LinearGaussianFit(AbstractFit):
         for name in [name for name in vars(self) if "from_gibbs_samples" in name]:
             delattr(self, name)
         logger.info("Running gibbs_sampling...")
-        self.gibbs_params_chain_with_burn_in, self.gibbs_X_chain_with_burn_in = self.parent.gibbs_sampling(
+        self._gibbs_params_chain_with_burn_in, self._gibbs_X_chain_with_burn_in = self.parent.gibbs_sampling(
             self.y,
             self.params,
             self.μ_0,
@@ -932,7 +932,7 @@ class LinearGaussianFit(AbstractFit):
         )
         if filter_n_std is not None:
             mask = (
-                self.log_likelihoods(self.gibbs_params_chain_with_burn_in) > self.log_likelihood - 0.5 * filter_n_std**2
+                self.log_likelihoods(self._gibbs_params_chain_with_burn_in) > self.log_likelihood - 0.5 * filter_n_std**2
             )
             n_sample_used = self.n_sample - self.gibbs_burn_in
             self.n_sample = mask.sum()
@@ -942,10 +942,10 @@ class LinearGaussianFit(AbstractFit):
                     f"Only {self.n_sample} samples are within {filter_n_std} standard deviations, "
                     f"fewer than the {n_sample_used} requested: increase n_sample or filter_n_std."
                 )
-            self.gibbs_params_chain_with_burn_in = np.ascontiguousarray(self.gibbs_params_chain_with_burn_in[mask])
-            self.gibbs_X_chain_with_burn_in = np.ascontiguousarray(self.gibbs_X_chain_with_burn_in[mask])
-        self._gibbs_params_chain = self.gibbs_params_chain_with_burn_in[self.gibbs_burn_in :]
-        self._gibbs_X_chain = self.gibbs_X_chain_with_burn_in[self.gibbs_burn_in :]
+            self._gibbs_params_chain_with_burn_in = np.ascontiguousarray(self._gibbs_params_chain_with_burn_in[mask])
+            self._gibbs_X_chain_with_burn_in = np.ascontiguousarray(self._gibbs_X_chain_with_burn_in[mask])
+        self._gibbs_params_chain = self._gibbs_params_chain_with_burn_in[self.gibbs_burn_in :]
+        self._gibbs_X_chain = self._gibbs_X_chain_with_burn_in[self.gibbs_burn_in :]
 
     # cached parameters from _run_*
 
@@ -1028,6 +1028,20 @@ class LinearGaussianFit(AbstractFit):
         if not hasattr(self, "_smoothed_obs_cov_with_obs_cov_from_samples"):
             self._run_smoothed_state_to_obs_with_obs_cov_from_samples()
         return self._smoothed_obs_cov_with_obs_cov_from_samples
+
+    @property
+    def gibbs_params_chain_with_burn_in(self) -> npt.NDArray[np.float64]:
+        """Every parameter draw of the Gibbs sampler, including the burn-in."""
+        if not hasattr(self, "_gibbs_params_chain_with_burn_in"):
+            self.run_gibbs_sampling()
+        return self._gibbs_params_chain_with_burn_in
+
+    @property
+    def gibbs_X_chain_with_burn_in(self) -> npt.NDArray[np.float64]:
+        """Every state draw of the Gibbs sampler, including the burn-in."""
+        if not hasattr(self, "_gibbs_X_chain_with_burn_in"):
+            self.run_gibbs_sampling()
+        return self._gibbs_X_chain_with_burn_in
 
     @property
     def gibbs_params_chain(self) -> npt.NDArray[np.float64]:
