@@ -4,12 +4,34 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 from numba import jit, prange, vectorize
-from numpy.linalg import solve
 
 if TYPE_CHECKING:
     import numpy.typing as npt
 
 SQRT_2Π_INV = 1.0 / np.sqrt(2.0 * np.pi)
+
+# small linear algebra #########################################################
+#
+# LAPACK calls serialise across threads (e.g. under prange, as in neg2_log_likelihoods),
+# and most models observe a scalar: solve 1 x 1 systems without LAPACK.
+
+
+@jit(nopython=True, nogil=True, cache=True)
+def solve(a: npt.NDArray[np.float64], b: npt.NDArray[np.float64]) -> npt.NDArray[np.float64]:
+    """`numpy.linalg.solve`, without calling LAPACK for a 1 x 1 matrix ``a``."""
+    if a.shape[0] == 1:
+        if a[0, 0] == 0.0:
+            raise np.linalg.LinAlgError("Matrix is singular.")
+        return np.ascontiguousarray(b / a[0, 0])
+    return np.ascontiguousarray(np.linalg.solve(a, b))
+
+
+@jit(nopython=True, nogil=True, cache=True)
+def logdet(a: npt.NDArray[np.float64]) -> float:
+    """``log(det(a))`` of a positive definite matrix ``a``, without calling LAPACK if it is 1 x 1."""
+    if a.shape[0] == 1:
+        return np.log(a[0, 0])
+    return np.log(np.linalg.det(a))
 
 # probaility functions #########################################################
 

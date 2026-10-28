@@ -24,8 +24,10 @@ from ..lib.linear_gaussian import (
     cov_from_gibbs_samples,
     cov_from_samples,
     filter_update_inplace,
+    logdet,
     one_step_ahead_inplace,
     smoothing_backward_recursion_inplace,
+    solve,
 )
 from ..util import as_c_array, as_scipy_objective, deprecated_aliases
 
@@ -2197,7 +2199,7 @@ class LinearGaussianModel(BaseLinearGaussianModel):
 
                 ε_t[:] = y_t - B_t @ m_t_given_tMinus1
                 H_t[:] = B_t @ Q_t_given_tMinus1 @ B_t.transpose() + R_t
-                res += np.log(np.linalg.det(H_t)) + ε_t @ np.linalg.solve(H_t, ε_t)
+                res += logdet(H_t) + ε_t @ solve(H_t, ε_t)
             return res
 
         return neg2_log_likelihood
