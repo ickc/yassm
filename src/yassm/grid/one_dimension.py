@@ -230,6 +230,12 @@ class GridFilterFit:
 
     @property
     def log_likelihood(self) -> float:
+        """Log-likelihood ``log p(y_2, ..., y_T | y_1)`` at `params`.
+
+        Conditioning on the first observation drops its term ``log p(y_1)``,
+        so that a diffuse prior on the initial state gives a finite likelihood.
+        Add ``log p(y_1)`` to compare it with the full likelihood of a particle filter.
+        """
         return -self.neg_log_likelihood
 
 
