@@ -910,7 +910,8 @@ class LinearGaussianFit(AbstractFit):
         """Run, or re-run, the Gibbs sampler.
 
         The sampler otherwise runs lazily on the first access to `gibbs_params_chain` or `gibbs_X_chain`.
-        Re-running it discards every result derived from the previous chain.
+        Re-running it discards every result derived from the previous chain;
+        if it raises, the previous chain is kept.
 
         Parameters
         ----------
@@ -920,32 +921,38 @@ class LinearGaussianFit(AbstractFit):
             This trims the long tails of a slowly mixing chain.
             The number of samples kept after burn-in is unchanged, so `n_sample` must be large enough.
         """
-        for name in [name for name in vars(self) if "from_gibbs_samples" in name]:
-            delattr(self, name)
         logger.info("Running gibbs_sampling...")
-        self._gibbs_params_chain_with_burn_in, self._gibbs_X_chain_with_burn_in = self.parent.gibbs_sampling(
+        params_chain, X_chain = self.parent.gibbs_sampling(
             self.y,
             self.params,
             self.μ_0,
             self.Γ_0,
             self.n_sample,
         )
+        n_sample = self.n_sample
+        gibbs_burn_in = self.gibbs_burn_in
         if filter_n_std is not None:
-            mask = (
-                self.log_likelihoods(self._gibbs_params_chain_with_burn_in) > self.log_likelihood - 0.5 * filter_n_std**2
-            )
-            n_sample_used = self.n_sample - self.gibbs_burn_in
-            self.n_sample = mask.sum()
-            self.gibbs_burn_in = self.n_sample - n_sample_used
-            if self.gibbs_burn_in < 0:
+            mask = self.log_likelihoods(params_chain) > self.log_likelihood - 0.5 * filter_n_std**2
+            n_sample_used = n_sample - gibbs_burn_in
+            n_sample = int(mask.sum())
+            gibbs_burn_in = n_sample - n_sample_used
+            if gibbs_burn_in < 0:
                 raise ValueError(
-                    f"Only {self.n_sample} samples are within {filter_n_std} standard deviations, "
+                    f"Only {n_sample} of {self.n_sample} samples are within {filter_n_std} standard deviations, "
                     f"fewer than the {n_sample_used} requested: increase n_sample or filter_n_std."
                 )
-            self._gibbs_params_chain_with_burn_in = np.ascontiguousarray(self._gibbs_params_chain_with_burn_in[mask])
-            self._gibbs_X_chain_with_burn_in = np.ascontiguousarray(self._gibbs_X_chain_with_burn_in[mask])
-        self._gibbs_params_chain = self._gibbs_params_chain_with_burn_in[self.gibbs_burn_in :]
-        self._gibbs_X_chain = self._gibbs_X_chain_with_burn_in[self.gibbs_burn_in :]
+            params_chain = np.ascontiguousarray(params_chain[mask])
+            X_chain = np.ascontiguousarray(X_chain[mask])
+
+        # the new chain is complete: replace the old one and everything derived from it
+        for name in [name for name in vars(self) if "from_gibbs_samples" in name]:
+            delattr(self, name)
+        self.n_sample = n_sample
+        self.gibbs_burn_in = gibbs_burn_in
+        self._gibbs_params_chain_with_burn_in = params_chain
+        self._gibbs_X_chain_with_burn_in = X_chain
+        self._gibbs_params_chain = params_chain[gibbs_burn_in:]
+        self._gibbs_X_chain = X_chain[gibbs_burn_in:]
 
     # cached parameters from _run_*
 
