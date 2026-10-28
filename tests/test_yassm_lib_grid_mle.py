@@ -96,3 +96,5 @@ class TestGrid(TestCase):
             y, self.params0, self.p_0, mle_n_iter=1, mle_kwargs={"bounds": ((0.0, None), (0.0, None))}
         )
         np.testing.assert_allclose(self.res.params, self.ref.params, rtol=0.01)
+        np.testing.assert_array_equal(self.res.params_to_series.to_numpy(), self.res.params)
+        assert list(self.res.params_to_series.index) == self.mod.param_names
