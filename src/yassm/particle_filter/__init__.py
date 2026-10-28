@@ -11,8 +11,8 @@ import numpy as np
 from numba import get_num_threads, jit, objmode, prange
 
 from ..lib import random_choice_weighted_inplace, sqrt_diag
-from ..lib.linear_gaussian import cov_from_samples
-from ..linear_gaussian import AbstractFit, BaseLinearGaussianModel, LinearGaussianModel
+from ..lib.linear_gaussian import cov_from_samples, logdet, solve
+from ..linear_gaussian import LOG2Π, AbstractFit, BaseLinearGaussianModel, LinearGaussianModel
 from ..util import as_c_array, as_scipy_objective, deprecated_aliases
 
 if TYPE_CHECKING:
@@ -28,7 +28,7 @@ if TYPE_CHECKING:
             npt.NDArray[np.float64],
             npt.NDArray[np.float64],
         ],
-        None,
+        float,
     ]
     SamplingX0TildeInplace = Callable[
         [
@@ -423,6 +423,10 @@ class ParticleFilterFit(AbstractFit):
 
     @cached_property
     def log_likelihood(self) -> float:
+        """Estimate of the full log-likelihood ``log p(y_1, ..., y_T)`` from the particle weights.
+
+        Unlike the Kalman and grid filters, which condition on the first observation, this includes ``log p(y_1)``.
+        """
         return -self.parent.neg_log_likelihood_from_w_t(self.w_t)
 
 
@@ -462,12 +466,12 @@ class BaseParticleFilterModel(BaseLinearGaussianModel):
     def sampling_X0_inplace(self) -> SamplingX0Inplace:
         """In case it is not implemented and particle_filter need it in an if-clause that this is not executed anyway."""
 
-        @jit("(f8[:, ::1], f8[::1], f8[::1])", nopython=True, nogil=True)
+        @jit("f8(f8[:, ::1], f8[::1], f8[::1])", nopython=True, nogil=True)
         def sampling_X0_inplace(
             x_0: npt.NDArray[np.float64],
             y_0: npt.NDArray[np.float64],
             params: npt.NDArray[np.float64],
-        ) -> None:
+        ) -> float:
             raise NotImplementedError
 
         return sampling_X0_inplace
@@ -615,10 +619,8 @@ class BaseParticleFilterModel(BaseLinearGaussianModel):
             else:
                 # initial generation
                 # x_t_tilde not generated in the guided particle filter case
-                # guided particle filter does not have initial weights
-                # as X0 is not resampled from some weights
-                s_t[t] = 1.0
-                sampling_X0_inplace(x_t, y[t], params)
+                # X0 is drawn from p(x_0 | y_0) and not resampled: every particle weighs p(y_0)
+                s_t[t] = N * sampling_X0_inplace(x_t, y[t], params)
             for t in range(1, size):
                 # generation
                 sampling_q_inplace(x_t_tilde, x_t, y[t], params, t)
@@ -709,9 +711,8 @@ class BaseParticleFilterModel(BaseLinearGaussianModel):
             else:
                 # initial generation
                 # x_t_tilde not generated in the guided particle filter case
-                # guided particle filter does not have initial weights
-                # as X0 is not resampled from some weights
-                sampling_X0_inplace(x_t, y[t], params)
+                # X0 is drawn from p(x_0 | y_0) and not resampled: every particle weighs p(y_0)
+                res -= np.log(N * sampling_X0_inplace(x_t, y[t], params))
             for t in range(1, size):
                 # generation
                 sampling_q_inplace(x_t_tilde, x_t, y[t], params, t)
@@ -823,7 +824,10 @@ class BaseParticleFilterModel(BaseLinearGaussianModel):
     @staticmethod
     def params_guess(y: npt.NDArray[np.float64]) -> npt.NDArray[np.float64]:
         """Estimate initial parameters using the data with law of large number."""
-        raise NotImplementedError
+        raise NotImplementedError(
+            "No initial parameters can be guessed for this model: pass params, "
+            'or mle_method="grid_search" with a params_grid.'
+        )
 
     def fit(  # type: ignore[override]  # inheritance issue
         self,
@@ -862,12 +866,16 @@ class BaseParticleFilterModel(BaseLinearGaussianModel):
         TODO: tailor for particle filter
         """
         y = as_c_array(y)
-        if params is None:
-            logger.info("Estimating initial parameters using the data with law of large number...")
-            params = self.params_guess(y)
         # using default if exists
         if not mle_kwargs and hasattr(self, "mle_kwargs"):
             mle_kwargs = self.mle_kwargs  # type: ignore[attr-defined]
+        if params is None:
+            if mle_method == "grid_search" and mle_kwargs:
+                # a grid search needs no initial parameters
+                params = np.asarray(mle_kwargs["params_grid"])[0]
+            else:
+                logger.info("Estimating initial parameters using the data with law of large number...")
+                params = self.params_guess(y)
         return ParticleFilterFit(
             self,
             y,
@@ -974,10 +982,8 @@ class BaseParticleFilterModel(BaseLinearGaussianModel):
                 # initial generation
                 # x_t_tilde not generated in the guided particle filter case
                 x_t_tilde[t] = np.nan
-                # guided particle filter does not have initial weights
-                # as X0 is not resampled from some weights
-                w_t[t] = 1.0 / N
-                sampling_X0_inplace(x_t[t], y[t], params)
+                # X0 is drawn from p(x_0 | y_0) and not resampled: every particle weighs p(y_0)
+                w_t[t] = sampling_X0_inplace(x_t[t], y[t], params)
             for t in range(1, size):
                 # generation
                 sampling_q_inplace(x_t_tilde[t], x_t[t - 1], y[t], params, t)
@@ -1013,13 +1019,13 @@ class LinearGaussianParticleFilterModel(  # type: ignore[misc]  # inheritance is
         X0 = self.X0
         d = self.d
 
-        @jit("(f8[:, ::1], f8[::1], f8[::1])", nopython=True, nogil=True)
+        @jit("f8(f8[:, ::1], f8[::1], f8[::1])", nopython=True, nogil=True)
         def sampling_X0_inplace(
             x_0: npt.NDArray[np.float64],
             y_0: npt.NDArray[np.float64],
             params: npt.NDArray[np.float64],
-        ) -> None:
-            """Sampling X_0.
+        ) -> float:
+            """Sample X_0 from p(x_0 | y_0) and return the density p(y_0).
 
             Parameters
             ----------
@@ -1041,13 +1047,16 @@ class LinearGaussianParticleFilterModel(  # type: ignore[misc]  # inheritance is
             ΓB = Γ @ B.T
             BΓB_R = B @ ΓB + R
 
-            m = μ + ΓB @ np.linalg.solve(BΓB_R, y_0 - B @ μ)
-            Q = Γ - ΓB @ np.linalg.solve(BΓB_R, ΓB.T)
+            ε_0 = y_0 - B @ μ
+            m = μ + ΓB @ solve(BΓB_R, ε_0)
+            Q = Γ - ΓB @ solve(BΓB_R, ΓB.T)
             if d == 1:
                 x_0[:] = np.random.normal(m[0], np.sqrt(Q[0, 0]), N).reshape(N, 1)
             else:
                 with objmode():
                     x_0[:] = np.random.multivariate_normal(m, Q, N)
+            # y_0 ~ N(B μ, B Γ B^T + R)
+            return np.exp(-0.5 * (ε_0.size * LOG2Π + logdet(BΓB_R) + ε_0 @ solve(BΓB_R, ε_0)))
 
         return sampling_X0_inplace
 
