@@ -7,6 +7,7 @@ import numpy as np
 
 from ...lib.linear_gaussian.model.local_linear import A0, B0, R0, Σ0
 from ...lib.linear_gaussian.model.local_linear import sampling_parameters as _sampling_parameters
+from ...util import VARIANCE_BOUNDS
 from .. import LinearGaussianModel
 
 if TYPE_CHECKING:
@@ -42,5 +43,5 @@ local_linear_model = LocalLinearModel(
     R0,
     # param_names=["σ_ε", "σ_η"],
     param_names=["obs_cov", "state_cov"],
-    mle_kwargs={"bounds": ((0.0, None), (0.0, None))},
+    mle_kwargs={"bounds": (VARIANCE_BOUNDS, VARIANCE_BOUNDS)},
 )

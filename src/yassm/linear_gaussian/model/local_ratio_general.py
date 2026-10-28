@@ -11,6 +11,7 @@ from numba import jit
 
 from yassm.linear_gaussian import LinearGaussianModel
 from yassm.linear_gaussian.model.local_ratio import local_ratio_model
+from yassm.util import VARIANCE_BOUNDS
 
 if TYPE_CHECKING:
     import numpy.typing as npt
@@ -49,7 +50,7 @@ general_local_ratio_model = LinearGaussianModel(
     R0,
     param_names=local_ratio_model.param_names,
     mle_kwargs={
-        "bounds": ((0.0, None), (0.0, None), (0.0, None)),
+        "bounds": (VARIANCE_BOUNDS, VARIANCE_BOUNDS, (0.0, None)),
         "method": "L-BFGS-B",
     },
 )

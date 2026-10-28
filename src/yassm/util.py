@@ -17,6 +17,10 @@ if TYPE_CHECKING:
 
     import numpy.typing as npt
 
+#: ``scipy.optimize`` bounds for a variance. Strictly positive: at exactly zero, covariance matrices can be
+#: singular, making the objective infinite, and L-BFGS-B then stops early while reporting success.
+VARIANCE_BOUNDS: tuple[float, None] = (float(np.finfo(np.float64).eps), None)
+
 # never emit "No handlers could be found" style warnings from the library
 logging.getLogger("yassm").addHandler(logging.NullHandler())
 

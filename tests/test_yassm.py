@@ -229,6 +229,25 @@ def test_ar2_conditional_mle_is_ols() -> None:
     np.testing.assert_allclose(res.x, expected, rtol=1e-4)
 
 
+def test_ma1_mle_default_bounds() -> None:
+    """With the default bounds, scipy.optimize reaches statsmodels' MLE instead of stopping at σ² = 0."""
+    pytest.importorskip("statsmodels")
+    from statsmodels.tsa.arima.model import ARIMA
+
+    from yassm import moving_average_1_model
+
+    # a seed for which a lower bound of exactly 0 made L-BFGS-B stop early
+    rng = np.random.default_rng(10)
+    e = rng.normal(size=401)
+    y = e[1:] - 0.8 * e[:-1]
+    μ_0, Γ_0 = np.zeros(2), np.identity(2)  # ignored: X0 is the stationary distribution
+    fit = moving_average_1_model.fit(y, [y.var(), 0.0], μ_0, Γ_0, mle_n_iter=1)
+
+    θ_sm, σ_sq_sm = ARIMA(y, order=(0, 0, 1), trend="n").fit().params
+    ll_sm = -0.5 * moving_average_1_model.neg2_log_likelihood(np.array([σ_sq_sm, θ_sm]), y.reshape(-1, 1), μ_0, Γ_0)
+    assert fit.log_likelihood >= ll_sm - 1e-6
+
+
 def test_all_matches_exports() -> None:
     import yassm
 
