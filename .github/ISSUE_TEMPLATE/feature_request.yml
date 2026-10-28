@@ -1,0 +1,11 @@
+name: Feature request
+description: Suggest a model, algorithm or improvement
+labels: [enhancement]
+body:
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      description: What would you like yassm to do, and why? References to papers or other implementations are welcome.
+    validations:
+      required: true
