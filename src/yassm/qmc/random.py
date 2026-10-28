@@ -6,13 +6,15 @@ from logging import getLogger
 from typing import TYPE_CHECKING
 
 import numpy as np
+from jaxtyping import Float64
 from scipy import linalg, special
 
+from .._typing import typechecked
 from ..lib.qmc.random import correlation_variance_decomposition, halton_sequence
 from .hilbert_curve import HilbertCurveFloat, HilbertCurveFloat01
 
 if TYPE_CHECKING:
-    import numpy.typing as npt
+    pass
 
 SQRT2 = np.sqrt(2.0)
 SQRT2_INV = np.power(2.0, -0.5)
@@ -23,11 +25,12 @@ logger = getLogger(__name__)
 # Gaussian #####################################################################
 
 
+@typechecked
 def gaussian_transform(
-    uniform_array: npt.NDArray[np.float64],
-    cov: npt.NDArray[np.float64] | None = None,
+    uniform_array: Float64[np.ndarray, "N d"],
+    cov: Float64[np.ndarray, "d d"] | None = None,
     method: str = "cholesky",
-) -> npt.NDArray[np.float64]:
+) -> Float64[np.ndarray, "N d"]:
     """Transform a Uniform to Gaussian distribution.
 
     Parameters
@@ -68,12 +71,13 @@ def gaussian_transform(
         return gaussian_white @ W_inv_T
 
 
+@typechecked
 def whitening_transform(
-    gaussian_array: npt.NDArray[np.float64],
-    mean: npt.NDArray[np.float64] | None = None,
-    cov: npt.NDArray[np.float64] | None = None,
+    gaussian_array: Float64[np.ndarray, "N d"],
+    mean: Float64[np.ndarray, " d"] | None = None,
+    cov: Float64[np.ndarray, "d d"] | None = None,
     method: str = "cholesky",
-) -> npt.NDArray[np.float64]:
+) -> Float64[np.ndarray, "N d"]:
     """Whiten a Gaussian distribution to uniform distribution.
 
     Parameters
@@ -143,7 +147,8 @@ class HaltonSequence:
     dimension: int
 
     @cached_property
-    def array(self) -> npt.NDArray[np.float64]:
+    @typechecked
+    def array(self) -> Float64[np.ndarray, "N d"]:
         return halton_sequence(self.N, self.dimension, True)
 
     def to_hilbert_curve(self) -> HilbertCurveFloat01:
@@ -151,7 +156,7 @@ class HaltonSequence:
 
     def to_gaussian(
         self,
-        cov: npt.NDArray[np.float64],
+        cov: Float64[np.ndarray, "d d"],
         method: str = "cholesky",
         range_reduction_method: str = "linear",
     ) -> HilbertCurveFloat:
