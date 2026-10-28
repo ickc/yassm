@@ -209,3 +209,21 @@ def test_posterior_normal_approximation(model_name: str) -> None:
     assert cov.shape == (n_params, n_params)
     np.testing.assert_allclose(cov, cov.T, rtol=1e-6)
     assert np.all(np.linalg.eigvalsh(cov) > 0.0)
+
+
+def test_ar2_conditional_mle_is_ols() -> None:
+    """The conditional MLE of an AR(2) is ordinary least squares, with σ² the mean squared residual."""
+    from scipy.optimize import minimize
+
+    from yassm.lib.linear_gaussian.model.autoregressive_2 import neg_log_likelihood
+
+    rng = np.random.default_rng(0)
+    y = np.zeros(500)
+    for t in range(2, y.size):
+        y[t] = 1.0 + 0.5 * y[t - 1] - 0.3 * y[t - 2] + rng.normal()
+    X = np.column_stack((np.ones(y.size - 2), y[1:-1], y[:-2]))
+    β, ssr, *_ = np.linalg.lstsq(X, y[2:])
+    expected = np.array([ssr[0] / (y.size - 2), *β])
+
+    res = minimize(neg_log_likelihood, [1.0, 0.0, 0.0, 0.0], args=(y,), bounds=[(1e-8, None)] + [(None, None)] * 3)
+    np.testing.assert_allclose(res.x, expected, rtol=1e-4)
