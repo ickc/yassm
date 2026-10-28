@@ -21,6 +21,21 @@ jobs:
           locked: true
       - run: pixi run -e lint lint
 
+  package:
+    # the sdist and wheel build, and their metadata (README rendering, classifiers) are valid for PyPI
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: prefix-dev/setup-pixi@v0.11.2
+        with:
+          environments: build
+          locked: true
+      - run: pixi run -e build check-dist
+      - uses: actions/upload-artifact@v7
+        with:
+          name: dist
+          path: dist/pkg/
+
   test:
     name: test (${{ matrix.os }}, ${{ matrix.environment }})
     runs-on: ${{ matrix.os }}
