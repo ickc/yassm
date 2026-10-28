@@ -31,6 +31,7 @@ from example_data import load_smooth_signal, load_smooth_signal_with_ar1, smooth
 from numba import jit
 
 from yassm import LinearGaussianModel, local_linear_model
+from yassm.util import VARIANCE_BOUNDS
 
 # %% [markdown]
 # ## Local linear trend
@@ -144,7 +145,7 @@ trend_ar1_model = LinearGaussianModel(
 # %% [markdown]
 # The parameters have very different scales: the slope variance is of order $10^{-5}$, the others of order 1.
 # Quasi-Newton optimisers with finite-difference gradients, such as SciPy's default L-BFGS-B,
-# tend to stop early on such problems, while the derivative-free Nelder–Mead method copes better.
+# tend to stop early or fail on such problems, while the derivative-free Nelder–Mead method copes better.
 # All three start from the same point, with the slope variance guessed from the first model:
 
 # %%
@@ -152,23 +153,26 @@ df = load_smooth_signal_with_ar1()
 y = df.y.to_numpy()
 μ_0 = np.zeros(3)
 Γ_0 = 1e8 * np.identity(3)
-bounds = ((0.0, None), (0.0, None), (0.0, None), (-1.0, 1.0))
+# VARIANCE_BOUNDS keeps the variances strictly positive, where the model is not singular
+bounds = (VARIANCE_BOUNDS, VARIANCE_BOUNDS, VARIANCE_BOUNDS, (-1.0, 1.0))
 params0 = [0.5, 1e-5, 0.5, 0.5]
 
 # %%
 # %%time
 methods = ("L-BFGS-B", "Powell", "Nelder-Mead")
-fits = {
-    method: trend_ar1_model.fit(
-        y, params0, μ_0, Γ_0, mle_n_iter=1, mle_kwargs={"method": method, "bounds": bounds}, t=u
-    )
-    for method in methods
-}
-pd.DataFrame(
-    [[*fit.params, fit.log_likelihood] for fit in fits.values()],
-    columns=[*trend_ar1_model.param_names, "log-likelihood"],
-    index=pd.Index(methods, name="method"),
-)
+fits = {}
+rows = {}
+for method in methods:
+    try:
+        fits[method] = fit = trend_ar1_model.fit(
+            y, params0, μ_0, Γ_0, mle_n_iter=1, mle_kwargs={"method": method, "bounds": bounds}, t=u
+        )
+        rows[method] = [*fit.params, fit.log_likelihood, ""]
+    except RuntimeError as e:  # the optimiser reports failure, e.g. a failed line search
+        rows[method] = [np.nan] * (trend_ar1_model.N + 1) + [str(e)]
+pd.DataFrame.from_dict(
+    rows, orient="index", columns=[*trend_ar1_model.param_names, "log-likelihood", "error"]
+).rename_axis("method")
 
 # %%
 fit = fits["Nelder-Mead"]
