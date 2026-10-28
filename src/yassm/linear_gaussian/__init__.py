@@ -459,12 +459,12 @@ class AbstractFit:
 
         t = self.t_array
 
-        if axes is None:
-            fig, axes = plt.subplots(n)
-            if n == 1:
-                axes = [axes]
+        if axes is not None:
+            axes = list(axes)
+            fig = axes[0].get_figure(root=True)
         else:
-            fig = plt.gcf()
+            fig, axs = plt.subplots(n, squeeze=False)
+            axes = list(axs[:, 0])
 
         # default colors
         if color is not None and len(color) < 12:

@@ -75,10 +75,10 @@ class AbstractHilbertCurve:
 
         array = self.array
 
-        if ax is None:
-            fig, ax = plt.subplots()
+        if ax is not None:
+            fig = ax.get_figure(root=True)
         else:
-            fig = plt.gcf()
+            fig, ax = plt.subplots()
         ax.plot(array[:, 0], array[:, 1], **kwargs)
         ax.set_aspect("equal")
         return fig, ax
@@ -89,14 +89,17 @@ class AbstractHilbertCurve:
         **kwargs: dict[str, Any],
     ) -> FigAx:
         import matplotlib.pyplot as plt
+        from mpl_toolkits.mplot3d import Axes3D
 
         array = self.array
 
-        if ax is None:
-            fig, ax = plt.subplots()
+        if ax is not None:
+            fig = ax.get_figure(root=True)
         else:
-            fig = plt.gcf()
-        ax = fig.add_subplot(projection="3d")
+            fig = plt.figure()
+            ax = fig.add_subplot(projection="3d")
+        if not isinstance(ax, Axes3D):
+            raise ValueError("ax must be a 3D axes, e.g. from fig.add_subplot(projection='3d')")
         ax.plot(array[:, 0], array[:, 1], zs=array[:, 2], zdir="z", **kwargs)
         return fig, ax
 

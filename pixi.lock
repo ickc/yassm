@@ -22318,13 +22318,13 @@ packages:
   - numba>=0.59
   - numpy>=1.24
   - scipy>=1.10
-  - matplotlib>=3.6 ; extra == 'all'
+  - matplotlib>=3.10 ; extra == 'all'
   - numdifftools>=0.9.41 ; extra == 'all'
   - pandas>=2 ; extra == 'all'
   - seaborn>=0.12 ; extra == 'all'
   - numdifftools>=0.9.41 ; extra == 'hessian'
   - pandas>=2 ; extra == 'pandas'
-  - matplotlib>=3.6 ; extra == 'plot'
+  - matplotlib>=3.10 ; extra == 'plot'
   - seaborn>=0.12 ; extra == 'plot'
   requires_python: '>=3.11'
 - pypi: https://files.pythonhosted.org/packages/17/6c/a776888ce618bee54fbde26172f0f46ac1da70d27b63861797fe78e1904b/scipy-1.18.1-cp315-cp315-win_amd64.whl
