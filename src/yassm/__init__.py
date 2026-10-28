@@ -38,7 +38,25 @@ _EXPORTS: dict[str, str] = {
     "HilbertCurveFloat": "yassm.qmc.hilbert_curve",
 }
 
-__all__ = ["__version__", "setup_logging", *_EXPORTS]
+__all__ = [
+    "GridFilterFit",
+    "GridFilterModel",
+    "HaltonSequence",
+    "HilbertCurveFloat",
+    "HilbertCurveFloat01",
+    "HilbertCurveInt",
+    "LinearGaussianFit",
+    "LinearGaussianModel",
+    "LinearGaussianParticleFilterModel",
+    "NonLinearParticleFilterModel",
+    "ParticleFilterFit",
+    "__version__",
+    "local_level_model",
+    "local_linear_model",
+    "local_ratio_model",
+    "moving_average_1_model",
+    "setup_logging",
+]
 
 if TYPE_CHECKING:
     from .grid.one_dimension import GridFilterFit, GridFilterModel

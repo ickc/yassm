@@ -227,3 +227,9 @@ def test_ar2_conditional_mle_is_ols() -> None:
 
     res = minimize(neg_log_likelihood, [1.0, 0.0, 0.0, 0.0], args=(y,), bounds=[(1e-8, None)] + [(None, None)] * 3)
     np.testing.assert_allclose(res.x, expected, rtol=1e-4)
+
+
+def test_all_matches_exports() -> None:
+    import yassm
+
+    assert set(yassm.__all__) == {"__version__", "setup_logging", *yassm._EXPORTS}
