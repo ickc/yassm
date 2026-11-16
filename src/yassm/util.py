@@ -66,21 +66,33 @@ def as_c_array(
     return np.require(np.ascontiguousarray(array, dtype=dtype), requirements="W")
 
 
+#: How NumPy and Numba word the `LinAlgError` of a matrix that is singular or not positive definite.
+_NOT_INVERTIBLE = ("singular", "positive definite")
+
+
 def as_scipy_objective(func: Callable[..., float]) -> Callable[..., float]:
     """Wrap a jitted objective function for ``scipy.optimize.minimize``.
 
     - ``x`` is passed as a C-contiguous float64 array:
       ``scipy.optimize.minimize`` may call the objective with a non-contiguous ``x``,
       which Numba functions with ``f8[::1]`` signatures reject.
-    - A singular matrix (e.g. a zero variance on the boundary of the parameter space,
+    - A singular or not positive definite matrix (e.g. a zero variance on the boundary of the parameter space,
       which the optimizer may probe) gives ``+inf`` instead of raising ``LinAlgError``,
-      so that the optimizer backs off.
+      so that the optimizer backs off. So does any ``LinAlgError`` at a non-finite ``x``,
+      which some optimizers try after an infinite objective.
+
+    Any other ``LinAlgError`` is raised: matrices of the wrong shape, or NaN in the data,
+    are errors at every ``x``, which would otherwise only show as an optimization that fails.
     """
 
     def wrapped(x: npt.ArrayLike, *args: Any) -> float:
+        x = np.ascontiguousarray(x, dtype=np.float64)
         try:
-            return func(np.ascontiguousarray(x, dtype=np.float64), *args)
-        except np.linalg.LinAlgError:
-            return np.inf
+            return func(x, *args)
+        except np.linalg.LinAlgError as error:
+            message = str(error).lower()
+            if any(text in message for text in _NOT_INVERTIBLE) or not np.isfinite(x).all():
+                return np.inf
+            raise
 
     return wrapped

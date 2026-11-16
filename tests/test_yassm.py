@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import numpy as np
+import pytest
 
 from yassm.lib import sqrt_diag
 
@@ -112,3 +113,35 @@ def test_as_scipy_objective_singular() -> None:
         return np.linalg.inv(np.diag(x)).sum()
 
     assert as_scipy_objective(f)(np.array([0.0, 1.0])) == np.inf
+
+    @jit("f8(f8[::1])", nopython=True)
+    def g(x):
+        return np.linalg.cholesky(np.diag(x)).sum()
+
+    assert as_scipy_objective(g)(np.array([-1.0, 1.0])) == np.inf
+
+    # NumPy words it differently from Numba
+    assert as_scipy_objective(lambda x: np.linalg.inv(np.diag(x)).sum())(np.array([0.0, 1.0])) == np.inf
+
+
+def test_as_scipy_objective_raises_other_errors() -> None:
+    """Only a matrix that cannot be inverted at these parameters is +inf: other errors hold for any parameters."""
+    from numba import jit
+
+    from yassm.util import as_scipy_objective
+
+    @jit("f8(f8[::1])", nopython=True)
+    def wrong_shape(x):
+        return np.linalg.inv(np.ones((2, 3)) * x[0]).sum()
+
+    @jit("f8(f8[::1], f8)", nopython=True)
+    def with_data(x, y):
+        return np.linalg.solve(np.diag(x), np.full(x.size, y)).sum()
+
+    x = np.array([1.0, 2.0])
+    with pytest.raises(np.linalg.LinAlgError, match="square"):
+        as_scipy_objective(wrong_shape)(x)
+    with pytest.raises(np.linalg.LinAlgError, match="NaN"):
+        as_scipy_objective(with_data)(x, np.nan)
+    # but the optimizer may try non-finite parameters, e.g. TNC after an infinite objective
+    assert as_scipy_objective(with_data)(np.array([1.0, np.nan]), 0.0) == np.inf
