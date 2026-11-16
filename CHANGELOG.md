@@ -18,6 +18,7 @@
 
 - Halton/van der Corput sequences truncated bases to `int8`, breaking `halton_sequence` for dimensions ≥ 32.
 - The linear range reduction of the full-range Hilbert sort mapped the maximum of each axis to the middle of the range.
+- Its logistic and whitening range reductions sorted the points far in the upper tail first instead of last.
 - The whitening Cholesky decomposition was made "positive definite" by shifting its spectrum the wrong way,
   and failed for singular covariances.
 - Hilbert sort with order 0 scrambled the array; full-range Hilbert sort failed for a single point.

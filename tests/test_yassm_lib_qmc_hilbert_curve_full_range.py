@@ -46,6 +46,23 @@ def test_full_range_sort_agrees_with_int_sort(method) -> None:
     np.testing.assert_array_equal(sorted_then_mapped, h_int.array)
 
 
+@pytest.mark.parametrize("method", ("logistic", "whiten_cholesky", "whiten_ZCA", "whiten_ZCA_cor"))
+def test_f8_to_u8_far_tail(method) -> None:
+    """Far in the upper tail, the map to (0, 1) rounds to 1, i.e. to 2^FLOAT_ORDER.
+
+    The sort only reads the bits below, all 0: the largest point was sorted as the smallest.
+    """
+    rng = np.random.default_rng(1)
+    data = rng.normal(size=(1000, 2))
+    args = gen_f8_to_u8_args_func[method](data)
+    assert f8_to_u8_func[method](np.array([1e6, 1e6]), 0, args) == U8_MAX
+    assert f8_to_u8_func[method](np.array([-1e6, -1e6]), 0, args) == 0
+
+    if method != "logistic":
+        data[0] = 12.0
+        assert HilbertCurveFloat(data, range_reduction_method=method, check_range=False).to_int().array.max() == U8_MAX
+
+
 @pytest.mark.parametrize("scale", (1e-10, 1.0, 1e10))
 def test_whiten_cholesky_any_scale(scale) -> None:
     """The floor of the spectrum was absolute: data with a standard deviation above about 3e7 were not whitened."""

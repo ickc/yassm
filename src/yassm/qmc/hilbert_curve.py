@@ -280,10 +280,11 @@ class HilbertCurveFloat(AbstractHilbertCurveFloat):
 
         if method.startswith("whiten_"):
             whiten_method = "_".join(method.split("_")[1:])
-            # to (0, 1) then maps to [0, 2^order - 1]
-            array = np.floor(whitening_transform(self.array, method=whiten_method) * (1 << self.order)).astype(
-                np.uint64
-            )
+            # to (0, 1) then maps to [0, 2^order - 1]; far in the upper tail the former rounds to 1, which is clamped
+            array = np.minimum(
+                np.floor(whitening_transform(self.array, method=whiten_method) * (1 << self.order)),
+                (1 << self.order) - 1,
+            ).astype(np.uint64)
         # below should always work including whitening but slower
         # as f8_to_u8 is doing matrix multiplication when whitening
         # i.e. it performed a redundant matrix multiplication d times

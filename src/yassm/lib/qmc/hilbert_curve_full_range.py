@@ -99,8 +99,8 @@ def f8_to_u8_logistic(x: npt.NDArray[np.float64], i: int, args: Args) -> int:
     low, scale = args
     # to (0, 1)
     x_i = 0.5 + 0.5 * np.tanh(scale[i] * (x[i] - low[i]))
-    # maps to [0, 2^FLOAT_ORDER - 1] evenly
-    return np.floor(x_i * (1 << FLOAT_ORDER))
+    # maps to [0, 2^FLOAT_ORDER - 1] evenly; far in the upper tail x_i rounds to 1, which is clamped
+    return min(np.floor(x_i * (1 << FLOAT_ORDER)), (1 << FLOAT_ORDER) - 1)
 
 
 @jit("Tuple((f8[::1], f8[:, ::1]))(f8[:, ::1])", nopython=True, nogil=True, cache=True)
@@ -159,8 +159,8 @@ def f8_to_u8_whiten(x: npt.NDArray[np.float64], i: int, args: Args) -> int:
     G = (x - mean) @ W_T
     # to (0, 1)
     x_i = 0.5 + 0.5 * math.erf(G[i] * SQRT2_INV)
-    # maps to [0, 2^FLOAT_ORDER - 1] evenly
-    return np.floor(x_i * (1 << FLOAT_ORDER))
+    # maps to [0, 2^FLOAT_ORDER - 1] evenly; far in the upper tail x_i rounds to 1, which is clamped
+    return min(np.floor(x_i * (1 << FLOAT_ORDER)), (1 << FLOAT_ORDER) - 1)
 
 
 # for arbitrary range of float #################################################
