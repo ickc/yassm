@@ -44,7 +44,28 @@ def test_import_is_quiet() -> None:
 
     import yassm  # noqa: F401
 
-    assert all(isinstance(h, logging.NullHandler) for h in logging.getLogger("yassm").handlers)
+    assert logging.getLogger("yassm").handlers == []
+
+
+def test_warnings_are_printed_by_default() -> None:
+    """Without any logging configuration, Python prints warnings (not info) to stderr, unless a handler is attached.
+
+    yassm warns e.g. when it ignores an argument or falls back to another MLE method.
+    """
+    import os
+    import subprocess
+    import sys
+
+    code = """
+import logging
+import yassm
+logger = logging.getLogger("yassm.linear_gaussian")
+logger.info("progress")
+logger.warning("falling back")
+"""
+    env = {key: value for key, value in os.environ.items() if key != "YASSMLOGLEVEL"}
+    res = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, check=True, env=env)
+    assert res.stderr.strip() == "falling back"
 
 
 def test_deprecated_aliases() -> None:

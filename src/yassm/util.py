@@ -15,9 +15,6 @@ if TYPE_CHECKING:
 
     import numpy.typing as npt
 
-# never emit "No handlers could be found" style warnings from the library
-logging.getLogger("yassm").addHandler(logging.NullHandler())
-
 
 def setup_logging(
     name: str = "yassm",

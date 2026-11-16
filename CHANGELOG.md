@@ -8,7 +8,8 @@
 - Packaging: PEP 621 metadata built with hatchling; development environments and tasks managed by pixi.
 - The core dependencies are now only NumPy, SciPy and Numba; matplotlib/seaborn, pandas and numdifftools are optional
   extras (`plot`, `pandas`, `hessian`, `all`). seaborn, used by `plot`, was previously undeclared.
-- Importing yassm no longer configures logging; set `YASSMLOGLEVEL` or call `yassm.util.setup_logging()`.
+- Importing yassm no longer configures logging: its warnings are still printed, but set `YASSMLOGLEVEL` or call
+  `yassm.util.setup_logging()` to see its progress messages.
 - Docstrings use the NumPy style.
 - `GeneralNonLinearBootstrapParticleFitlerStateSpaceModel` and `hilber_sort_inplace_func` are renamed to
   `GeneralNonLinearBootstrapParticleFilterStateSpaceModel` and `hilbert_sort_inplace_func`;
