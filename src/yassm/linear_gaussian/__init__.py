@@ -919,9 +919,11 @@ class LinearGaussianFit(AbstractFit):
         ----------
         filter_n_std
             If given, drop the samples whose log-likelihood is more than ``filter_n_std**2 / 2`` below
-            the one at the MLE, i.e. outside ``filter_n_std`` standard deviations under a normal approximation.
+            the one at `params` (the MLE, if it was estimated), i.e. outside ``filter_n_std`` standard deviations
+            along a single parameter under a normal approximation.
             This trims the long tails of a slowly mixing chain.
-            The number of samples kept after burn-in is unchanged, so `n_sample` must be large enough.
+            The number of samples kept after burn-in, ``n_sample - gibbs_burn_in``, is unchanged,
+            so `n_sample` must be large enough; the chains with burn-in then hold only the samples that pass.
         """
         logger.info("Running gibbs_sampling...")
         params_chain, X_chain = self.parent.gibbs_sampling(
@@ -931,17 +933,17 @@ class LinearGaussianFit(AbstractFit):
             self.Γ_0,
             self.n_sample,
         )
-        n_sample = self.n_sample
+        # n_sample and gibbs_burn_in are what the user asked for: a re-run must draw as many samples again
         gibbs_burn_in = self.gibbs_burn_in
         if filter_n_std is not None:
             mask = self.log_likelihoods(params_chain) > self.log_likelihood - 0.5 * filter_n_std**2
-            n_sample_used = n_sample - gibbs_burn_in
-            n_sample = int(mask.sum())
-            gibbs_burn_in = n_sample - n_sample_used
+            n_kept = self.n_sample - self.gibbs_burn_in
+            n_pass = int(mask.sum())
+            gibbs_burn_in = n_pass - n_kept
             if gibbs_burn_in < 0:
                 raise ValueError(
-                    f"Only {n_sample} of {self.n_sample} samples are within {filter_n_std} standard deviations, "
-                    f"fewer than the {n_sample_used} requested: increase n_sample or filter_n_std."
+                    f"Only {n_pass} of {self.n_sample} samples are within {filter_n_std} standard deviations, "
+                    f"fewer than the {n_kept} requested: increase n_sample or filter_n_std."
                 )
             params_chain = np.ascontiguousarray(params_chain[mask])
             X_chain = np.ascontiguousarray(X_chain[mask])
@@ -949,8 +951,6 @@ class LinearGaussianFit(AbstractFit):
         # the new chain is complete: replace the old one and everything derived from it
         for name in [name for name in vars(self) if "from_gibbs_samples" in name]:
             delattr(self, name)
-        self.n_sample = n_sample
-        self.gibbs_burn_in = gibbs_burn_in
         self._gibbs_params_chain_with_burn_in = params_chain
         self._gibbs_X_chain_with_burn_in = X_chain
         self._gibbs_params_chain = params_chain[gibbs_burn_in:]

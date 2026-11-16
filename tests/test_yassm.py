@@ -249,11 +249,27 @@ def test_run_gibbs_sampling_filter() -> None:
     assert np.all(fit.log_likelihoods(fit.gibbs_params_chain) > fit.log_likelihood - 0.5 * n_std**2)
     assert fit.m_t_given_T_from_gibbs_samples is not m_unfiltered
 
-    chain = fit.gibbs_params_chain
+    # a failed run leaves the fit as it was, including the results derived from the chain
+    state = {
+        name: getattr(fit, name)
+        for name in (
+            "gibbs_params_chain",
+            "gibbs_X_chain",
+            "gibbs_params_chain_with_burn_in",
+            "gibbs_X_chain_with_burn_in",
+            "m_t_given_T_from_gibbs_samples",
+        )
+    }
     with pytest.raises(ValueError, match="increase n_sample"):
         fit.run_gibbs_sampling(filter_n_std=1e-6)
-    assert fit.gibbs_params_chain is chain
-    assert fit.n_sample == fit.gibbs_burn_in + n_kept
+    for name, value in state.items():
+        assert getattr(fit, name) is value, name
+
+    # filtering does not change what the user asked for: a re-run draws as many samples again
+    assert (fit.n_sample, fit.gibbs_burn_in) == (2000, 2000 - n_kept)
+    fit.run_gibbs_sampling()
+    assert fit.gibbs_params_chain_with_burn_in.shape[0] == 2000
+    assert fit.gibbs_params_chain.shape[0] == n_kept
 
 
 def test_top_level_exports() -> None:
