@@ -272,6 +272,61 @@ def test_run_gibbs_sampling_filter() -> None:
     assert fit.gibbs_params_chain.shape[0] == n_kept
 
 
+def test_multivariate_observations_are_normalised() -> None:
+    """Two independent local levels observed together: the densities are products of the two univariate ones.
+
+    The normalising constants counted a single dimension of the observations, (2π)^(-1/2) instead of (2π)^(-n/2).
+    """
+    from numba import jit
+    from scipy import stats
+
+    from yassm import LinearGaussianModel, LinearGaussianParticleFilterModel, local_level_model
+    from yassm.lib.linear_gaussian import prob_normal
+
+    @jit("f8[:, ::1](f8[::1])", nopython=True)
+    def identity(params):
+        return np.eye(2)
+
+    @jit("f8[:, ::1](f8[::1])", nopython=True)
+    def R0(params):
+        return np.diag(params[:2])
+
+    @jit("f8[:, ::1](f8[::1])", nopython=True)
+    def Σ0(params):
+        return np.diag(params[2:])
+
+    @jit("Tuple((f8[::1], f8[:, ::1]))(f8[::1])", nopython=True)
+    def X0(params):
+        return np.zeros(2), 1e7 * np.eye(2)
+
+    rng = np.random.default_rng(0)
+    T = 50
+    params = np.array([1.0, 4.0, 1.0, 0.25])
+    y = np.column_stack([np.cumsum(rng.normal(size=T)), np.cumsum(0.5 * rng.normal(size=T))]) + rng.normal(size=(T, 2))
+
+    # Kalman filter
+    fit = LinearGaussianModel(4, identity, identity, Σ0, R0).fit(y, params, np.zeros(2), 1e7 * np.eye(2))
+    expected = sum(local_level_model.fit(y[:, i].copy(), params[[i, 2 + i]], 0.0, 1e7).log_likelihood for i in range(2))
+    np.testing.assert_allclose(fit.log_likelihood, expected, rtol=1e-9)
+
+    # weights of the particle filters
+    N = 5
+    x = rng.normal(size=(N, 2))
+    w = np.empty(N)
+    model = LinearGaussianParticleFilterModel(4, identity, identity, Σ0, R0, X0=X0)
+    model.weights_inplace_bootstrap(w, x, x, y[1], params, 1)
+    np.testing.assert_allclose(w, [stats.multivariate_normal(x_i, np.diag(params[:2])).pdf(y[1]) for x_i in x])
+    model.weights_inplace_optimal(w, x, x, y[1], params, 1)
+    np.testing.assert_allclose(
+        w, [stats.multivariate_normal(x_i, np.diag(params[:2] + params[2:])).pdf(y[1]) for x_i in x]
+    )
+
+    Σ = np.array([[2.0, 0.5], [0.5, 1.0]])
+    np.testing.assert_allclose(
+        prob_normal(x, np.ones(2), np.linalg.inv(Σ), False), stats.multivariate_normal(np.ones(2), Σ).pdf(x)
+    )
+
+
 def test_top_level_exports() -> None:
     import yassm
 

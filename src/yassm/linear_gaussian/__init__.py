@@ -2156,7 +2156,7 @@ class LinearGaussianModel(BaseLinearGaussianModel):
                 Q_t_given_tMinus1[:] = Γ
 
             # we don't add t=0 term to res here
-            res = T * LOG2Π
+            res = T * n * LOG2Π
 
             t = 0
             if B is not None:

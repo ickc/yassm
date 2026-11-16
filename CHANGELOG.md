@@ -44,6 +44,8 @@
 - The optimal particle filter omitted $\log p(y_1)$ from its log-likelihood (replacing it by $-\log N$),
   biasing likelihood estimates and maximum likelihood.
 - The AR(2) log-likelihood counted $n + 3$ instead of $n$ residuals, biasing the MLE of $σ^2$.
+- With $n$-dimensional observations, the log-likelihood of `LinearGaussianModel` and the weights of the particle
+  filters were normalised as for $n = 1$: log-likelihoods were too high by $(n - 1) \log(2π) / 2$ per time step.
 - `mle_hessian_log_likelihood` and `posterior_normal_approximation_cov` raised a `TypeError` for the built-in local
   level and local ratio models, and returned NaN for small variances.
 - With a variance bound of exactly 0, `scipy.optimize` could stop early at a singular point while reporting success,

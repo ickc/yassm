@@ -89,7 +89,7 @@ def prob_normal(
     n = x.shape[0]
     res = np.empty(n)
     Σ_inv_neg_half = -0.5 * Σ_inv
-    scale = 1.0 if norm_peak_to_1 else SQRT_2Π_INV * np.sqrt(np.linalg.det(Σ_inv))
+    scale = 1.0 if norm_peak_to_1 else SQRT_2Π_INV**μ.size * np.sqrt(np.linalg.det(Σ_inv))
     for i in prange(n):
         d = x[i] - μ
         res[i] = np.exp(d @ Σ_inv_neg_half @ d) * scale

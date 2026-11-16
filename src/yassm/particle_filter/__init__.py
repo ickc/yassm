@@ -1282,7 +1282,7 @@ class LinearGaussianParticleFilterModel(  # type: ignore[misc]  # inheritance is
                 R(R_t, params, t)
 
             temp = y_t.reshape(-1, 1) - B_t @ x_t_tilde.T
-            w_t[:] = (SQRT_2Π_INV / np.sqrt(np.linalg.det(R_t))) * np.exp(
+            w_t[:] = (SQRT_2Π_INV**y_t.size / np.sqrt(np.linalg.det(R_t))) * np.exp(
                 -0.5 * (np.linalg.solve(R_t, temp) * temp).sum(axis=0)
             )
 
@@ -1341,7 +1341,7 @@ class LinearGaussianParticleFilterModel(  # type: ignore[misc]  # inheritance is
 
             temp = y_t.reshape(-1, 1) - (B_t @ A_t) @ x_tMinus1.T
             BΣB_R = B_t @ Σ_t @ B_t.T + R_t
-            w_t[:] = (SQRT_2Π_INV / np.sqrt(np.linalg.det(BΣB_R))) * np.exp(
+            w_t[:] = (SQRT_2Π_INV**y_t.size / np.sqrt(np.linalg.det(BΣB_R))) * np.exp(
                 -0.5 * (np.linalg.solve(BΣB_R, temp) * temp).sum(axis=0)
             )
 
