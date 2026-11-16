@@ -4,6 +4,7 @@ from typing import TYPE_CHECKING
 from unittest import TestCase
 
 import numpy as np
+import pytest
 from numba import jit
 
 from tests import set_seed, y
@@ -128,7 +129,8 @@ class TestLinearGaussianParticleFilterModelBootstrap(TestCase):
         np.testing.assert_allclose(self.fit_bootstrap.log_likelihood, expected, atol=2.0)
 
     def test_grid_search_without_params(self):
-        params_grid = np.ascontiguousarray(self.params * np.array([[1.0, 1.0], [2.0, 2.0], [0.5, 0.5]]))
+        # the best parameters are not the first of the grid, which are the initial ones
+        params_grid = np.ascontiguousarray(self.params * np.array([[2.0, 2.0], [1.0, 1.0], [0.5, 0.5]]))
         model = LinearGaussianParticleFilterModel(
             2, A0, B0, Σ0, R0, X0=X0, param_names=["obs_cov", "state_cov"], particle_filter_method="optimal"
         )
@@ -136,3 +138,11 @@ class TestLinearGaussianParticleFilterModelBootstrap(TestCase):
             y, None, mle_method="grid_search", mle_n_iter=1, mle_kwargs={"params_grid": params_grid}, n_sample=500
         )
         np.testing.assert_array_equal(fit.params, self.params)
+
+    def test_grid_search_without_params_grid(self):
+        """Without a grid either, the model says what to pass rather than raising a KeyError."""
+        model = LinearGaussianParticleFilterModel(
+            2, A0, B0, Σ0, R0, X0=X0, param_names=["obs_cov", "state_cov"], particle_filter_method="optimal"
+        )
+        with pytest.raises(NotImplementedError, match="params_grid"):
+            model.fit(y, None, mle_method="grid_search", mle_n_iter=1, mle_kwargs={"bounds": None}, n_sample=500)

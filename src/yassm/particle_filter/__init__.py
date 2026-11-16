@@ -870,7 +870,7 @@ class BaseParticleFilterModel(BaseLinearGaussianModel):
         if not mle_kwargs and hasattr(self, "mle_kwargs"):
             mle_kwargs = self.mle_kwargs  # type: ignore[attr-defined]
         if params is None:
-            if mle_method == "grid_search" and mle_kwargs:
+            if mle_method == "grid_search" and mle_kwargs and "params_grid" in mle_kwargs:
                 # a grid search needs no initial parameters
                 params = np.asarray(mle_kwargs["params_grid"])[0]
             else:
