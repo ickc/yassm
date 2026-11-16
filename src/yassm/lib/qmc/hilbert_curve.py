@@ -128,8 +128,9 @@ def _partition_inplace_int(
             j = j - 1
 
         if j <= i:
-            # partition finished
-            return i
+            # partition finished at i == j. That element belongs to the second part if the loop over j or a swap
+            # left it there, but it was never tested if the loop over i ran into it.
+            return i + 1 if _bitset_test(array[i, axis], order) is direction else i
         # swap
         temp[:] = array[i]
         array[i] = array[j]
@@ -192,8 +193,9 @@ def _partition_inplace_float(
             j = j - 1
 
         if j <= i:
-            # partition finished
-            return i
+            # partition finished at i == j. That element belongs to the second part if the loop over j or a swap
+            # left it there, but it was never tested if the loop over i ran into it.
+            return i + 1 if _bitset_test(_f8_to_u8(array[i, axis]), order) is direction else i
         # swap
         temp[:] = array[i]
         array[i] = array[j]

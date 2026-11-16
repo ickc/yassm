@@ -21,6 +21,8 @@
 - The whitening Cholesky decomposition was made "positive definite" by shifting its spectrum the wrong way,
   and failed for singular covariances.
 - Hilbert sort with order 0 scrambled the array; full-range Hilbert sort failed for a single point.
+- Hilbert sort left the last point of a group on the wrong side of a split whenever the rest of the group belonged
+  to the first side, so that point sets other than full grids were not sorted along the curve.
 - `random_choice_weighted_inplace` clamped indices by the number of samples instead of the number of bins,
   reading out of bounds when drawing more samples than bins.
 - Read-only input arrays (e.g. `DataFrame.values` under pandas' Copy-on-Write) were rejected.

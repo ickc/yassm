@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import itertools
+
 import numpy as np
 import pytest
 
@@ -81,7 +83,8 @@ def partition(A, st, en, od, ax, di):
             j = j - 1
 
         if j <= i:
-            return i
+            # the answer returns i, which leaves A[i] untested, in the second part, when the loop over i ran into j
+            return i + 1 if BitTest(A[i][ax], od) == di else i
 
         A[i], A[j] = A[j], A[i]
 
@@ -127,13 +130,54 @@ def HSort(A, st, en, od, c, e, d, di, cnt):
     ),
 )
 def test_compare_to_stackoverflow(N, m, n):
-    rng = np.random.default_rng()
+    rng = np.random.default_rng(20220501)
     # make sure at most m-bit
     array = rng.integers(0, 1 << m, size=(N, n), dtype=np.uint64)
     array_list = array.tolist()
     HSort(array_list, 0, N - 1, m - 1, 0, 0, 0, False, 0)
     hilbert_sort_inplace(array, m)
     np.testing.assert_array_equal(array, array_list)
+
+
+@pytest.mark.parametrize("dtype", (np.uint64, np.float64))
+@pytest.mark.parametrize(
+    "d, order",
+    (
+        (2, 1),
+        (2, 3),
+        (2, 6),
+        (3, 2),
+        (3, 4),
+        (4, 3),
+    ),
+)
+def test_hilbert_sort_subset_follows_the_curve(dtype, d, order) -> None:
+    """Any subset of the grid is sorted in the order of the curve, i.e. of the sorted full grid.
+
+    The partition used to put the last point of a group in its second part without testing it,
+    so that e.g. (0, 1) came before (0, 0), although every split of a full grid, being balanced, was right.
+    """
+    side = 1 << order
+    grid = np.array(list(itertools.product(range(side), repeat=d)), dtype=np.uint64)
+    hilbert_sort_inplace(grid, order)
+    # the curve visits every cell once, and moves to a neighbouring cell at each step
+    assert np.unique(grid, axis=0).shape == grid.shape
+    assert np.all(np.abs(np.diff(grid.astype(np.int64), axis=0)).sum(axis=1) == 1)
+    rank = {tuple(row): i for i, row in enumerate(grid.tolist())}
+
+    rng = np.random.default_rng(20220501)
+    for _ in range(50):
+        size = rng.integers(2, min(40, grid.shape[0]) + 1)
+        subset = np.ascontiguousarray(grid[rng.choice(grid.shape[0], size=size, replace=False)])
+        expected = sorted(subset.tolist(), key=lambda row: rank[tuple(row)])
+        if dtype == np.float64:
+            # the centres of the cells, in [0, 1)
+            subset_float = (subset + 0.5) / side
+            hilbert_sort_inplace(subset_float, FLOAT_ORDER)
+            subset = np.floor(subset_float * side).astype(np.uint64)
+        else:
+            hilbert_sort_inplace(subset, order)
+        np.testing.assert_array_equal(subset, expected)
 
 
 @pytest.mark.parametrize("dtype", (np.uint64, np.float64))
