@@ -139,9 +139,10 @@ class HilbertCurveInt(AbstractHilbertCurve):
             self.order = 0
         super().__post_init__()
         if auto_order:
-            self.order = int(np.ceil(np.log2(self.array.max() + 1)))
+            # the number of bits of the maximum: exact, unlike log2 in floating point for 2^52 or more
+            self.order = int(self.array.max()).bit_length()
             logger.info("Auto choosing Hilbert order: %d", self.order)
-        elif self.check_range and self.array.max() + 1 > (1 << self.order):
+        elif self.check_range and int(self.array.max()).bit_length() > self.order:
             raise ValueError("Requires array.max() < 2 ** order")
 
     @classmethod

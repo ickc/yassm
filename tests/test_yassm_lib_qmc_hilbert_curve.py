@@ -204,6 +204,19 @@ def test_hilbert_curve_int_all_zeros() -> None:
     np.testing.assert_array_equal(h.array, 0)
 
 
+@pytest.mark.parametrize("maximum", (1, 2, 3, 4, 2**52 - 1, 2**52, 2**60, 2**64 - 1))
+def test_hilbert_curve_int_auto_order(maximum) -> None:
+    """The order is the number of bits of the maximum; log2 in floating point gave one too few from 2^52."""
+    array = np.array([[0, 1], [maximum, 0]], dtype=np.uint64)
+    assert HilbertCurveInt(array.copy()).order == maximum.bit_length()
+    with pytest.raises(ValueError, match="order"):
+        HilbertCurveInt(array.copy(), order=maximum.bit_length() - 1)
+    # the top bit is sorted on: (0, 1) is in the first quadrant of the curve, (maximum, 0) in the last
+    h = HilbertCurveInt(array[::-1].copy())
+    h.sort()
+    np.testing.assert_array_equal(h.array, array)
+
+
 @pytest.mark.parametrize("method", sorted(hilbert_sort_inplace_func))
 def test_full_range_sort_single_point(method) -> None:
     array = np.array([[1.0, 2.0, 3.0]])
