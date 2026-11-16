@@ -10,6 +10,7 @@ from yassm.lib.qmc.hilbert_curve_full_range import (
     gen_f8_to_u8_args_linear,
 )
 from yassm.qmc.hilbert_curve import HilbertCurveFloat
+from yassm.qmc.random import whitening_transform
 
 U8_MAX = (1 << FLOAT_ORDER) - 1
 
@@ -43,6 +44,18 @@ def test_full_range_sort_agrees_with_int_sort(method) -> None:
     h_int = HilbertCurveFloat(data.copy(), range_reduction_method=method, check_range=False).to_int()
     h_int.sort()
     np.testing.assert_array_equal(sorted_then_mapped, h_int.array)
+
+
+@pytest.mark.parametrize("scale", (1e-10, 1.0, 1e10))
+def test_whiten_cholesky_any_scale(scale) -> None:
+    """The floor of the spectrum was absolute: data with a standard deviation above about 3e7 were not whitened."""
+    rng = np.random.default_rng(1)
+    data = rng.normal(size=(1000, 2)) @ np.array([[1.0, 0.3], [0.0, 0.5]])
+    mean, W_T = gen_f8_to_u8_args_func["whiten_cholesky"](data * scale)
+    np.testing.assert_allclose(np.cov((data * scale - mean) @ W_T, rowvar=False), np.eye(2), atol=1e-8)
+    np.testing.assert_allclose(
+        whitening_transform(data * scale, method="cholesky"), whitening_transform(data, method="cholesky"), atol=1e-8
+    )
 
 
 @pytest.mark.parametrize("N, d", ((2, 2), (3, 4), (100, 3)))

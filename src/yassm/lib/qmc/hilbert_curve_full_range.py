@@ -115,9 +115,10 @@ def gen_f8_to_u8_args_whiten_cholesky(data: npt.NDArray[np.float64]) -> Args:
     # force symmetric
     cov_inv = 0.5 * (cov_inv + cov_inv.T)
     # force positive definiteness, e.g. for singular cov:
-    # shift the spectrum so that its minimum is at least a tiny positive number
+    # shift the spectrum so that its minimum is at least a tiny fraction of its maximum
+    # (relative, not to depend on the scale of the data; cov_inv is 0 if all points are the same)
     eigen = np.linalg.eigvalsh(cov_inv)
-    eigen_floor = d * EPS * max(eigen[-1], 1.0)
+    eigen_floor = d * EPS * eigen[-1] if eigen[-1] > 0.0 else 1.0
     if eigen[0] < eigen_floor:
         cov_inv += (eigen_floor - eigen[0]) * np.eye(d)
 
