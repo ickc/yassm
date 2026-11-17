@@ -22,6 +22,28 @@ def test_typecheck_is_on() -> None:
     assert TYPECHECK
 
 
+def test_annotated_arrays_are_float64_for_mypy(tmp_path) -> None:
+    """To static type checkers, ``Float64[np.ndarray, "T d"]`` is ``np.ndarray``, an array of any dtype."""
+    api = pytest.importorskip("mypy.api")
+    code = """
+from typing import assert_type
+
+import numpy as np
+import numpy.typing as npt
+
+from yassm import local_level_model
+from yassm.qmc.random import gaussian_transform
+
+fit = local_level_model.fit(np.zeros(5), None, 0.0, 1.0)
+assert_type(fit.filtered_state, npt.NDArray[np.float64])
+assert_type(gaussian_transform(np.zeros((3, 2))), npt.NDArray[np.float64])
+"""
+    script = tmp_path / "script.py"
+    script.write_text(code)
+    stdout, stderr, status = api.run(["--cache-dir", str(tmp_path / "cache"), str(script)])
+    assert status == 0, stdout + stderr
+
+
 def test_wrong_shape_raises() -> None:
     fit = local_linear_model.fit(y[:T], [1.0, 1.0], μ_0, Γ_0)
     fit._m_t_given_t = fit.m_t_given_t[:, 0]

@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING
 import numpy as np
 from numba import get_num_threads, jit, objmode, prange
 
-from .._typing import Float64, typechecked
+from .._typing import F64Array, Float64, typechecked
 from ..lib import random_choice_weighted_inplace, sqrt_diag
 from ..lib.linear_gaussian import cov_from_samples, logdet, solve
 from ..linear_gaussian import LOG2Π, AbstractFit, BaseLinearGaussianModel, LinearGaussianModel
@@ -240,7 +240,7 @@ class ParticleFilterFit(AbstractFit):
     # running functions depending on parameters: get_*
 
     @typechecked
-    def get_forecast_state(self, T_forecast: int) -> Float64[np.ndarray, "T_forecast N d"]:
+    def get_forecast_state(self, T_forecast: int) -> Float64[F64Array, "T_forecast N d"]:
         forecast: Forecast = self.parent.forecast
         return forecast(
             self.params,
@@ -253,7 +253,7 @@ class ParticleFilterFit(AbstractFit):
         self,
         T_forecast: int,
         with_obs_cov: bool = True,
-    ) -> Float64[np.ndarray, "T_forecast N n"]:
+    ) -> Float64[F64Array, "T_forecast N n"]:
         if with_obs_cov:
             raise NotImplementedError("with_obs_cov is not implemented yet.")
         forecast_state = self.get_forecast_state(T_forecast)
@@ -280,7 +280,7 @@ class ParticleFilterFit(AbstractFit):
 
     @property
     @typechecked
-    def x_t_tilde(self) -> Float64[np.ndarray, "T N d"]:
+    def x_t_tilde(self) -> Float64[F64Array, "T N d"]:
         """x_t_tilde of shape (size, N, d)."""
         if not hasattr(self, "_x_t_tilde"):
             self._run_particle_filter()
@@ -288,7 +288,7 @@ class ParticleFilterFit(AbstractFit):
 
     @property
     @typechecked
-    def x_t(self) -> Float64[np.ndarray, "T N d"]:
+    def x_t(self) -> Float64[F64Array, "T N d"]:
         """x_t of shape (size, N, d)."""
         if not hasattr(self, "_x_t"):
             self._run_particle_filter()
@@ -296,7 +296,7 @@ class ParticleFilterFit(AbstractFit):
 
     @property
     @typechecked
-    def w_t(self) -> Float64[np.ndarray, "T N"]:
+    def w_t(self) -> Float64[F64Array, "T N"]:
         """w_t of shape (size, N)."""
         if not hasattr(self, "_w_t"):
             self._run_particle_filter()
@@ -306,7 +306,7 @@ class ParticleFilterFit(AbstractFit):
 
     @cached_property
     @typechecked
-    def m_t_given_tMinus1(self) -> Float64[np.ndarray, "T d"]:
+    def m_t_given_tMinus1(self) -> Float64[F64Array, "T d"]:
         """m_t_given_tMinus1 of shape (size, d)."""
         if self.parent.particle_filter_method != "bootstrap":
             raise NotImplementedError("m_t_given_tMinus1 is only implemented for bootstrap")
@@ -314,7 +314,7 @@ class ParticleFilterFit(AbstractFit):
 
     @cached_property
     @typechecked
-    def Q_t_given_tMinus1(self) -> Float64[np.ndarray, "T d d"]:
+    def Q_t_given_tMinus1(self) -> Float64[F64Array, "T d d"]:
         """Q_t_given_tMinus1 of shape (size, d, d)."""
         if self.parent.particle_filter_method != "bootstrap":
             raise NotImplementedError("Q_t_given_tMinus1 is only implemented for bootstrap")
@@ -322,19 +322,19 @@ class ParticleFilterFit(AbstractFit):
 
     @cached_property
     @typechecked
-    def m_t_given_t(self) -> Float64[np.ndarray, "T d"]:
+    def m_t_given_t(self) -> Float64[F64Array, "T d"]:
         """m_t_given_t of shape (size, d)."""
         return self.x_t.mean(axis=1)
 
     @cached_property
     @typechecked
-    def Q_t_given_t(self) -> Float64[np.ndarray, "T d d"]:
+    def Q_t_given_t(self) -> Float64[F64Array, "T d d"]:
         """Q_t_given_t of shape (size, d)."""
         return cov_from_samples(self.x_t)
 
     @cached_property
     @typechecked
-    def filtered_obs_samples(self) -> Float64[np.ndarray, "T N n"]:
+    def filtered_obs_samples(self) -> Float64[F64Array, "T N n"]:
         """Return all samples of filtered states in observation space.
 
         Returns
@@ -346,13 +346,13 @@ class ParticleFilterFit(AbstractFit):
 
     @cached_property
     @typechecked
-    def m_t_given_t_obs(self) -> Float64[np.ndarray, "T n"]:
+    def m_t_given_t_obs(self) -> Float64[F64Array, "T n"]:
         """m_t_given_t in observation space of shape (size, n)."""
         return self.filtered_obs_samples.mean(axis=1)
 
     @cached_property
     @typechecked
-    def Q_t_given_t_obs(self) -> Float64[np.ndarray, "T n n"]:
+    def Q_t_given_t_obs(self) -> Float64[F64Array, "T n n"]:
         """Q_t_given_t in observation space of shape (size, n)."""
         return cov_from_samples(self.filtered_obs_samples)
 
@@ -361,8 +361,8 @@ class ParticleFilterFit(AbstractFit):
     @typechecked
     def log_likelihoods(
         self,
-        params_chain: Float64[np.ndarray, "K p"],
-    ) -> Float64[np.ndarray, " K"]:
+        params_chain: Float64[F64Array, "K p"],
+    ) -> Float64[F64Array, " K"]:
         return -self.parent.neg_log_likelihoods(params_chain, self.y, self.n_sample)
 
     # CI
@@ -373,7 +373,7 @@ class ParticleFilterFit(AbstractFit):
         α: float,
         with_obs_cov: bool = True,
         n_std: float | None = None,
-    ) -> tuple[Float64[np.ndarray, "T n"], Float64[np.ndarray, "T n"], Float64[np.ndarray, "T n"]]:
+    ) -> tuple[Float64[F64Array, "T n"], Float64[F64Array, "T n"], Float64[F64Array, "T n"]]:
         """Filtered observations confidence intervals.
 
         Parameters
@@ -408,9 +408,7 @@ class ParticleFilterFit(AbstractFit):
         α: float,
         n_std: float | None = None,
         with_obs_cov: bool = True,
-    ) -> tuple[
-        Float64[np.ndarray, "T_forecast n"], Float64[np.ndarray, "T_forecast n"], Float64[np.ndarray, "T_forecast n"]
-    ]:
+    ) -> tuple[Float64[F64Array, "T_forecast n"], Float64[F64Array, "T_forecast n"], Float64[F64Array, "T_forecast n"]]:
         """Forecast with confidence intervals.
 
         Parameters

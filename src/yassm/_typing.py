@@ -1,6 +1,6 @@
 """Shape-annotated arrays, checked at runtime in the test suite.
 
-Arrays are annotated with `jaxtyping <https://docs.kidger.site/jaxtyping/>`_, e.g. ``Float64[np.ndarray, "T d"]``
+Arrays are annotated with `jaxtyping <https://docs.kidger.site/jaxtyping/>`_, e.g. ``Float64[F64Array, "T d"]``
 is a float64 array of shape ``(T, d)``; a single dimension is written with a leading space, e.g. ``" T"``,
 so that linters do not take it for a name. The dimensions are named:
 
@@ -27,11 +27,22 @@ from __future__ import annotations
 import os
 from typing import TYPE_CHECKING, Any, TypeVar
 
+import numpy as np
+
 if TYPE_CHECKING:
     from collections.abc import Callable
+    from typing import TypeAlias
 
+    import numpy.typing as npt
     from jaxtyping import Float64 as Float64
+
+    #: The array type to annotate with a shape. To static type checkers, ``Float64[F64Array, "T d"]`` is ``F64Array``:
+    #: an array of float64, where ``np.ndarray`` would be an array of anything.
+    F64Array: TypeAlias = npt.NDArray[np.float64]
 else:
+    # at runtime, jaxtyping needs the class of the array
+    F64Array = np.ndarray
+
     # jaxtyping is not needed to run yassm, whose annotations are not evaluated at import:
     # only to check them, here or statically, and to render them in the documentation.
     try:
@@ -39,7 +50,7 @@ else:
     except ImportError:
 
         class Float64:
-            """Stand-in for `jaxtyping.Float64` without jaxtyping: ``Float64[np.ndarray, "T d"]`` is ``np.ndarray``."""
+            """Stand-in for `jaxtyping.Float64` without jaxtyping: ``Float64[F64Array, "T d"]`` is ``F64Array``."""
 
             def __class_getitem__(cls, item: tuple[Any, str]) -> Any:
                 return item[0]

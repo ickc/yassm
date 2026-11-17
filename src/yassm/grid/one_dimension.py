@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING
 import numpy as np
 from numba import jit
 
-from .._typing import Float64, typechecked
+from .._typing import F64Array, Float64, typechecked
 from ..lib.grid.one_dimension import (
     filter_update_inplace,
     get_grid_to_position,
@@ -140,7 +140,7 @@ class GridFilterFit:
 
     @cached_property
     @typechecked
-    def x_array(self) -> Float64[np.ndarray, " G"]:
+    def x_array(self) -> Float64[F64Array, " G"]:
         return np.linspace(self.parent.x_0, self.parent.x_f, self.G)
 
     @property
@@ -174,21 +174,21 @@ class GridFilterFit:
 
     @property
     @typechecked
-    def p_t_given_tMinus1(self) -> Float64[np.ndarray, "T G"]:
+    def p_t_given_tMinus1(self) -> Float64[F64Array, "T G"]:
         if not hasattr(self, "_p_t_given_tMinus1"):
             self._run_kalman_filtering()
         return self._p_t_given_tMinus1
 
     @property
     @typechecked
-    def p_t_given_t(self) -> Float64[np.ndarray, "T G"]:
+    def p_t_given_t(self) -> Float64[F64Array, "T G"]:
         if not hasattr(self, "_p_t_given_t"):
             self._run_kalman_filtering()
         return self._p_t_given_t
 
     @property
     @typechecked
-    def p_t_given_T(self) -> Float64[np.ndarray, "T G"]:
+    def p_t_given_T(self) -> Float64[F64Array, "T G"]:
         if not hasattr(self, "_p_t_given_T"):
             self._run_kalman_smoothing()
         return self._p_t_given_T
@@ -200,14 +200,14 @@ class GridFilterFit:
 
     @property
     @typechecked
-    def m_t_given_t(self) -> Float64[np.ndarray, " T"]:
+    def m_t_given_t(self) -> Float64[F64Array, " T"]:
         if not hasattr(self, "_m_t_given_t"):
             self._run_p_t_given_t_to_mQ()
         return self._m_t_given_t
 
     @property
     @typechecked
-    def Q_t_given_t(self) -> Float64[np.ndarray, " T"]:
+    def Q_t_given_t(self) -> Float64[F64Array, " T"]:
         if not hasattr(self, "_Q_t_given_t"):
             self._run_p_t_given_t_to_mQ()
         return self._Q_t_given_t
@@ -219,14 +219,14 @@ class GridFilterFit:
 
     @property
     @typechecked
-    def m_t_given_T(self) -> Float64[np.ndarray, " T"]:
+    def m_t_given_T(self) -> Float64[F64Array, " T"]:
         if not hasattr(self, "_m_t_given_T"):
             self._run_p_t_given_T_to_mQ()
         return self._m_t_given_T
 
     @property
     @typechecked
-    def Q_t_given_T(self) -> Float64[np.ndarray, " T"]:
+    def Q_t_given_T(self) -> Float64[F64Array, " T"]:
         if not hasattr(self, "_Q_t_given_T"):
             self._run_p_t_given_T_to_mQ()
         return self._Q_t_given_T

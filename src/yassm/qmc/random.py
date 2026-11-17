@@ -7,7 +7,7 @@ from logging import getLogger
 import numpy as np
 from scipy import linalg, special
 
-from .._typing import Float64, typechecked
+from .._typing import F64Array, Float64, typechecked
 from ..lib.qmc.random import correlation_variance_decomposition, halton_sequence, sqrtm_psd
 from .hilbert_curve import HilbertCurveFloat, HilbertCurveFloat01
 
@@ -22,10 +22,10 @@ logger = getLogger(__name__)
 
 @typechecked
 def gaussian_transform(
-    uniform_array: Float64[np.ndarray, "N d"],
-    cov: Float64[np.ndarray, "d d"] | None = None,
+    uniform_array: Float64[F64Array, "N d"],
+    cov: Float64[F64Array, "d d"] | None = None,
     method: str = "cholesky",
-) -> Float64[np.ndarray, "N d"]:
+) -> Float64[F64Array, "N d"]:
     """Transform a Uniform to Gaussian distribution.
 
     Parameters
@@ -67,11 +67,11 @@ def gaussian_transform(
 
 @typechecked
 def whitening_transform(
-    gaussian_array: Float64[np.ndarray, "N d"],
-    mean: Float64[np.ndarray, " d"] | None = None,
-    cov: Float64[np.ndarray, "d d"] | None = None,
+    gaussian_array: Float64[F64Array, "N d"],
+    mean: Float64[F64Array, " d"] | None = None,
+    cov: Float64[F64Array, "d d"] | None = None,
     method: str = "cholesky",
-) -> Float64[np.ndarray, "N d"]:
+) -> Float64[F64Array, "N d"]:
     """Whiten a Gaussian distribution to uniform distribution.
 
     Parameters
@@ -144,7 +144,7 @@ class HaltonSequence:
 
     @cached_property
     @typechecked
-    def array(self) -> Float64[np.ndarray, "N d"]:
+    def array(self) -> Float64[F64Array, "N d"]:
         return halton_sequence(self.N, self.dimension, True)
 
     def to_hilbert_curve(self) -> HilbertCurveFloat01:
@@ -152,7 +152,7 @@ class HaltonSequence:
 
     def to_gaussian(
         self,
-        cov: Float64[np.ndarray, "d d"],
+        cov: Float64[F64Array, "d d"],
         method: str = "cholesky",
         range_reduction_method: str = "linear",
     ) -> HilbertCurveFloat:
