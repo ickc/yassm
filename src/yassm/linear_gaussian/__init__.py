@@ -1394,9 +1394,9 @@ class GenericLinearGaussianStateSpaceModel:
         return mle_scipy_minimize
 
     def mle(self, method: str = "scipy_minimize") -> Mle:
-        """Return the MLE method."""
+        """Return the MLE method. An empty `method` is the default one."""
         method_lower = method.lower()
-        if method_lower != "scipy_minimize":
+        if method_lower not in ("", "scipy_minimize"):
             logger.warning(
                 "The only implemented MLE method is scipy_minimize for general linear Gaussian model. Using"
                 " scipy_minimize..."

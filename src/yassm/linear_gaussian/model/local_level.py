@@ -201,7 +201,8 @@ class LocalLevelModel(GenericLinearGaussianStateSpaceModel):
 
     def mle(self, method: str = "em") -> Mle:
         method_lower = method.lower()
-        if method_lower == "em":
+        # an empty method is the default one
+        if method_lower in ("", "em"):
             return self.mle_em
         elif method_lower == "scipy_minimize":
             return self.mle_scipy_minimize

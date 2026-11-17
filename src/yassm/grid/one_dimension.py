@@ -568,7 +568,7 @@ class General1DStateSpaceModel:
         Similar to `yassm.linear_gaussian.GeneralLinearGaussianStateSpaceModel.mle`.
         """
         method_lower = method.lower()
-        if method_lower != "scipy_minimize":
+        if method_lower not in ("", "scipy_minimize"):
             logger.warning(
                 "The only implemented MLE method is scipy_minimize for general linear Gaussian model. Using"
                 " scipy_minimize..."

@@ -68,6 +68,25 @@ logger.warning("falling back")
     assert res.stderr.strip() == "falling back"
 
 
+def test_default_mle_method_does_not_warn(caplog) -> None:
+    """`mle_method` defaults to "", the default method of the model: only an unknown method is replaced, with a warning."""
+    from tests import y
+    from yassm.linear_gaussian.model.local_level import local_level_model
+    from yassm.linear_gaussian.model.local_linear import local_linear_model
+    from yassm.linear_gaussian.model.local_ratio import local_ratio_model
+
+    for model, μ_0, Γ_0 in (
+        (local_level_model, 0.0, 1e8),
+        (local_ratio_model, 0.0, 1e8),
+        (local_linear_model, np.zeros(2), 1e8 * np.eye(2)),
+    ):
+        for mle_method, replaced in (("", False), ("newton", True)):
+            caplog.clear()
+            with caplog.at_level("WARNING", logger="yassm"):
+                model.fit(y.copy(), None, μ_0, Γ_0, mle_method=mle_method, mle_n_iter=1)
+            assert ("not supported" in caplog.text or "only implemented" in caplog.text) is replaced
+
+
 def test_deprecated_aliases() -> None:
     from yassm.lib.qmc import hilbert_curve_full_range
     from yassm.particle_filter import (

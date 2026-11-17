@@ -111,7 +111,8 @@ class LocalRatioModel(LocalLevelModel):
         method_lower = method.lower()
         if method_lower == "gradient":
             return self.mle_gradient
-        elif method_lower == "em":
+        # an empty method is the default one
+        elif method_lower in ("", "em"):
             return self.mle_em
         elif method_lower == "scipy_minimize":
             return self.mle_scipy_minimize
