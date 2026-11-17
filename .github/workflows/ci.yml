@@ -6,9 +6,14 @@ on:
   pull_request:
   workflow_dispatch:
 
+# the jobs only read the repository, whatever the default permissions of its token
+permissions:
+  contents: read
+
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  # a push to a pull request supersedes its previous run, but the runs on main complete
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   lint:
