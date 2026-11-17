@@ -85,7 +85,8 @@ dev = [
 path = "src/yassm/__init__.py"
 
 [tool.hatch.build.targets.sdist]
-include = ["src", "tests", "docs", "examples", "LICENSE", "README.md", "CHANGELOG.md"]
+# docs/contributing.md and docs/changelog.md include CONTRIBUTING.md and CHANGELOG.md
+include = ["src", "tests", "docs", "examples", "LICENSE", "README.md", "CHANGELOG.md", "CONTRIBUTING.md"]
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/yassm"]
