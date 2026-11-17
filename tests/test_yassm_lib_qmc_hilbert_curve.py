@@ -241,9 +241,13 @@ def test_plot_axes(dimension: int) -> None:
 
     fig = plt.figure()
     given = fig.add_subplot(projection=None if dimension == 2 else "3d")
+    # the figure of the given axes is not the current one
+    other = plt.figure()
     assert curve.plot(ax=given) == (fig, given)
     assert len(given.lines) == 1
+    assert other.axes == []
     plt.close(fig)
+    plt.close(other)
 
 
 def test_plot_3d_requires_3d_axes() -> None:
