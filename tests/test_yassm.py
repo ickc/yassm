@@ -519,15 +519,30 @@ def test_mle_hessian_matches_finite_differences(params: list[float]) -> None:
     np.testing.assert_allclose(actual, expected, rtol=1e-3)
 
 
-def test_mle_hessian_at_variance_bound() -> None:
-    """An MLE on the variance bound, e.g. a vanishing state noise, has a finite Hessian."""
+def test_mle_hessian_at_variance_bound(caplog) -> None:
+    """An MLE on the variance bound, e.g. a vanishing state noise, is not an interior maximum: say so.
+
+    Over steps relative to such a parameter the log-likelihood does not change: its row and column are 0, not curvature.
+    """
     pytest.importorskip("numdifftools")
     from yassm import local_level_model
     from yassm.util import VARIANCE_BOUNDS
 
     y = np.random.default_rng(0).normal(scale=2.0, size=300)
     fit = local_level_model.fit(y, [4.0, VARIANCE_BOUNDS[0]], 0.0, 1e8)
-    assert np.all(np.isfinite(fit.mle_hessian_log_likelihood))
+    with caplog.at_level("WARNING", logger="yassm"):
+        hessian = fit.mle_hessian_log_likelihood
+    assert np.all(np.isfinite(hessian))
+    assert "not negative definite" in caplog.text
+
+    # no warning at an interior maximum
+    caplog.clear()
+    y = np.cumsum(np.random.default_rng(0).normal(size=300)) + np.random.default_rng(1).normal(scale=2.0, size=300)
+    fit = local_level_model.fit(y, None, 0.0, 1e8, mle_method="em", mle_n_iter=200)
+    with caplog.at_level("WARNING", logger="yassm"):
+        cov = fit.posterior_normal_approximation_cov
+    assert np.all(np.linalg.eigvalsh(cov) > 0.0)
+    assert caplog.text == ""
 
 
 def test_ar2_conditional_mle_is_ols() -> None:

@@ -1202,7 +1202,18 @@ class LinearGaussianFit(AbstractFit):
         def func(params_scaled: npt.NDArray[np.float64]) -> float:
             return neg2_log_likelihood(as_c_array(params_scaled * scale), self.y, self.μ_0, self.Γ_0)
 
-        return -0.5 * nd.Hessian(func, step=1e-4)(params / scale) / np.outer(scale, scale)
+        hessian = -0.5 * nd.Hessian(func, step=1e-4)(params / scale) / np.outer(scale, scale)
+        # At a maximum in the interior of the parameter space, the Hessian is negative definite.
+        # It is not when a parameter is on a bound or indistinguishable from it, e.g. a variance of zero:
+        # the log-likelihood does not change over steps relative to such a parameter, whose row and column are then 0.
+        if not (np.isfinite(hessian).all() and np.linalg.eigvalsh(0.5 * (hessian + hessian.T))[-1] < 0.0):
+            logger.warning(
+                "The Hessian of the log-likelihood is not negative definite at the parameters %s: "
+                "they are not a maximum in the interior of the parameter space (e.g. a variance is on its bound, "
+                "or the MLE did not converge), where the normal approximation of the posterior does not hold.",
+                params,
+            )
+        return hessian
 
     @cached_property
     @typechecked

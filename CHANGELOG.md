@@ -53,6 +53,8 @@
   filters were normalised as for $n = 1$: log-likelihoods were too high by $(n - 1) \log(2π) / 2$ per time step.
 - `mle_hessian_log_likelihood` and `posterior_normal_approximation_cov` raised a `TypeError` for the built-in local
   level and local ratio models, and returned NaN for small variances.
+- `mle_hessian_log_likelihood` warns when the Hessian is not negative definite, e.g. with a variance on its bound,
+  where the normal approximation of the posterior does not hold.
 - With a variance bound of exactly 0, `scipy.optimize` could stop early at a singular point while reporting success,
   e.g. for the MA(1) model.
 - `fit(params=None, mle_method="grid_search")` of the particle filters required a `params_guess`.
