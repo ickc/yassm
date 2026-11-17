@@ -194,7 +194,8 @@ pd.DataFrame({"MLE": mle, "posterior mean": samples.mean(), "posterior median": 
 
 # %%
 # %%time
-fit.run_gibbs_sampling(filter_n_std=1.6)
+# (a wider filter in fast mode, whose short chain may not have enough draws so near the MLE)
+fit.run_gibbs_sampling(filter_n_std=size(1.6, fast=3.0))
 samples_filtered = to_frame(fit.gibbs_params_chain)
 pd.DataFrame({"MLE": mle, "posterior mean": samples_filtered.mean(), "posterior median": samples_filtered.median()})
 
