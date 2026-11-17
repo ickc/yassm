@@ -25,12 +25,12 @@
 # $$
 # \begin{aligned}
 # Y_t &= X_t + ε_t, & ε_t &\sim N(0, σ_ε^2), \\
-# X_t &= X_{t-1} + Z_t, & Z_t &\sim (1 - α)\, N(0, δ) + α\, N(0, σ_Z^2),
+# X_t &= X_{t-1} + Z_t, & Z_t &\sim (1 - α)\, δ_0 + α\, N(0, σ_Z^2),
 # \end{aligned}
 # $$
 #
 # i.e. with probability $α$ the level jumps by a $N(0, σ_Z^2)$ amount,
-# and otherwise it stays put (up to a tiny $δ$, which keeps the transition density smooth on the grid).
+# and otherwise it stays put ($δ_0$ is the point mass at 0).
 # A Gaussian model would have to choose between tracking the jumps and smoothing the noise.
 
 # %%
@@ -57,18 +57,20 @@ ax = df.plot(title="Level shifts observed with noise", style=".", markersize=2)
 # - the transition density $p(x_t | x_{t-1})$, and
 # - the observation density $p(y_t | x_t)$.
 #
-# `prob_normal(x, μ, σ², Δx)` is the normal density times $Δx$, i.e. a probability on the grid.
+# `prob_normal(x, μ, σ², Δx)` is the normal density times $Δx$, i.e. a probability on the grid,
+# as long as its standard deviation $σ$ is not small compared with $Δx$.
+# Staying put is a point mass instead, i.e. a probability of 1 at the same point of the grid:
+# a normal density much narrower than $Δx$ would give that point a "probability" far above 1.
 # The noise variance $σ_ε^2 = 25$ is assumed known here, and the parameters are $(σ_Z^2, α)$:
 
 # %%
-δ = 1e-5
 σ_ε_sq = 25.0
 
 
 @jit("f8(f8, f8, f8[::1], f8)", nopython=True, nogil=True, cache=True)
 def transition(x_t, x_tMinus1, params, Δx):
     σ_Z_sq, α = params
-    return (1.0 - α) * prob_normal(x_t, x_tMinus1, δ, Δx) + α * prob_normal(x_t, x_tMinus1, σ_Z_sq, Δx)
+    return (1.0 - α) * (x_t == x_tMinus1) + α * prob_normal(x_t, x_tMinus1, σ_Z_sq, Δx)
 
 
 @jit("f8(f8, f8, f8[::1], f8)", nopython=True, nogil=True, cache=True)
