@@ -20,7 +20,8 @@ pixi run docs              # build the documentation into dist/docs
 pixi run -e py311 test     # tests on another Python version (py311 ... py315)
 ```
 
-Without pixi, `uv sync --group dev` (or `pip install -e . --group dev`) installs the same tools from PyPI.
+Without pixi, `uv sync --group dev` (or `pip install -e . --group dev`) installs the same tools from PyPI,
+except ruff: run it with `uvx ruff check` and `uvx ruff format`.
 
 ## Conventions
 
