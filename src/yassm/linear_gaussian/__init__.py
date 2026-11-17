@@ -16,11 +16,10 @@ from logging import getLogger
 from typing import TYPE_CHECKING
 
 import numpy as np
-from jaxtyping import Float64
 from numba import jit, objmode, prange
 from scipy import stats
 
-from .._typing import typechecked
+from .._typing import Float64, typechecked
 from ..lib import sqrt_diag
 from ..lib.linear_gaussian import (
     cov_from_gibbs_samples,

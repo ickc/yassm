@@ -3,18 +3,13 @@ from __future__ import annotations
 from dataclasses import dataclass
 from functools import cached_property
 from logging import getLogger
-from typing import TYPE_CHECKING
 
 import numpy as np
-from jaxtyping import Float64
 from scipy import linalg, special
 
-from .._typing import typechecked
+from .._typing import Float64, typechecked
 from ..lib.qmc.random import correlation_variance_decomposition, halton_sequence, sqrtm_psd
 from .hilbert_curve import HilbertCurveFloat, HilbertCurveFloat01
-
-if TYPE_CHECKING:
-    pass
 
 SQRT2 = np.sqrt(2.0)
 SQRT2_INV = np.power(2.0, -0.5)

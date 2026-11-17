@@ -8,10 +8,9 @@ from logging import getLogger
 from typing import TYPE_CHECKING
 
 import numpy as np
-from jaxtyping import Float64
 from numba import get_num_threads, jit, objmode, prange
 
-from .._typing import typechecked
+from .._typing import Float64, typechecked
 from ..lib import random_choice_weighted_inplace, sqrt_diag
 from ..lib.linear_gaussian import cov_from_samples, logdet, solve
 from ..linear_gaussian import LOG2Π, AbstractFit, BaseLinearGaussianModel, LinearGaussianModel

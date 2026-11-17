@@ -32,17 +32,18 @@ e.g. `Float64[ndarray, 'T d']` is a float64 array of shape `(T, d)`. The dimensi
 | Name | Dimension |
 | --- | --- |
 | `T` | time steps |
-| `n` | observations |
-| `d` | states |
-| `p` | parameters |
+| `n` | dimension of the observations |
+| `d` | dimension of the states |
+| `p` | number of parameters |
 | `N` | draws: samples, particles, or iterations of a chain |
 | `K` | parameter sets, e.g. a grid of parameters |
 | `G` | grid points of a grid filter |
 | `T_forecast` | forecast time steps |
 
 The test suite checks these annotations at runtime with [beartype](https://beartype.readthedocs.io).
-To check them in your own code too, set the environment variable `YASSM_TYPECHECK=1` before importing yassm,
-with beartype installed.
+To check them in your own code too, install jaxtyping and beartype, neither of which yassm needs otherwise,
+and set the environment variable `YASSM_TYPECHECK=1` before importing yassm.
+A name is bound within one call only: the check does not compare, say, the `T` of two properties of a fit.
 
 ## Modules
 

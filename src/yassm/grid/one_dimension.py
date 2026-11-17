@@ -8,10 +8,9 @@ from logging import getLogger
 from typing import TYPE_CHECKING
 
 import numpy as np
-from jaxtyping import Float64
 from numba import jit
 
-from .._typing import typechecked
+from .._typing import Float64, typechecked
 from ..lib.grid.one_dimension import (
     filter_update_inplace,
     get_grid_to_position,

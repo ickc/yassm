@@ -40,6 +40,44 @@ print(",".join(m for m in optional if m in sys.modules))
     assert res.stdout.strip() == ""
 
 
+def test_jaxtyping_is_not_required() -> None:
+    """jaxtyping and beartype are only needed to check the array annotations: everything else works without them."""
+    import os
+    import subprocess
+    import sys
+
+    code = """
+import importlib, pkgutil, sys, typing
+
+class Blocker:
+    def find_spec(self, name, path=None, target=None):
+        if name.split(".")[0] in ("jaxtyping", "beartype"):
+            raise ImportError(name)
+
+sys.meta_path.insert(0, Blocker())
+
+import numpy as np
+import yassm
+for m in pkgutil.walk_packages(yassm.__path__, "yassm."):
+    importlib.import_module(m.name)
+assert "jaxtyping" not in sys.modules and "beartype" not in sys.modules
+fit = yassm.local_level_model.fit(np.arange(10.0), [1.0, 1.0], 0.0, 1e8)
+assert fit.filtered_state.shape == (10, 1)
+# the annotations can still be evaluated
+hints = typing.get_type_hints(type(fit).filtered_state.fget)
+assert hints["return"] is np.ndarray, hints
+"""
+    env = {key: value for key, value in os.environ.items() if key != "YASSM_TYPECHECK"}
+    subprocess.run([sys.executable, "-c", code], check=True, env=env)
+
+    # asking for the checks without them says what is missing
+    res = subprocess.run(
+        [sys.executable, "-c", code], capture_output=True, text=True, check=False, env=env | {"YASSM_TYPECHECK": "1"}
+    )
+    assert res.returncode != 0
+    assert "needs jaxtyping and beartype" in res.stderr
+
+
 def test_import_is_quiet() -> None:
     """A library should not configure logging on import."""
     import logging
