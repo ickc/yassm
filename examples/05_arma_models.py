@@ -102,9 +102,10 @@ f"{period.mean():.1f} ± {period.std():.1f} years"
 # X_t = \begin{pmatrix} 0 & 1 \\ 0 & 0 \end{pmatrix} X_{t-1} + \begin{pmatrix} 1 \\ θ \end{pmatrix} ε_t.
 # $$
 #
-# `moving_average_1_model` starts $X_0$ from its stationary distribution, which depends on the parameters,
-# so the Kalman filter gives the exact likelihood.
-# The prior passed to `fit` is then ignored.
+# `moving_average_1_model` starts $X_0$ from its stationary distribution, which depends on the parameters:
+# the prior passed to `fit` is then ignored.
+# As everywhere in yassm, the Kalman log-likelihood is conditional on the first observation,
+# whereas statsmodels maximises the exact one, which adds $\log p(y_1)$: hence small differences in the estimates.
 
 # %%
 df = load_ma1()

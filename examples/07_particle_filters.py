@@ -128,7 +128,8 @@ plt.show()
 # %% [markdown]
 # ## Likelihood
 #
-# Particle filters also estimate the likelihood $p(y_{1:T})$, without bias.
+# Particle filters also estimate the likelihood $p(y_{1:T})$, without bias
+# (its logarithm is then biased downwards, by about half the variance of its error).
 # yassm's Kalman log-likelihood is conditional on the first observation (see `LinearGaussianFit.log_likelihood`),
 # so the term $\log p(y_1)$, with $Y_1 \sim N(μ_0, Γ_0 + σ_ε^2)$, has to be added to compare them:
 
@@ -156,8 +157,9 @@ errors = pd.DataFrame(
 errors.agg(["mean", "std"]).T.rename_axis(["proposal", "particles"])
 
 # %% [markdown]
-# The optimal proposal roughly halves the error for the same number of particles.
-# The gain is modest because the observations are noisy compared with the state
+# These few repetitions cannot tell the two proposals apart: over hundreds of them,
+# the optimal proposal has about 10% less error with 10 000 particles, and no less with 1 000.
+# The gain is small because the observations are noisy compared with the state
 # ($σ_ε \approx 3 σ_Z$), so a single observation moves the particles little.
 #
 # ## Maximum likelihood by grid search
@@ -212,5 +214,5 @@ pd.DataFrame(
 
 # %% [markdown]
 # Both surfaces have the right shape, but the likelihood is flat near its maximum, especially along $σ_Z$,
-# so the Monte Carlo noise moves the grid-search MLE by several grid steps.
+# so the Monte Carlo noise can move the grid-search MLE by a few grid steps.
 # More particles, or smoothing the estimated surface before taking its maximum, reduce this.

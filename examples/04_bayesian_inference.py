@@ -141,7 +141,8 @@ fig, axes = fit.plot(
 # so the posterior mass there is infinite (Gelman, 2006).
 # Whether a finite chain notices depends on the data.
 # For the Nile data above it does not, but for the AR(1) plus noise model of {doc}`02_maximum_likelihood`,
-# whose AR(1) component is weak relative to the noise, the chain drifts to $σ_Z \to 0$ and stays there:
+# whose AR(1) component is weak relative to the noise, the chain drifts to $σ_Z \approx 0$,
+# where it can stay for tens of thousands of iterations, or for good:
 
 # %%
 df = load_ar1_plus_noise()
@@ -181,13 +182,15 @@ samples = to_frame(fit.gibbs_params_chain)
 pd.DataFrame({"MLE": mle, "posterior mean": samples.mean(), "posterior median": samples.median()})
 
 # %% [markdown]
-# The principled remedy is a proper prior that vanishes at $σ_Z = 0$, which the conjugate steps of the built-in
-# models do not offer.
-# A pragmatic one is to keep only the draws within a few standard deviations of the MLE,
-# as measured by the log-likelihood (here within 1.6σ, i.e. $\log L > \log L_{\mathrm{MLE}} - 1.6^2/2$),
-# which truncates the posterior to the neighbourhood of the MLE.
+# The principled remedy is a proper prior that vanishes at $σ_Z = 0$, which the built-in models,
+# whose conjugate steps assume the flat prior, do not offer.
+# A pragmatic one is to keep only the draws whose log-likelihood is close to its maximum
+# (here $\log L > \log L_{\mathrm{MLE}} - 1.6^2/2$, i.e. within 1.6σ of the MLE along a single parameter),
+# which confines the chain to the neighbourhood of the MLE.
+# This is a heuristic, not a sample of a truncated posterior: the chain is not stationary,
+# and the draws kept are those of its last visits to that neighbourhood, so the summaries below vary between runs.
 # `run_gibbs_sampling` re-runs the sampler with this filter;
-# with only about 1% of the draws kept, the chain must be long:
+# with only a few percent of the draws kept, the chain must be long:
 
 # %%
 # %%time
