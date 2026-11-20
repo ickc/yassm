@@ -17,11 +17,10 @@ import math
 from typing import TYPE_CHECKING
 
 import numpy as np
-from numba import jit, objmode
-from scipy import linalg
+from numba import jit
 
 from .hilbert_curve import FLOAT_ORDER, _bitset_flip, _bitset_test
-from .random import correlation_variance_decomposition
+from .random import correlation_variance_decomposition, sqrtm_psd
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -133,9 +132,8 @@ def gen_f8_to_u8_args_whiten_ZCA(data: npt.NDArray[np.float64]) -> Args:
 
     mean = data.sum(axis=0) / N
     cov = np.cov(data, rowvar=False)
-    with objmode(W_T_inv="f8[:, ::1]"):
-        W_T_inv = linalg.sqrtm(cov)
-    return mean, np.linalg.pinv(W_T_inv).T
+    # Σ^(-1/2), symmetric
+    return mean, sqrtm_psd(np.ascontiguousarray(cov), True)
 
 
 @jit("Tuple((f8[::1], f8[:, ::1]))(f8[:, ::1])", nopython=True, nogil=True, cache=True)
@@ -145,10 +143,8 @@ def gen_f8_to_u8_args_whiten_ZCA_cor(data: npt.NDArray[np.float64]) -> Args:
     mean = data.sum(axis=0) / N
     cov = np.cov(data, rowvar=False)
     σ, P = correlation_variance_decomposition(cov)
-    with objmode(P_sqrt="f8[:, ::1]"):
-        P_sqrt = linalg.sqrtm(P)
-    P_sqrt_inv = np.linalg.pinv(P_sqrt).T
-    W_T = P_sqrt_inv / σ.reshape(-1, 1)
+    # P^(-1/2), symmetric
+    W_T = sqrtm_psd(P, True) / σ.reshape(-1, 1)
     return mean, W_T
 
 

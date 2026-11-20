@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING
 import numpy as np
 from scipy import linalg, special
 
-from ..lib.qmc.random import correlation_variance_decomposition, halton_sequence
+from ..lib.qmc.random import correlation_variance_decomposition, halton_sequence, sqrtm_psd
 from .hilbert_curve import HilbertCurveFloat, HilbertCurveFloat01
 
 if TYPE_CHECKING:
@@ -57,11 +57,10 @@ def gaussian_transform(
             # W_inv_T = U = L.T
             W_inv_T = linalg.cholesky(cov)
         elif method == "ZCA_cor":
-            σ, P = correlation_variance_decomposition(cov)
-            P_sqrt = linalg.sqrtm(P)
-            W_inv_T = P_sqrt * σ
+            σ, P = correlation_variance_decomposition(np.ascontiguousarray(cov, dtype=np.float64))
+            W_inv_T = sqrtm_psd(P, False) * σ
         elif method in ("rosenblatt", "ZCA"):
-            W_inv_T = linalg.sqrtm(cov)
+            W_inv_T = sqrtm_psd(np.ascontiguousarray(cov, dtype=np.float64), False)
         else:
             raise ValueError(f"Unknown method: {method}")
         # inverse whitening
@@ -97,7 +96,8 @@ def whitening_transform(
     if mean is None:
         mean = gaussian_array.mean(axis=0)
     if cov is None:
-        cov = np.cov(gaussian_array, rowvar=False)
+        # np.cov returns a scalar for a single dimension
+        cov = np.atleast_2d(np.cov(gaussian_array, rowvar=False))
 
     if method == "cholesky":
         # avoid LinAlgError: not positive definite
@@ -121,11 +121,11 @@ def whitening_transform(
         # W_T = L = U.T
         W_T = linalg.cholesky(cov_inv, lower=True)
     elif method == "ZCA":
-        W_T = linalg.pinv(linalg.sqrtm(cov))
+        # Σ^(-1/2), symmetric
+        W_T = sqrtm_psd(np.ascontiguousarray(cov, dtype=np.float64), True)
     elif method == "ZCA_cor":
-        σ, P = correlation_variance_decomposition(cov)
-        P_sqrt_inv = linalg.pinv(linalg.sqrtm(P))
-        W_T = P_sqrt_inv / σ.reshape(-1, 1)
+        σ, P = correlation_variance_decomposition(np.ascontiguousarray(cov, dtype=np.float64))
+        W_T = sqrtm_psd(P, True) / σ.reshape(-1, 1)
     else:
         raise ValueError(f"Unknown method: {method}")
 

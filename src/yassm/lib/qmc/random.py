@@ -18,6 +18,8 @@ if TYPE_CHECKING:
 
 from .number_base import increment_inplace, n_digits, radical_inverse
 
+EPS = np.finfo(np.float64).eps
+
 #: first 63 prime numbers.
 PRIMES = np.array(
     [
@@ -303,3 +305,24 @@ def correlation_variance_decomposition(
         for j in range(n):
             P[i, j] = Σ[i, j] / (σ[i] * σ[j])
     return σ, P
+
+
+@jit("f8[:, ::1](f8[:, ::1], b1)", nopython=True, nogil=True, cache=True)
+def sqrtm_psd(Σ: npt.NDArray[np.float64], inverse: bool) -> npt.NDArray[np.float64]:
+    """Symmetric square root of a positive semi-definite matrix `Σ`, or its (pseudo-)inverse if `inverse`.
+
+    It is computed from the eigendecomposition of `Σ`, unlike ``scipy.linalg.sqrtm``, which can return a complex
+    matrix for a singular `Σ`, e.g. the sample covariance of no more points than dimensions.
+    Eigenvalues up to ``d ε`` times the largest one, i.e. within rounding error of 0, are taken as 0,
+    and stay 0 in the inverse, as in a pseudo-inverse.
+    """
+    λ, V = np.linalg.eigh(0.5 * (Σ + Σ.T))
+    V = np.ascontiguousarray(V)
+    d = λ.size
+    # eigh sorts the eigenvalues in ascending order
+    threshold = d * EPS * λ[-1]
+    s = np.zeros(d)
+    for i in range(d):
+        if λ[i] > threshold:
+            s[i] = 1.0 / np.sqrt(λ[i]) if inverse else np.sqrt(λ[i])
+    return np.ascontiguousarray((V * s) @ V.T)

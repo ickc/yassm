@@ -22,6 +22,8 @@
 - Its logistic and whitening range reductions sorted the points far in the upper tail first instead of last.
 - The whitening Cholesky decomposition was made "positive definite" by shifting its spectrum the wrong way,
   and failed for singular covariances.
+- The ZCA whitening range reductions failed for singular covariances, for which `scipy.linalg.sqrtm` can return
+  a complex matrix, and `whitening_transform` failed for one-dimensional data.
 - Hilbert sort with order 0 scrambled the array; full-range Hilbert sort failed for a single point.
 - Hilbert sort left the last point of a group on the wrong side of a split whenever the rest of the group belonged
   to the first side, so that point sets other than full grids were not sorted along the curve.
