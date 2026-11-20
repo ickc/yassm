@@ -164,6 +164,21 @@ def test_as_scipy_objective_singular() -> None:
     assert as_scipy_objective(lambda x: np.linalg.inv(np.diag(x)).sum())(np.array([0.0, 1.0])) == np.inf
 
 
+def test_as_scipy_objective_zero_variance() -> None:
+    """The scalar kernels, e.g. of the local level model, divide by the variances: a zero one is +inf too.
+
+    It raised ZeroDivisionError, e.g. when L-BFGS-B probed a bound of exactly 0.
+    """
+    from tests import y
+    from yassm.linear_gaussian.model.local_level import local_level_model
+    from yassm.util import as_scipy_objective
+
+    objective = as_scipy_objective(local_level_model.neg2_log_likelihood)
+    args = (y.reshape(-1, 1), np.zeros(1), np.eye(1))
+    assert np.isfinite(objective(np.array([1.0, 1.0]), *args))
+    assert objective(np.array([0.0, 1.0]), *args) == np.inf
+
+
 def test_as_scipy_objective_raises_other_errors() -> None:
     """Only a matrix that cannot be inverted at these parameters is +inf: other errors hold for any parameters."""
     from numba import jit

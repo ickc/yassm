@@ -75,7 +75,8 @@ def as_scipy_objective(func: Callable[..., float]) -> Callable[..., float]:
       which Numba functions with ``f8[::1]`` signatures reject.
     - A singular or not positive definite matrix (e.g. a zero variance on the boundary of the parameter space,
       which the optimizer may probe) gives ``+inf`` instead of raising ``LinAlgError``,
-      so that the optimizer backs off. So does any ``LinAlgError`` at a non-finite ``x``,
+      so that the optimizer backs off. So does a zero variance in the scalar kernels, e.g. of the local level model,
+      which divide by it (``ZeroDivisionError``). So does any ``LinAlgError`` at a non-finite ``x``,
       which some optimizers try after an infinite objective.
 
     Any other ``LinAlgError`` is raised: matrices of the wrong shape, or NaN in the data,
@@ -91,5 +92,7 @@ def as_scipy_objective(func: Callable[..., float]) -> Callable[..., float]:
             if any(text in message for text in _NOT_INVERTIBLE) or not np.isfinite(x).all():
                 return np.inf
             raise
+        except ZeroDivisionError:
+            return np.inf
 
     return wrapped
