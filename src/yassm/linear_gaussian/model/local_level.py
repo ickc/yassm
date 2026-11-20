@@ -19,7 +19,7 @@ from ...lib.linear_gaussian.model.local_level import smoothed_state_to_obs as _s
 from .. import GenericLinearGaussianStateSpaceModel
 
 if TYPE_CHECKING:
-    from typing import Callable
+    from collections.abc import Callable
 
     import numpy.typing as npt
 
@@ -201,7 +201,8 @@ class LocalLevelModel(GenericLinearGaussianStateSpaceModel):
 
     def mle(self, method: str = "em") -> Mle:
         method_lower = method.lower()
-        if method_lower == "em":
+        # an empty method is the default one
+        if method_lower in ("", "em"):
             return self.mle_em
         elif method_lower == "scipy_minimize":
             return self.mle_scipy_minimize

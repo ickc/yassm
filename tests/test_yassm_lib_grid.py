@@ -29,7 +29,6 @@ from yassm.lib.linear_gaussian.model.local_ratio import (
 if TYPE_CHECKING:
     import numpy.typing as npt
 
-    from yassm.lib import FloatMaybeArray
 
 logger = getLogger(__name__)
 
@@ -80,14 +79,7 @@ def design_func(
     return prob_normal(y_t, x_t, σ_ε_sq, Δx)
 
 
-@pytest.mark.parametrize(
-    "σ_ε_sq,σ_Z_sq,φ,G,n_σ,m_sMinus1_given_t,Q_sMinus1_given_t",
-    (
-        (0.1, 4.0, 1.0, 1000, 6.0, 2.0, 1.5),
-        (0.2, 1.7, 0.9, 1500, 6.0, 1.3, 1.9),
-    ),
-)
-def test_one_step_ahead(
+def check_one_step_ahead(
     σ_ε_sq: float,
     σ_Z_sq: float,
     φ: float,
@@ -96,7 +88,15 @@ def test_one_step_ahead(
     m_sMinus1_given_t: float,
     Q_sMinus1_given_t: float,
     raise_assertion_error: bool = True,
-) -> tuple[npt.NDArray[np.float64], float, float, npt.NDArray[np.float64], float, float, npt.NDArray[np.float64],]:
+) -> tuple[
+    npt.NDArray[np.float64],
+    float,
+    float,
+    npt.NDArray[np.float64],
+    float,
+    float,
+    npt.NDArray[np.float64],
+]:
     params = np.array([σ_ε_sq, σ_Z_sq, φ])
     σ_Z = np.sqrt(σ_Z_sq)
     x_f = n_σ * σ_Z
@@ -167,13 +167,17 @@ def test_one_step_ahead(
 
 
 @pytest.mark.parametrize(
-    "σ_ε_sq,σ_Z_sq,φ,G,n_σ,m_t_given_tMinus1,Q_t_given_tMinus1,y_t",
+    "σ_ε_sq,σ_Z_sq,φ,G,n_σ,m_sMinus1_given_t,Q_sMinus1_given_t",
     (
-        (0.1, 4.0, 1.0, 1000, 3.0, 2.0, 1.5, 1.3),
-        (0.2, 1.7, 0.9, 1500, 5.0, 1.3, 1.9, 2.1),
+        (0.1, 4.0, 1.0, 1000, 6.0, 2.0, 1.5),
+        (0.2, 1.7, 0.9, 1500, 6.0, 1.3, 1.9),
     ),
 )
-def test_filter_update(
+def test_one_step_ahead(σ_ε_sq, σ_Z_sq, φ, G, n_σ, m_sMinus1_given_t, Q_sMinus1_given_t) -> None:
+    check_one_step_ahead(σ_ε_sq, σ_Z_sq, φ, G, n_σ, m_sMinus1_given_t, Q_sMinus1_given_t)
+
+
+def check_filter_update(
     σ_ε_sq: float,
     σ_Z_sq: float,
     φ: float,
@@ -183,10 +187,17 @@ def test_filter_update(
     Q_t_given_tMinus1: float,
     y_t: float,
     raise_assertion_error: bool = True,
-) -> tuple[npt.NDArray[np.float64], float, float, npt.NDArray[np.float64], float, float, npt.NDArray[np.float64],]:
+) -> tuple[
+    npt.NDArray[np.float64],
+    float,
+    float,
+    npt.NDArray[np.float64],
+    float,
+    float,
+    npt.NDArray[np.float64],
+]:
     params = np.array([σ_ε_sq, σ_Z_sq, φ])
     σ_Z = np.sqrt(σ_Z_sq)
-    σ_ε = np.sqrt(σ_ε_sq)
     x_f = n_σ * σ_Z
     x_0 = -x_f
     Δx = (x_f - x_0) / (G - 1)
@@ -257,13 +268,17 @@ def test_filter_update(
 
 
 @pytest.mark.parametrize(
-    "σ_ε_sq,σ_Z_sq,φ,G,n_σ,m_s_given_s,Q_s_given_s,m_sPlus1_given_t,Q_sPlus1_given_t",
+    "σ_ε_sq,σ_Z_sq,φ,G,n_σ,m_t_given_tMinus1,Q_t_given_tMinus1,y_t",
     (
-        (0.1, 4.0, 1.0, 1000, 3.0, 2.0, 1.5, 1.3, 2.1),
-        (0.2, 1.7, 0.9, 1500, 5.0, 1.3, 1.9, 2.1, 0.7),
+        (0.1, 4.0, 1.0, 1000, 3.0, 2.0, 1.5, 1.3),
+        (0.2, 1.7, 0.9, 1500, 5.0, 1.3, 1.9, 2.1),
     ),
 )
-def test_smoothing_backward_recursion_inplace(
+def test_filter_update(σ_ε_sq, σ_Z_sq, φ, G, n_σ, m_t_given_tMinus1, Q_t_given_tMinus1, y_t) -> None:
+    check_filter_update(σ_ε_sq, σ_Z_sq, φ, G, n_σ, m_t_given_tMinus1, Q_t_given_tMinus1, y_t)
+
+
+def check_smoothing_backward_recursion_inplace(
     σ_ε_sq: float,
     σ_Z_sq: float,
     φ: float,
@@ -274,13 +289,19 @@ def test_smoothing_backward_recursion_inplace(
     m_sPlus1_given_t: float,
     Q_sPlus1_given_t: float,
     raise_assertion_error: bool = True,
-) -> tuple[npt.NDArray[np.float64], float, float, npt.NDArray[np.float64], float, float, npt.NDArray[np.float64],]:
+) -> tuple[
+    npt.NDArray[np.float64],
+    float,
+    float,
+    npt.NDArray[np.float64],
+    float,
+    float,
+    npt.NDArray[np.float64],
+]:
     params = np.array([σ_ε_sq, σ_Z_sq, φ])
     σ_Z = np.sqrt(σ_Z_sq)
-    σ_ε = np.sqrt(σ_ε_sq)
     x_f = n_σ * σ_Z
     x_0 = -x_f
-    R = σ_ε_sq
     Σ = σ_Z_sq
     Δx = (x_f - x_0) / (G - 1)
 
@@ -361,6 +382,21 @@ def test_smoothing_backward_recursion_inplace(
             logger.warning(e)
 
     return x, m_s_given_t_hat, Q_s_given_t_hat, p_s_given_t, m_s_given_t, Q_s_given_t, p_s_given_t_ref  # type: ignore[return-value]
+
+
+@pytest.mark.parametrize(
+    "σ_ε_sq,σ_Z_sq,φ,G,n_σ,m_s_given_s,Q_s_given_s,m_sPlus1_given_t,Q_sPlus1_given_t",
+    (
+        (0.1, 4.0, 1.0, 1000, 3.0, 2.0, 1.5, 1.3, 2.1),
+        (0.2, 1.7, 0.9, 1500, 5.0, 1.3, 1.9, 2.1, 0.7),
+    ),
+)
+def test_smoothing_backward_recursion_inplace(
+    σ_ε_sq, σ_Z_sq, φ, G, n_σ, m_s_given_s, Q_s_given_s, m_sPlus1_given_t, Q_sPlus1_given_t
+) -> None:
+    check_smoothing_backward_recursion_inplace(
+        σ_ε_sq, σ_Z_sq, φ, G, n_σ, m_s_given_s, Q_s_given_s, m_sPlus1_given_t, Q_sPlus1_given_t
+    )
 
 
 def res_to_df(

@@ -18,6 +18,8 @@ if TYPE_CHECKING:
 
 from .number_base import increment_inplace, n_digits, radical_inverse
 
+EPS = np.finfo(np.float64).eps
+
 #: first 63 prime numbers.
 PRIMES = np.array(
     [
@@ -93,8 +95,15 @@ PRIMES = np.array(
 def choose_halton_n(exp: npt.NDArray[np.int64]) -> int:
     """Return the number of points in a fully-stratified Halton sequence.
 
-    :param exp: The exponent of the Halton sequence.
-    :return: Π_i π_i^exp[i].
+    Parameters
+    ----------
+    exp
+        The exponent of the Halton sequence.
+
+    Returns
+    -------
+    int
+        Π_i π_i^exp[i].
     """
     res: int = 1
     for i in range(exp.size):
@@ -109,7 +118,7 @@ def midpoint_pointset(N: int) -> npt.NDArray[np.float64]:
     return np.linspace(inv_2N, 1.0 - inv_2N, N)
 
 
-@jit("f8[::1](i8, i1)", nopython=True, nogil=True, cache=True)
+@jit("f8[::1](i8, i8)", nopython=True, nogil=True, cache=True)
 def _van_der_corput_sequence_u1_slow(N: int, base: int) -> npt.NDArray[np.float64]:
     """Returns the van der Corput sequence."""
     res = np.empty(N)
@@ -124,7 +133,7 @@ def _van_der_corput_sequence_u1_slow(N: int, base: int) -> npt.NDArray[np.float6
     return res
 
 
-@jit("f8[::1](i8, i1)", nopython=True, nogil=True, cache=True)
+@jit("f8[::1](i8, i8)", nopython=True, nogil=True, cache=True)
 def _van_der_corput_sequence_u2_slow(N: int, base: int) -> npt.NDArray[np.float64]:
     """Returns the van der Corput sequence."""
     res = np.empty(N)
@@ -139,7 +148,7 @@ def _van_der_corput_sequence_u2_slow(N: int, base: int) -> npt.NDArray[np.float6
     return res
 
 
-@jit("f8[::1](i8, i1)", nopython=True, nogil=True, cache=True)
+@jit("f8[::1](i8, i8)", nopython=True, nogil=True, cache=True)
 def _van_der_corput_sequence_u1(N: int, base: int) -> npt.NDArray[np.float64]:
     """Returns the van der Corput sequence."""
     res = np.empty(N)
@@ -177,7 +186,7 @@ def _van_der_corput_sequence_u1(N: int, base: int) -> npt.NDArray[np.float64]:
     return res
 
 
-@jit("f8[::1](i8, i1)", nopython=True, nogil=True, cache=True)
+@jit("f8[::1](i8, i8)", nopython=True, nogil=True, cache=True)
 def _van_der_corput_sequence_u2(N: int, base: int) -> npt.NDArray[np.float64]:
     """Returns the van der Corput sequence."""
     res = np.empty(N)
@@ -215,13 +224,13 @@ def _van_der_corput_sequence_u2(N: int, base: int) -> npt.NDArray[np.float64]:
     return res
 
 
-@jit("f8[::1](i8, i1)", nopython=True, nogil=True, cache=True)
+@jit("f8[::1](i8, i8)", nopython=True, nogil=True, cache=True)
 def van_der_corput_sequence(N: int, base: int) -> npt.NDArray[np.float64]:
     """Returns the van der Corput sequence."""
     return _van_der_corput_sequence_u1(N, base) if base <= 255 else _van_der_corput_sequence_u2(N, base)
 
 
-@jit("f8[::1](i8, i1)", nopython=True, nogil=True, cache=True)
+@jit("f8[::1](i8, i8)", nopython=True, nogil=True, cache=True)
 def van_der_corput_sequence_slow(N: int, base: int) -> npt.NDArray[np.float64]:
     """Returns the van der Corput sequence.
 
@@ -234,14 +243,23 @@ def van_der_corput_sequence_slow(N: int, base: int) -> npt.NDArray[np.float64]:
     return _van_der_corput_sequence_u1_slow(N, base) if base <= 255 else _van_der_corput_sequence_u2_slow(N, base)
 
 
-@jit("f8[:, ::1](i8, i1, b1)", nopython=True, nogil=True, cache=True)
+@jit("f8[:, ::1](i8, i8, b1)", nopython=True, nogil=True, cache=True)
 def halton_sequence(N: int, d: int, transpose: bool) -> npt.NDArray[np.float64]:
     """Returns the Halton sequence.
 
-    :param N: number of samples
-    :param d: number of dimensions
-    :param transpose: whether to transpose the result. Shape of (N, d) if transpose else (d, N)
-    :return: the Halton sequence
+    Parameters
+    ----------
+    N
+        number of samples
+    d
+        number of dimensions
+    transpose
+        whether to transpose the result. Shape of (N, d) if transpose else (d, N)
+
+    Returns
+    -------
+    npt.NDArray[np.float64]
+        the Halton sequence
     """
     if not (2 <= d < 64):
         raise ValueError("d must be between 2 and 63")
@@ -287,3 +305,24 @@ def correlation_variance_decomposition(
         for j in range(n):
             P[i, j] = Σ[i, j] / (σ[i] * σ[j])
     return σ, P
+
+
+@jit("f8[:, ::1](f8[:, ::1], b1)", nopython=True, nogil=True, cache=True)
+def sqrtm_psd(Σ: npt.NDArray[np.float64], inverse: bool) -> npt.NDArray[np.float64]:
+    """Symmetric square root of a positive semi-definite matrix `Σ`, or its (pseudo-)inverse if `inverse`.
+
+    It is computed from the eigendecomposition of `Σ`, unlike ``scipy.linalg.sqrtm``, which can return a complex
+    matrix for a singular `Σ`, e.g. the sample covariance of no more points than dimensions.
+    Eigenvalues up to ``d ε`` times the largest one, i.e. within rounding error of 0, are taken as 0,
+    and stay 0 in the inverse, as in a pseudo-inverse.
+    """
+    λ, V = np.linalg.eigh(0.5 * (Σ + Σ.T))
+    V = np.ascontiguousarray(V)
+    d = λ.size
+    # eigh sorts the eigenvalues in ascending order
+    threshold = d * EPS * λ[-1]
+    s = np.zeros(d)
+    for i in range(d):
+        if λ[i] > threshold:
+            s[i] = 1.0 / np.sqrt(λ[i]) if inverse else np.sqrt(λ[i])
+    return np.ascontiguousarray((V * s) @ V.T)

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from functools import cached_property
 from logging import getLogger
 from typing import TYPE_CHECKING
@@ -18,8 +18,6 @@ from ...lib.linear_gaussian.model.local_ratio import smoothed_state_to_obs as _s
 from .local_level import LocalLevelModel
 
 if TYPE_CHECKING:
-    from typing import Any
-
     import numpy.typing as npt
 
     from .. import (
@@ -113,7 +111,8 @@ class LocalRatioModel(LocalLevelModel):
         method_lower = method.lower()
         if method_lower == "gradient":
             return self.mle_gradient
-        elif method_lower == "em":
+        # an empty method is the default one
+        elif method_lower in ("", "em"):
             return self.mle_em
         elif method_lower == "scipy_minimize":
             return self.mle_scipy_minimize

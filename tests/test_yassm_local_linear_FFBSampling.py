@@ -4,9 +4,8 @@ from unittest import TestCase
 
 import numpy as np
 
-from yassm.linear_gaussian.model.local_linear import local_linear_model
-
 from tests import set_seed, y
+from yassm.linear_gaussian.model.local_linear import local_linear_model
 
 
 class TestLocalLinearGaussian(TestCase):

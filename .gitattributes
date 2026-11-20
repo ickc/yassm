@@ -1,0 +1,3 @@
+
+# pixi lockfile is generated
+pixi.lock merge=binary linguist-language=YAML linguist-generated=true

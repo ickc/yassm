@@ -53,7 +53,7 @@ def X0(params: npt.NDArray[np.float64]) -> tuple[npt.NDArray[np.float64], npt.ND
     σ_sq, θ = params
     σ_sq_θ = σ_sq * θ
     σ_sq_θ_sq = σ_sq_θ * θ
-    μ_0 = np.zeros((2))
+    μ_0 = np.zeros(2)
     Γ_0 = np.array(
         [
             [σ_sq + σ_sq_θ_sq, σ_sq_θ],

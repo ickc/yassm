@@ -12,11 +12,10 @@ from unittest import TestCase
 import numpy as np
 from numba import jit
 
+from tests import y
 from yassm.grid.one_dimension import General1DStateSpaceModel
 from yassm.lib.grid.one_dimension import prob_normal
 from yassm.linear_gaussian.model.local_level import local_level_model
-
-from tests import y
 
 if TYPE_CHECKING:
     import numpy.typing as npt
@@ -83,7 +82,7 @@ class TestGrid(TestCase):
             G,
             param_names=["σ_ε_sq", "σ_Z_sq"],
         )
-        self.ref = local_level_model.fit(y, params0, 0.0, np.infty, mle_n_iter=100)
+        self.ref = local_level_model.fit(y, params0, 0.0, np.inf, mle_n_iter=100)
 
         self.mod = mod
         self.p_0 = p_0

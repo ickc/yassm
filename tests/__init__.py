@@ -15,10 +15,20 @@ def fn(x: npt.NDArray[np.float64]) -> npt.NDArray[np.float64]:
 
 
 @jit(nogil=True, nopython=True)
-def set_seed(value: int) -> None:
+def _set_numba_seed(value: int) -> None:
     """
     See https://github.com/numba/numba/issues/6002#issuecomment-660152030
     """
+    np.random.seed(value)
+
+
+def set_seed(value: int) -> None:
+    """Seed both Numba's and NumPy's global RNGs.
+
+    Some samplers draw from NumPy's global RNG in Numba's object mode
+    (e.g. np.random.multivariate_normal).
+    """
+    _set_numba_seed(value)
     np.random.seed(value)
 
 

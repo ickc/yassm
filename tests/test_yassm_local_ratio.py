@@ -8,10 +8,9 @@ from unittest import TestCase
 
 import numpy as np
 
+from tests import y
 from yassm.linear_gaussian.model.local_ratio import local_ratio_model
 from yassm.linear_gaussian.model.local_ratio_general import general_local_ratio_model
-
-from tests import y
 
 
 class TestLocalRatioGeneral(TestCase):

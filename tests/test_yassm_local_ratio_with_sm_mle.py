@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, ClassVar
 from unittest import TestCase
 
 import numpy as np
@@ -20,7 +20,7 @@ if TYPE_CHECKING:
 class TestLinearGaussianLocalRatioEM(TestCase):
     y = y
     method = "em"
-    mle_kwargs: dict[str, Any] = {}
+    mle_kwargs: ClassVar[dict[str, Any]] = {}
 
     def setUp(self) -> None:
         C = 1e8
@@ -60,7 +60,7 @@ class TestLinearGaussianLocalRatioEM(TestCase):
 
 class TestLinearGaussianLocalRatioScipyMinimize(TestLinearGaussianLocalRatioEM):
     method = "scipy_minimize"
-    mle_kwargs = {"bounds": ((0, None), (0, None), (None, None))}
+    mle_kwargs: ClassVar[dict[str, Any]] = {"bounds": ((0, None), (0, None), (None, None))}
 
 
 # failure if learning rate is too high

@@ -6,11 +6,10 @@ from unittest import TestCase
 import numpy as np
 from numba import jit
 
+from tests import set_seed, y
 from yassm.lib.linear_gaussian import prob_normal_1d
 from yassm.linear_gaussian.model.local_level import local_level_model
-from yassm.particle_filter import GeneralNonLinearBootstrapParticleFitlerStateSpaceModel
-
-from tests import y
+from yassm.particle_filter import GeneralNonLinearBootstrapParticleFilterStateSpaceModel
 
 if TYPE_CHECKING:
     import numpy.typing as npt
@@ -63,6 +62,7 @@ def state_to_obs(
 
 class TestGeneralLinearGaussianParticleFilterStateSpaceModelBootstrap(TestCase):
     def setUp(self) -> None:
+        set_seed(20220501)
         n_sample = 5000
         self.rtol = 0.2
         # test starting from this t-step
@@ -72,7 +72,7 @@ class TestGeneralLinearGaussianParticleFilterStateSpaceModelBootstrap(TestCase):
 
         self.params = self.fit.params
 
-        self.bootstrap_local_level_model = GeneralNonLinearBootstrapParticleFitlerStateSpaceModel(
+        self.bootstrap_local_level_model = GeneralNonLinearBootstrapParticleFilterStateSpaceModel(
             2,
             pdf_Y_inplace=pdf_Y_inplace,
             K_t_inplace=K_t_inplace,

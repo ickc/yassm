@@ -5,15 +5,16 @@ from functools import cached_property
 from logging import getLogger
 from typing import TYPE_CHECKING, ClassVar
 
-import matplotlib.pyplot as plt
 import numpy as np
 from numba import jit
 
 from yassm.lib.qmc.hilbert_curve import FLOAT_ORDER, hilbert_sort_inplace
-from yassm.lib.qmc.hilbert_curve_full_range import f8_to_u8_func, gen_f8_to_u8_args_func, hilber_sort_inplace_func
+from yassm.lib.qmc.hilbert_curve_full_range import f8_to_u8_func, gen_f8_to_u8_args_func, hilbert_sort_inplace_func
+from yassm.util import as_c_array
 
 if TYPE_CHECKING:
-    from typing import Any, Callable
+    from collections.abc import Callable
+    from typing import Any
 
     import numpy.typing as npt
     from matplotlib.axes._axes import Axes
@@ -35,7 +36,7 @@ class AbstractHilbertCurve:
     dtype: ClassVar[NumberDType | None] = None
 
     def __post_init__(self) -> None:
-        self.array = np.ascontiguousarray(self.array, dtype=self.dtype)
+        self.array = as_c_array(self.array, dtype=self.dtype)
         if self.dimension >= 64:
             raise ValueError("dimension must be less than 64")
         if not (0 <= self.order < 64):
@@ -70,6 +71,8 @@ class AbstractHilbertCurve:
         ax: Axes | None = None,
         **kwargs: dict[str, Any],
     ) -> FigAx:
+        import matplotlib.pyplot as plt
+
         array = self.array
 
         if ax is None:
@@ -85,6 +88,8 @@ class AbstractHilbertCurve:
         ax: Axes | None = None,
         **kwargs: dict[str, Any],
     ) -> FigAx:
+        import matplotlib.pyplot as plt
+
         array = self.array
 
         if ax is None:
@@ -102,7 +107,10 @@ class AbstractHilbertCurve:
     ) -> FigAx:
         """Plot the Hilbert curve.
 
-        :param kwargs: kwargs for `ax.plot`
+        Parameters
+        ----------
+        kwargs
+            kwargs for `ax.plot`
         """
         if self.dimension == 2:
             return self.plot_2d(ax=ax, **kwargs)
@@ -131,9 +139,10 @@ class HilbertCurveInt(AbstractHilbertCurve):
             self.order = 0
         super().__post_init__()
         if auto_order:
-            self.order = int(np.ceil(np.log2(self.array.max() + 1)))
+            # the number of bits of the maximum: exact, unlike log2 in floating point for 2^52 or more
+            self.order = int(self.array.max()).bit_length()
             logger.info("Auto choosing Hilbert order: %d", self.order)
-        elif self.check_range and self.array.max() + 1 > (1 << self.order):
+        elif self.check_range and int(self.array.max()).bit_length() > self.order:
             raise ValueError("Requires array.max() < 2 ** order")
 
     @classmethod
@@ -229,13 +238,17 @@ class HilbertCurveFloat01(AbstractHilbertCurveFloat):
 class HilbertCurveFloat(AbstractHilbertCurveFloat):
     """Hilbert curve with float domain.
 
-    :param range_reduction_method: The method to be used to map float to int.
-        linear: linear rescaling the range.
-        logistic: logistic according to gerber-chopin-2015.
-        whiten_cholesky, whiten_ZCA, whiten_ZCA_cor:
-            whitening then to uniform using their respective method.
-
     The support is the full range of float.
+
+    Parameters
+    ----------
+    range_reduction_method
+        The method to be used to map float to int:
+
+        - ``linear``: linear rescaling the range.
+        - ``logistic``: logistic according to Gerber & Chopin (2015).
+        - ``whiten_cholesky``, ``whiten_ZCA``, ``whiten_ZCA_cor``:
+          whitening then to uniform using their respective method.
     """
 
     range_reduction_method: str = "linear"
@@ -268,13 +281,14 @@ class HilbertCurveFloat(AbstractHilbertCurveFloat):
 
         if method.startswith("whiten_"):
             whiten_method = "_".join(method.split("_")[1:])
-            # to (0, 1) then maps to [0, 2^order - 1]
-            array = np.floor(whitening_transform(self.array, method=whiten_method) * (1 << self.order)).astype(
-                np.uint64
-            )
+            # to (0, 1) then maps to [0, 2^order - 1]; far in the upper tail the former rounds to 1, which is clamped
+            array = np.minimum(
+                np.floor(whitening_transform(self.array, method=whiten_method) * (1 << self.order)),
+                (1 << self.order) - 1,
+            ).astype(np.uint64)
         # below should always work including whitening but slower
         # as f8_to_u8 is doing matrix multiplication when whitening
-        # i.e. it performed a redandant matrix multiplication d times
+        # i.e. it performed a redundant matrix multiplication d times
         else:
             gen_f8_to_u8_args = gen_f8_to_u8_args_func[self.range_reduction_method]
             args = gen_f8_to_u8_args(self.array)
@@ -286,4 +300,4 @@ class HilbertCurveFloat(AbstractHilbertCurveFloat):
         """Sort the Hilbert curve inplace."""
         if self.order != FLOAT_ORDER:
             raise ValueError(f"order must be {FLOAT_ORDER}")
-        hilber_sort_inplace_func[self.range_reduction_method](self.array, self.order)
+        hilbert_sort_inplace_func[self.range_reduction_method](self.array, self.order)
