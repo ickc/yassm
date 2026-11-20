@@ -40,6 +40,44 @@ print(",".join(m for m in optional if m in sys.modules))
     assert res.stdout.strip() == ""
 
 
+def test_jaxtyping_is_not_required() -> None:
+    """jaxtyping and beartype are only needed to check the array annotations: everything else works without them."""
+    import os
+    import subprocess
+    import sys
+
+    code = """
+import importlib, pkgutil, sys, typing
+
+class Blocker:
+    def find_spec(self, name, path=None, target=None):
+        if name.split(".")[0] in ("jaxtyping", "beartype"):
+            raise ImportError(name)
+
+sys.meta_path.insert(0, Blocker())
+
+import numpy as np
+import yassm
+for m in pkgutil.walk_packages(yassm.__path__, "yassm."):
+    importlib.import_module(m.name)
+assert "jaxtyping" not in sys.modules and "beartype" not in sys.modules
+fit = yassm.local_level_model.fit(np.arange(10.0), [1.0, 1.0], 0.0, 1e8)
+assert fit.filtered_state.shape == (10, 1)
+# the annotations can still be evaluated
+hints = typing.get_type_hints(type(fit).filtered_state.fget)
+assert hints["return"] is np.ndarray, hints
+"""
+    env = {key: value for key, value in os.environ.items() if key != "YASSM_TYPECHECK"}
+    subprocess.run([sys.executable, "-c", code], check=True, env=env)
+
+    # asking for the checks without them says what is missing
+    res = subprocess.run(
+        [sys.executable, "-c", code], capture_output=True, text=True, check=False, env=env | {"YASSM_TYPECHECK": "1"}
+    )
+    assert res.returncode != 0
+    assert "needs jaxtyping and beartype" in res.stderr
+
+
 def test_import_is_quiet() -> None:
     """A library should not configure logging on import."""
     import logging
@@ -170,6 +208,25 @@ def test_fit_plot_renders() -> None:
     fig, _ = fit.plot(T_forecast=10)
     fig.canvas.draw()
     plt.close(fig)
+
+
+def test_fit_plot_given_axes() -> None:
+    """The fit is drawn on the given axes and their figure, even if another figure is current."""
+    import matplotlib
+
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+
+    from tests import y
+    from yassm.linear_gaussian.model.local_level import local_level_model
+
+    fit = local_level_model.fit(y, [1.0, 1.0], 0.0, 1e8)
+    fig, ax = plt.subplots()
+    other = plt.figure()
+    assert fit.plot(axes=[ax]) == (fig, [ax])
+    assert ax.lines
+    plt.close(fig)
+    plt.close(other)
 
 
 def test_as_scipy_objective_singular() -> None:
@@ -429,6 +486,63 @@ def test_posterior_normal_approximation(model_name: str) -> None:
     assert cov.shape == (n_params, n_params)
     np.testing.assert_allclose(cov, cov.T, rtol=1e-6)
     assert np.all(np.linalg.eigvalsh(cov) > 0.0)
+
+
+@pytest.mark.parametrize("params", [[4.0, 0.25], [4.0, 1e-3]])
+def test_mle_hessian_matches_finite_differences(params: list[float]) -> None:
+    """The Hessian of the log-likelihood, against central differences with steps relative to each parameter,
+    also for parameters of very different scales."""
+    pytest.importorskip("numdifftools")
+    from yassm import local_level_model
+
+    rng = np.random.default_rng(0)
+    σ_ε, σ_Z = np.sqrt(params)
+    y = np.cumsum(rng.normal(scale=σ_Z, size=300)) + rng.normal(scale=σ_ε, size=300)
+    params = np.array(params)
+
+    def log_likelihood(params: np.ndarray) -> float:
+        return local_level_model.fit(y, params, 0.0, 1e8).log_likelihood
+
+    h = 1e-3 * params
+    expected = np.empty((2, 2))
+    for i in range(2):
+        for j in range(2):
+            e_i = np.eye(2)[i] * h[i]
+            e_j = np.eye(2)[j] * h[j]
+            expected[i, j] = (
+                log_likelihood(params + e_i + e_j)
+                - log_likelihood(params + e_i - e_j)
+                - log_likelihood(params - e_i + e_j)
+                + log_likelihood(params - e_i - e_j)
+            ) / (4.0 * h[i] * h[j])
+    actual = local_level_model.fit(y, params, 0.0, 1e8).mle_hessian_log_likelihood
+    np.testing.assert_allclose(actual, expected, rtol=1e-3)
+
+
+def test_mle_hessian_at_variance_bound(caplog) -> None:
+    """An MLE on the variance bound, e.g. a vanishing state noise, is not an interior maximum: say so.
+
+    Over steps relative to such a parameter the log-likelihood does not change: its row and column are 0, not curvature.
+    """
+    pytest.importorskip("numdifftools")
+    from yassm import local_level_model
+    from yassm.util import VARIANCE_BOUNDS
+
+    y = np.random.default_rng(0).normal(scale=2.0, size=300)
+    fit = local_level_model.fit(y, [4.0, VARIANCE_BOUNDS[0]], 0.0, 1e8)
+    with caplog.at_level("WARNING", logger="yassm"):
+        hessian = fit.mle_hessian_log_likelihood
+    assert np.all(np.isfinite(hessian))
+    assert "not negative definite" in caplog.text
+
+    # no warning at an interior maximum
+    caplog.clear()
+    y = np.cumsum(np.random.default_rng(0).normal(size=300)) + np.random.default_rng(1).normal(scale=2.0, size=300)
+    fit = local_level_model.fit(y, None, 0.0, 1e8, mle_method="em", mle_n_iter=200)
+    with caplog.at_level("WARNING", logger="yassm"):
+        cov = fit.posterior_normal_approximation_cov
+    assert np.all(np.linalg.eigvalsh(cov) > 0.0)
+    assert caplog.text == ""
 
 
 def test_ar2_conditional_mle_is_ols() -> None:

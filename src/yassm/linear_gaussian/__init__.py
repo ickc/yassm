@@ -19,6 +19,7 @@ import numpy as np
 from numba import jit, objmode, prange
 from scipy import stats
 
+from .._typing import F64Array, Float64, typechecked
 from ..lib import sqrt_diag
 from ..lib.linear_gaussian import (
     cov_from_gibbs_samples,
@@ -35,9 +36,10 @@ if TYPE_CHECKING:
     from collections.abc import Callable, Sequence
     from typing import Any
 
-    import matplotlib as mpl
     import numpy.typing as npt
     import pandas as pd
+    from matplotlib.axes import Axes
+    from matplotlib.figure import Figure
     from typing_extensions import Protocol
 
     KalmanFilteringInplace = Callable[
@@ -189,7 +191,7 @@ if TYPE_CHECKING:
             Γ_0: npt.NDArray[np.float64],
             n_iter: int,
             return_chain: bool,
-            **kwargs: dict[str, Any],
+            **kwargs: Any,
         ) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]]: ...
 
 
@@ -253,28 +255,32 @@ class AbstractFit:
     # cached parameters from _run_*
 
     @property
-    def filtered_obs(self) -> npt.NDArray[np.float64]:
+    @typechecked
+    def filtered_obs(self) -> Float64[F64Array, "T n"]:
         """Filtered observations of shape (size, n)."""
         if not hasattr(self, "_filtered_obs"):
             self._run_filtered_state_to_obs()
         return self._filtered_obs
 
     @property
-    def smoothed_obs(self) -> npt.NDArray[np.float64]:
+    @typechecked
+    def smoothed_obs(self) -> Float64[F64Array, "T n"]:
         """Smoothed observations of shape (size, n)."""
         if not hasattr(self, "_smoothed_obs"):
             self._run_smoothed_state_to_obs()
         return self._smoothed_obs
 
     @property
-    def smoothed_obs_from_samples(self) -> npt.NDArray[np.float64]:
+    @typechecked
+    def smoothed_obs_from_samples(self) -> Float64[F64Array, "T n"]:
         """Smoothed observations of shape (size, n) from sampling."""
         if not hasattr(self, "_smoothed_obs_from_samples"):
             self._run_smoothed_state_to_obs_from_samples()
         return self._smoothed_obs_from_samples
 
     @property
-    def smoothed_obs_from_gibbs_samples(self) -> npt.NDArray[np.float64]:
+    @typechecked
+    def smoothed_obs_from_gibbs_samples(self) -> Float64[F64Array, "T n"]:
         """Smoothed observations of shape (size, n) from Gibbs sampling."""
         if not hasattr(self, "_smoothed_obs_from_gibbs_samples"):
             self._run_smoothed_state_to_obs_from_gibbs_samples()
@@ -282,12 +288,13 @@ class AbstractFit:
 
     # CI
 
+    @typechecked
     def filtered_obs_CI(
         self,
         α: float,
         with_obs_cov: bool = True,
         n_std: float | None = None,
-    ) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64], npt.NDArray[np.float64]]:
+    ) -> tuple[Float64[F64Array, "T n"], Float64[F64Array, "T n"], Float64[F64Array, "T n"]]:
         """Filtered observations confidence intervals.
 
         Parameters
@@ -305,12 +312,13 @@ class AbstractFit:
         """
         raise NotImplementedError
 
+    @typechecked
     def smoothed_obs_CI(
         self,
         α: float,
         with_obs_cov: bool = True,
         n_std: float | None = None,
-    ) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64], npt.NDArray[np.float64]]:
+    ) -> tuple[Float64[F64Array, "T n"], Float64[F64Array, "T n"], Float64[F64Array, "T n"]]:
         """Smoothed observations confidence intervals.
 
         Parameters
@@ -328,11 +336,12 @@ class AbstractFit:
         """
         raise NotImplementedError
 
+    @typechecked
     def smoothed_obs_CI_from_samples(
         self,
         α: float,
         n_std: float | None = None,
-    ) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64], npt.NDArray[np.float64]]:
+    ) -> tuple[Float64[F64Array, "T n"], Float64[F64Array, "T n"], Float64[F64Array, "T n"]]:
         """Smoothed observations confidence intervals from sampling.
 
         Parameters
@@ -350,11 +359,12 @@ class AbstractFit:
         """
         raise NotImplementedError
 
+    @typechecked
     def smoothed_obs_CI_from_gibbs_samples(
         self,
         α: float,
         n_std: float | None = None,
-    ) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64], npt.NDArray[np.float64]]:
+    ) -> tuple[Float64[F64Array, "T n"], Float64[F64Array, "T n"], Float64[F64Array, "T n"]]:
         """Smoothed observations confidence intervals from Gibbs sampling.
 
         Parameters
@@ -372,13 +382,14 @@ class AbstractFit:
         """
         raise NotImplementedError
 
+    @typechecked
     def forecast_obs_CI(
         self,
         T_forecast: int,
         α: float,
         n_std: float | None = None,
         with_obs_cov: bool = True,
-    ) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64], npt.NDArray[np.float64]]:
+    ) -> tuple[Float64[F64Array, "T_forecast n"], Float64[F64Array, "T_forecast n"], Float64[F64Array, "T_forecast n"]]:
         """Forecast with confidence intervals.
 
         Parameters
@@ -416,7 +427,7 @@ class AbstractFit:
         self,
         T_forecast: int = 0,
         α: float = 0.05,
-        axes: list[mpl.axes._subplots.AxesSubplot] | None = None,
+        axes: Sequence[Axes] | None = None,
         alpha: float = 0.2,
         plot_obs: bool = True,
         plot_smoothed_CI_with_obs_cov: bool = True,
@@ -432,7 +443,7 @@ class AbstractFit:
         forecast_CI_with_obs_cov: bool = True,
         n_std: float | None = None,
         color: Sequence[tuple[float, float, float]] | None = None,
-    ) -> tuple[mpl.figure.Figure, list[mpl.axes._subplots.AxesSubplot]]:
+    ) -> tuple[Figure, list[Axes]]:
         """Plotting.
 
         Parameters
@@ -459,12 +470,13 @@ class AbstractFit:
 
         t = self.t_array
 
-        if axes is None:
-            fig, axes = plt.subplots(n)
-            if n == 1:
-                axes = [axes]
+        if axes is not None:
+            axes = list(axes)
+            fig = axes[0].get_figure(root=True)
         else:
-            fig = plt.gcf()
+            fig, axs = plt.subplots(n, squeeze=False)
+            axes = list(axs[:, 0])
+        assert fig is not None
 
         # default colors
         if color is not None and len(color) < 12:
@@ -747,7 +759,10 @@ class LinearGaussianFit(AbstractFit):
 
     # running functions depending on parameters: get_*
 
-    def get_forecast_state(self, T_forecast: int) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]]:
+    @typechecked
+    def get_forecast_state(
+        self, T_forecast: int
+    ) -> tuple[Float64[F64Array, "T_forecast d"], Float64[F64Array, "T_forecast d d"]]:
         return self.parent.forecast(
             self.params,
             self.m_t_given_T[-1],
@@ -755,11 +770,12 @@ class LinearGaussianFit(AbstractFit):
             T_forecast,
         )
 
+    @typechecked
     def get_forecast_obs(
         self,
         T_forecast: int,
         with_obs_cov: bool = True,
-    ) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]]:
+    ) -> tuple[Float64[F64Array, "T_forecast n"], Float64[F64Array, "T_forecast n n"]]:
         forecast_state = self.get_forecast_state(T_forecast)
         return self.parent.smoothed_state_to_obs(self.params, *forecast_state, self.size, with_obs_cov)
 
@@ -871,7 +887,8 @@ class LinearGaussianFit(AbstractFit):
         )
 
     @cached_property
-    def samples(self) -> npt.NDArray[np.float64]:
+    @typechecked
+    def samples(self) -> Float64[F64Array, "T N d"]:
         logger.info("Running backward_sampling...")
         return self.parent.backward_sampling(
             self.params,
@@ -959,127 +976,149 @@ class LinearGaussianFit(AbstractFit):
     # cached parameters from _run_*
 
     @property
-    def m_t_given_tMinus1(self) -> npt.NDArray[np.float64]:
+    @typechecked
+    def m_t_given_tMinus1(self) -> Float64[F64Array, "T d"]:
         if not hasattr(self, "_m_t_given_tMinus1"):
             self._run_kalman_filtering()
         return self._m_t_given_tMinus1
 
     @property
-    def Q_t_given_tMinus1(self) -> npt.NDArray[np.float64]:
+    @typechecked
+    def Q_t_given_tMinus1(self) -> Float64[F64Array, "T d d"]:
         if not hasattr(self, "_Q_t_given_tMinus1"):
             self._run_kalman_filtering()
         return self._Q_t_given_tMinus1
 
     @property
-    def m_t_given_t(self) -> npt.NDArray[np.float64]:
+    @typechecked
+    def m_t_given_t(self) -> Float64[F64Array, "T d"]:
         if not hasattr(self, "_m_t_given_t"):
             self._run_kalman_filtering()
         return self._m_t_given_t
 
     @property
-    def Q_t_given_t(self) -> npt.NDArray[np.float64]:
+    @typechecked
+    def Q_t_given_t(self) -> Float64[F64Array, "T d d"]:
         if not hasattr(self, "_Q_t_given_t"):
             self._run_kalman_filtering()
         return self._Q_t_given_t
 
     @property
-    def m_t_given_T(self) -> npt.NDArray[np.float64]:
+    @typechecked
+    def m_t_given_T(self) -> Float64[F64Array, "T d"]:
         if not hasattr(self, "_m_t_given_T"):
             self._run_kalman_smoothing()
         return self._m_t_given_T
 
     @property
-    def Q_t_given_T(self) -> npt.NDArray[np.float64]:
+    @typechecked
+    def Q_t_given_T(self) -> Float64[F64Array, "T d d"]:
         if not hasattr(self, "_Q_t_given_T"):
             self._run_kalman_smoothing()
         return self._Q_t_given_T
 
     @property
-    def filtered_obs_cov(self) -> npt.NDArray[np.float64]:
+    @typechecked
+    def filtered_obs_cov(self) -> Float64[F64Array, "T n n"]:
         if not hasattr(self, "_filtered_obs_cov"):
             self._run_filtered_state_to_obs()
         return self._filtered_obs_cov
 
     @property
-    def smoothed_obs_cov(self) -> npt.NDArray[np.float64]:
+    @typechecked
+    def smoothed_obs_cov(self) -> Float64[F64Array, "T n n"]:
         if not hasattr(self, "_smoothed_obs_cov"):
             self._run_smoothed_state_to_obs()
         return self._smoothed_obs_cov
 
     @property
-    def filtered_obs_cov_with_obs_cov(self) -> npt.NDArray[np.float64]:
+    @typechecked
+    def filtered_obs_cov_with_obs_cov(self) -> Float64[F64Array, "T n n"]:
         if not hasattr(self, "_filtered_obs_cov_with_obs_cov"):
             self._run_filtered_state_to_obs_with_obs_cov()
         return self._filtered_obs_cov_with_obs_cov
 
     @property
-    def smoothed_obs_cov_with_obs_cov(self) -> npt.NDArray[np.float64]:
+    @typechecked
+    def smoothed_obs_cov_with_obs_cov(self) -> Float64[F64Array, "T n n"]:
         if not hasattr(self, "_smoothed_obs_cov_with_obs_cov"):
             self._run_smoothed_state_to_obs_with_obs_cov()
         return self._smoothed_obs_cov_with_obs_cov
 
     @cached_property
-    def m_t_given_T_from_samples(self) -> npt.NDArray[np.float64]:
+    @typechecked
+    def m_t_given_T_from_samples(self) -> Float64[F64Array, "T d"]:
         return self.samples.mean(1)
 
     @cached_property
-    def Q_t_given_T_from_samples(self) -> npt.NDArray[np.float64]:
+    @typechecked
+    def Q_t_given_T_from_samples(self) -> Float64[F64Array, "T d d"]:
         return cov_from_samples(self.samples)
 
     @property
-    def smoothed_obs_cov_from_samples(self) -> npt.NDArray[np.float64]:
+    @typechecked
+    def smoothed_obs_cov_from_samples(self) -> Float64[F64Array, "T n n"]:
         if not hasattr(self, "_smoothed_obs_cov_from_samples"):
             self._run_smoothed_state_to_obs_from_samples()
         return self._smoothed_obs_cov_from_samples
 
     @property
-    def smoothed_obs_cov_with_obs_cov_from_samples(self) -> npt.NDArray[np.float64]:
+    @typechecked
+    def smoothed_obs_cov_with_obs_cov_from_samples(self) -> Float64[F64Array, "T n n"]:
         if not hasattr(self, "_smoothed_obs_cov_with_obs_cov_from_samples"):
             self._run_smoothed_state_to_obs_with_obs_cov_from_samples()
         return self._smoothed_obs_cov_with_obs_cov_from_samples
 
     @property
-    def gibbs_params_chain_with_burn_in(self) -> npt.NDArray[np.float64]:
+    @typechecked
+    def gibbs_params_chain_with_burn_in(self) -> Float64[F64Array, "N p"]:
         """Every parameter draw of the Gibbs sampler, including the burn-in."""
         if not hasattr(self, "_gibbs_params_chain_with_burn_in"):
             self.run_gibbs_sampling()
         return self._gibbs_params_chain_with_burn_in
 
     @property
-    def gibbs_X_chain_with_burn_in(self) -> npt.NDArray[np.float64]:
+    @typechecked
+    def gibbs_X_chain_with_burn_in(self) -> Float64[F64Array, "N T d"]:
         """Every state draw of the Gibbs sampler, including the burn-in."""
         if not hasattr(self, "_gibbs_X_chain_with_burn_in"):
             self.run_gibbs_sampling()
         return self._gibbs_X_chain_with_burn_in
 
     @property
-    def gibbs_params_chain(self) -> npt.NDArray[np.float64]:
+    @typechecked
+    def gibbs_params_chain(self) -> Float64[F64Array, "N p"]:
         if not hasattr(self, "_gibbs_params_chain"):
             self.run_gibbs_sampling()
         return self._gibbs_params_chain
 
     @property
-    def gibbs_X_chain(self) -> npt.NDArray[np.float64]:
+    @typechecked
+    def gibbs_X_chain(self) -> Float64[F64Array, "N T d"]:
         if not hasattr(self, "_gibbs_X_chain"):
             self.run_gibbs_sampling()
         return self._gibbs_X_chain
 
     @cached_property
-    def m_t_given_T_from_gibbs_samples(self) -> npt.NDArray[np.float64]:
+    @typechecked
+    def m_t_given_T_from_gibbs_samples(self) -> Float64[F64Array, "T d"]:
         return self.gibbs_X_chain.mean(0)
 
     @cached_property
-    def Q_t_given_T_from_gibbs_samples(self) -> npt.NDArray[np.float64]:
+    @typechecked
+    def Q_t_given_T_from_gibbs_samples(self) -> Float64[F64Array, "T d d"]:
         return cov_from_gibbs_samples(self.gibbs_X_chain)
 
     @property
-    def smoothed_obs_cov_from_gibbs_samples(self) -> npt.NDArray[np.float64]:
+    @typechecked
+    def smoothed_obs_cov_from_gibbs_samples(self) -> Float64[F64Array, "T n n"]:
         if not hasattr(self, "_smoothed_obs_cov_from_gibbs_samples"):
             self._run_smoothed_state_to_obs_from_gibbs_samples()
         return self._smoothed_obs_cov_from_gibbs_samples
 
     @property
-    def smoothed_obs_cov_with_obs_cov_from_gibbs_samples(self) -> npt.NDArray[np.float64]:
+    @typechecked
+    def smoothed_obs_cov_with_obs_cov_from_gibbs_samples(self) -> Float64[F64Array, "T n n"]:
         if not hasattr(self, "_smoothed_obs_cov_with_obs_cov_from_gibbs_samples"):
             self._run_smoothed_state_to_obs_with_obs_cov_from_gibbs_samples()
         return self._smoothed_obs_cov_with_obs_cov_from_gibbs_samples
@@ -1106,72 +1145,97 @@ class LinearGaussianFit(AbstractFit):
     # alias of statsmodels terminology
 
     @property
-    def filtered_state(self) -> npt.NDArray[np.float64]:
+    @typechecked
+    def filtered_state(self) -> Float64[F64Array, "T d"]:
         return self.m_t_given_t
 
     @property
-    def filtered_state_cov(self) -> npt.NDArray[np.float64]:
+    @typechecked
+    def filtered_state_cov(self) -> Float64[F64Array, "T d d"]:
         return self.Q_t_given_t
 
     @property
-    def predicted_state(self) -> npt.NDArray[np.float64]:
+    @typechecked
+    def predicted_state(self) -> Float64[F64Array, "T d"]:
         return self.m_t_given_tMinus1
 
     @property
-    def predicted_state_cov(self) -> npt.NDArray[np.float64]:
+    @typechecked
+    def predicted_state_cov(self) -> Float64[F64Array, "T d d"]:
         return self.Q_t_given_tMinus1
 
     @property
-    def smoothed_state(self) -> npt.NDArray[np.float64]:
+    @typechecked
+    def smoothed_state(self) -> Float64[F64Array, "T d"]:
         return self.m_t_given_T
 
     @property
-    def smoothed_state_cov(self) -> npt.NDArray[np.float64]:
+    @typechecked
+    def smoothed_state_cov(self) -> Float64[F64Array, "T d d"]:
         return self.Q_t_given_T
 
     # misc
 
+    @typechecked
     def log_likelihoods(
         self,
-        params_chain: npt.NDArray[np.float64],
-    ) -> npt.NDArray[np.float64]:
+        params_chain: Float64[F64Array, "K p"],
+    ) -> Float64[F64Array, " K"]:
         return -0.5 * self.parent.neg2_log_likelihoods(params_chain, self.y, self.μ_0, self.Γ_0)
 
     @cached_property
-    def mle_hessian_log_likelihood(self) -> npt.NDArray[np.float64]:
+    @typechecked
+    def mle_hessian_log_likelihood(self) -> Float64[F64Array, "p p"]:
         """Hessian of the log likelihood at MLE."""
         import numdifftools as nd
 
         logger.info("Computing MLE Hessian, assumes MLE is attained during fit.")
         neg2_log_likelihood = self.parent.neg2_log_likelihood
 
-        # positional arguments: the built-in models name them differently (e.g. y_2d)
-        def func(params: npt.NDArray[np.float64]) -> float:
-            return neg2_log_likelihood(as_c_array(params), self.y, self.μ_0, self.Γ_0)
-
-        # steps relative to each parameter: the default absolute steps can make small variances negative
+        # differentiate w.r.t. params / scale, i.e. with steps relative to each parameter:
+        # absolute steps can make small variances negative.
+        # (An array `step` would not do: numdifftools takes it as the sequence of steps to extrapolate from.)
         params = np.asarray(self.params, dtype=np.float64)
-        step = 1e-4 * np.where(params != 0.0, np.abs(params), 1.0)
-        return -0.5 * nd.Hessian(func, step=step)(params)
+        scale = np.where(params != 0.0, np.abs(params), 1.0)
+
+        # positional arguments: the built-in models name them differently (e.g. y_2d)
+        def func(params_scaled: npt.NDArray[np.float64]) -> float:
+            return neg2_log_likelihood(as_c_array(params_scaled * scale), self.y, self.μ_0, self.Γ_0)
+
+        hessian = -0.5 * nd.Hessian(func, step=1e-4)(params / scale) / np.outer(scale, scale)
+        # At a maximum in the interior of the parameter space, the Hessian is negative definite.
+        # It is not when a parameter is on a bound or indistinguishable from it, e.g. a variance of zero:
+        # the log-likelihood does not change over steps relative to such a parameter, whose row and column are then 0.
+        if not (np.isfinite(hessian).all() and np.linalg.eigvalsh(0.5 * (hessian + hessian.T))[-1] < 0.0):
+            logger.warning(
+                "The Hessian of the log-likelihood is not negative definite at the parameters %s: "
+                "they are not a maximum in the interior of the parameter space (e.g. a variance is on its bound, "
+                "or the MLE did not converge), where the normal approximation of the posterior does not hold.",
+                params,
+            )
+        return hessian
 
     @cached_property
-    def posterior_normal_approximation_cov_inv(self) -> npt.NDArray[np.float64]:
+    @typechecked
+    def posterior_normal_approximation_cov_inv(self) -> Float64[F64Array, "p p"]:
         """Posterior inverse covariance matrix of the normal approximation."""
         return -self.mle_hessian_log_likelihood
 
     @cached_property
-    def posterior_normal_approximation_cov(self) -> npt.NDArray[np.float64]:
+    @typechecked
+    def posterior_normal_approximation_cov(self) -> Float64[F64Array, "p p"]:
         """Posterior covariance matrix of the normal approximation."""
         return np.linalg.inv(self.posterior_normal_approximation_cov_inv)
 
     # CI
 
+    @typechecked
     def filtered_obs_CI(
         self,
         α: float,
         with_obs_cov: bool = True,
         n_std: float | None = None,
-    ) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64], npt.NDArray[np.float64]]:
+    ) -> tuple[Float64[F64Array, "T n"], Float64[F64Array, "T n"], Float64[F64Array, "T n"]]:
         filtered_obs = self.filtered_obs
         filtered_obs_cov = self.filtered_obs_cov_with_obs_cov if with_obs_cov else self.filtered_obs_cov
 
@@ -1184,12 +1248,13 @@ class LinearGaussianFit(AbstractFit):
             filtered_obs + ns_std[1] * filtered_obs_std,
         )
 
+    @typechecked
     def smoothed_obs_CI(
         self,
         α: float,
         with_obs_cov: bool = True,
         n_std: float | None = None,
-    ) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64], npt.NDArray[np.float64]]:
+    ) -> tuple[Float64[F64Array, "T n"], Float64[F64Array, "T n"], Float64[F64Array, "T n"]]:
         smoothed_obs = self.smoothed_obs
         smoothed_obs_cov = self.smoothed_obs_cov_with_obs_cov if with_obs_cov else self.smoothed_obs_cov
 
@@ -1202,11 +1267,12 @@ class LinearGaussianFit(AbstractFit):
             smoothed_obs + ns_std[1] * smoothed_obs_std,
         )
 
+    @typechecked
     def smoothed_obs_CI_from_samples(
         self,
         α: float,
         n_std: float | None = None,
-    ) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64], npt.NDArray[np.float64]]:
+    ) -> tuple[Float64[F64Array, "T n"], Float64[F64Array, "T n"], Float64[F64Array, "T n"]]:
         smoothed_obs = self.smoothed_obs_from_samples
         if n_std is not None:
             raise NotImplementedError("n_std not implemented")
@@ -1233,11 +1299,12 @@ class LinearGaussianFit(AbstractFit):
             smoothed_obs_high,
         )
 
+    @typechecked
     def smoothed_obs_CI_from_gibbs_samples(
         self,
         α: float,
         n_std: float | None = None,
-    ) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64], npt.NDArray[np.float64]]:
+    ) -> tuple[Float64[F64Array, "T n"], Float64[F64Array, "T n"], Float64[F64Array, "T n"]]:
         if n_std is not None:
             raise NotImplementedError("n_std not implemented")
         smoothed_obs = self.smoothed_obs_from_gibbs_samples
@@ -1264,13 +1331,14 @@ class LinearGaussianFit(AbstractFit):
             smoothed_obs_high,
         )
 
+    @typechecked
     def forecast_obs_CI(
         self,
         T_forecast: int,
         α: float,
         n_std: float | None = None,
         with_obs_cov: bool = True,
-    ) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64], npt.NDArray[np.float64]]:
+    ) -> tuple[Float64[F64Array, "T_forecast n"], Float64[F64Array, "T_forecast n"], Float64[F64Array, "T_forecast n"]]:
         forecast_obs, forecast_obs_cov = self.get_forecast_obs(T_forecast, with_obs_cov=with_obs_cov)
 
         ns_std = stats.norm.ppf([0.5 * α, 1.0 - 0.5 * α]) if n_std is None else (-n_std, n_std)
@@ -1406,7 +1474,7 @@ class BaseLinearGaussianModel:
             Γ_0: npt.NDArray[np.float64],
             n_iter: int,
             return_chain: bool,
-            **kwargs: dict[str, Any],
+            **kwargs: Any,
         ) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]]:
             """Calculate MLE from log-likelihood using scipy.optimize.minimize.
 
@@ -1422,15 +1490,15 @@ class BaseLinearGaussianModel:
                 logger.warning("n_iter %s is ignored when using scipy.optimize.minimize.", n_iter)
 
             chain: list[npt.NDArray[np.float64]] = []
-            callback: Callable[[npt.NDArray[np.float64]], None] | None
             if return_chain:
                 chain.append(params0)
-                callback = _callback
-            else:
-                callback = None
 
             opt = minimize(
-                as_scipy_objective(neg2_log_likelihood), params0, args=(y, μ_0, Γ_0), callback=callback, **kwargs
+                as_scipy_objective(neg2_log_likelihood),
+                params0,
+                args=(y, μ_0, Γ_0),
+                callback=_callback if return_chain else None,
+                **kwargs,
             )
             msg = opt.message
             if not opt.success:
@@ -1500,7 +1568,7 @@ class BaseLinearGaussianModel:
             params = self.params_guess(y)
         # using default if exists
         if not mle_kwargs and hasattr(self, "mle_kwargs"):
-            mle_kwargs = self.mle_kwargs  # type: ignore[attr-defined]
+            mle_kwargs = self.mle_kwargs
         return LinearGaussianFit(
             self,
             y,

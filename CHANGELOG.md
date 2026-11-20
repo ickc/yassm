@@ -6,8 +6,8 @@
 
 - Support Python 3.11–3.15, NumPy 2 and Numba ≥ 0.59 (`numba.generated_jit` was removed).
 - Packaging: PEP 621 metadata built with hatchling; development environments and tasks managed by pixi.
-- The core dependencies are now only NumPy, SciPy and Numba; matplotlib/seaborn, pandas and numdifftools are optional
-  extras (`plot`, `pandas`, `hessian`, `all`). seaborn, used by `plot`, was previously undeclared.
+- The core dependencies are now only NumPy, SciPy and Numba; matplotlib (≥ 3.10)/seaborn, pandas and numdifftools
+  are optional extras (`plot`, `pandas`, `hessian`, `all`). seaborn, used by `plot`, was previously undeclared.
 - Importing yassm no longer configures logging: its warnings are still printed, but set `YASSMLOGLEVEL` or call
   `yassm.util.setup_logging()` to see its progress messages.
 - Docstrings use the NumPy style.
@@ -31,7 +31,9 @@
 ### Added
 
 - The main classes and ready-made models are exported from the top level, e.g. `from yassm import local_level_model`,
-  and the package ships type information (`py.typed`).
+  and the package ships type information (`py.typed`), checked with mypy.
+- The arrays returned by the fits and the QMC transforms are annotated with their shapes (jaxtyping),
+  checked at runtime in the test suite, or with `YASSM_TYPECHECK=1` where jaxtyping and beartype are installed.
 - `LinearGaussianFit.run_gibbs_sampling(filter_n_std=...)` re-runs the Gibbs sampler,
   optionally keeping only the draws near the MLE.
 - `GridFilterFit.params_to_series`, like the other fits.
@@ -51,6 +53,8 @@
   filters were normalised as for $n = 1$: log-likelihoods were too high by $(n - 1) \log(2π) / 2$ per time step.
 - `mle_hessian_log_likelihood` and `posterior_normal_approximation_cov` raised a `TypeError` for the built-in local
   level and local ratio models, and returned NaN for small variances.
+- `mle_hessian_log_likelihood` warns when the Hessian is not negative definite, e.g. with a variance on its bound,
+  where the normal approximation of the posterior does not hold.
 - With a variance bound of exactly 0, `scipy.optimize` could stop early at a singular point while reporting success,
   e.g. for the MA(1) model.
 - `fit(params=None, mle_method="grid_search")` of the particle filters required a `params_guess`.
@@ -59,6 +63,8 @@
 - `gibbs_params_chain_with_burn_in` and `gibbs_X_chain_with_burn_in` did not exist until another Gibbs result
   was accessed.
 - `mle_n_iter` was reported as ignored by `scipy_minimize` and `grid_search` even though a positive value is required.
+- `HilbertCurve*.plot` drew 3-D curves on a 3-D axes stacked over a stray 2-D one, and ignored a given 3-D axes;
+  `plot` of the fits and of 2-D curves used the current figure instead of the one of the given axes.
 - Halton/van der Corput sequences truncated bases to `int8`, breaking `halton_sequence` for dimensions ≥ 32.
 - The linear range reduction of the full-range Hilbert sort mapped the maximum of each axis to the middle of the range.
 - Its logistic and whitening range reductions sorted the points far in the upper tail first instead of last.

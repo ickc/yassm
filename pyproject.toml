@@ -44,7 +44,7 @@ dependencies = [
 
 [project.optional-dependencies]
 # plotting of fits and Hilbert curves
-plot = ["matplotlib>=3.6", "seaborn>=0.12"]
+plot = ["matplotlib>=3.10", "seaborn>=0.12"]
 # DataFrame/Series helpers and datetime forecasting index
 pandas = ["pandas>=2"]
 # Hessian at the MLE (normal approximation of the posterior)
@@ -63,7 +63,18 @@ test = [
     "pytest>=8",
     "pytest-cov>=5",
     "pytest-xdist>=3",
+    # the array annotations are checked in the test suite
+    "jaxtyping>=0.2.38",
+    "beartype>=0.20",
     "statsmodels>=0.14",
+]
+typecheck = [
+    "yassm[all]",
+    "mypy>=1.15",
+    "jaxtyping>=0.2.38",
+    "beartype>=0.20",
+    "scipy-stubs>=1.15",
+    "pandas-stubs>=2",
 ]
 examples = [
     "yassm[all]",
@@ -72,6 +83,8 @@ examples = [
 ]
 docs = [
     { include-group = "examples" },
+    # renders the array annotations
+    "jaxtyping>=0.2.38",
     "sphinx>=8",
     "furo>=2024.8.6",
     "myst-nb>=1.1",
@@ -81,6 +94,7 @@ docs = [
 dev = [
     { include-group = "test" },
     { include-group = "docs" },
+    { include-group = "typecheck" },
 ]
 
 [tool.hatch.version]
@@ -119,6 +133,19 @@ filterwarnings = [
     "error::pytest.PytestReturnNotNoneWarning",
 ]
 
+# mypy #########################################################################
+
+[tool.mypy]
+files = ["src"]
+python_version = "3.11"
+warn_unused_ignores = true
+warn_redundant_casts = true
+
+[[tool.mypy.overrides]]
+# no type information published
+module = ["seaborn", "numdifftools", "mpl_toolkits.*"]
+ignore_missing_imports = true
+
 # coverage #####################################################################
 
 [tool.coverage.run]
@@ -146,7 +173,7 @@ python = ">=3.11"
 numba = ">=0.59"
 numpy = ">=1.24"
 scipy = ">=1.10"
-matplotlib-base = ">=3.6"
+matplotlib-base = ">=3.10"
 seaborn-base = ">=0.12"
 pandas = ">=2"
 numdifftools = ">=0.9.41"
@@ -158,7 +185,16 @@ yassm = { path = ".", editable = true }
 pytest = ">=8"
 pytest-cov = ">=5"
 pytest-xdist = ">=3"
+jaxtyping = ">=0.2.38"
+beartype = ">=0.20"
 statsmodels = ">=0.14"
+
+[tool.pixi.feature.typecheck.dependencies]
+mypy = ">=1.15"
+jaxtyping = ">=0.2.38"
+beartype = ">=0.20"
+scipy-stubs = ">=1.15"
+pandas-stubs = ">=2"
 
 [tool.pixi.feature.examples.dependencies]
 ipython = "*"
@@ -166,6 +202,7 @@ jupytext = ">=1.16"
 statsmodels = ">=0.14"
 
 [tool.pixi.feature.docs.dependencies]
+jaxtyping = ">=0.2.38"
 sphinx = ">=8"
 furo = ">=2024.8.6"
 myst-nb = ">=1.1"
@@ -201,6 +238,9 @@ examples = { cmd = "pytest -n auto -m examples tests/test_examples.py", env = { 
 lint = { cmd = "ruff check && ruff format --check", description = "Lint and check formatting" }
 fmt = { cmd = "ruff check --fix && ruff format", description = "Auto-fix lint and format" }
 
+[tool.pixi.feature.typecheck.tasks]
+typecheck = { cmd = "mypy", description = "Type check the package with mypy" }
+
 [tool.pixi.feature.build.tasks]
 dist = { cmd = "python -m build --no-isolation --outdir dist/pkg", description = "Build the sdist and wheel into dist/pkg" }
 check-dist = { cmd = "twine check --strict dist/pkg/*", depends-on = ["dist"], description = "Build the sdist and wheel, and check their metadata" }
@@ -210,9 +250,10 @@ docs = { cmd = "sphinx-build -W --keep-going -b dirhtml docs dist/docs", descrip
 docs-serve = { cmd = "python -m http.server -d dist/docs 8000", depends-on = ["docs"], description = "Build and serve the docs locally" }
 
 [tool.pixi.environments]
-default = { features = ["test", "examples", "lint"], solve-group = "default" }
+default = { features = ["test", "examples", "lint", "typecheck"], solve-group = "default" }
 docs = { features = ["docs", "examples"], solve-group = "default" }
 lint = { features = ["lint"], solve-group = "default" }
+typecheck = { features = ["typecheck"], solve-group = "default" }
 build = { features = ["build"], solve-group = "default" }
 py311 = ["py311", "test"]
 py312 = ["py312", "test"]
@@ -242,6 +283,8 @@ select = [
 ignore = [
     "E501",    # line length is handled by the formatter
     "E741",    # ambiguous variable names: single-letter math names follow the literature
+    "F722",    # jaxtyping shapes, e.g. Float64[np.ndarray, "T d"], are not forward annotations
+    "UP037",   # and unquoting a single jaxtyping dimension, e.g. " T", makes it a name
     "RUF001",  # Greek letters (σ, Γ, Σ, ...) are intentional
     "RUF002",
     "RUF003",
