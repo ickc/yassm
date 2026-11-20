@@ -8,6 +8,7 @@ from __future__ import annotations
 from logging import getLogger
 
 import numpy as np
+import pytest
 
 from yassm.lib import random_choice_weighted
 
@@ -42,3 +43,20 @@ def test_random_choice_weighted_more_samples_than_bins():
     x = np.arange(2.0).reshape(2, 1)
     res = random_choice_weighted(x, 5, np.array([1.0, np.inf]))
     np.testing.assert_array_equal(res, np.ones((5, 1)))
+
+
+def test_small_solve_and_logdet() -> None:
+    """The LAPACK-free 1 x 1 paths agree with NumPy, and still raise on singular matrices."""
+    from yassm.lib.linear_gaussian import logdet, solve
+
+    rng = np.random.default_rng(0)
+    for n in (1, 3):
+        a = rng.normal(size=(n, n))
+        a = a @ a.T + n * np.identity(n)
+        b = rng.normal(size=n)
+        B = rng.normal(size=(n, 2))
+        np.testing.assert_allclose(solve(a, b), np.linalg.solve(a, b))
+        np.testing.assert_allclose(solve(a, B), np.linalg.solve(a, B))
+        np.testing.assert_allclose(logdet(a), np.log(np.linalg.det(a)))
+    with pytest.raises(np.linalg.LinAlgError):
+        solve(np.zeros((1, 1)), np.ones(1))

@@ -18,8 +18,8 @@ import numpy as np
 from numba import jit
 
 from ...lib.linear_gaussian.model.gerber_chopin_2015 import get_ABΣR
-from ...linear_gaussian import GeneralLinearGaussianStateSpaceModel
-from .. import GeneralLinearGaussianParticleFilterStateSpaceModel
+from ...linear_gaussian import LinearGaussianModel
+from .. import LinearGaussianParticleFilterModel
 
 if TYPE_CHECKING:
     import numpy.typing as npt
@@ -28,7 +28,7 @@ if TYPE_CHECKING:
 def get_gerber_chopin_2015_model(
     d: int,
     particle_filter_method: str = "bootstrap",
-) -> GeneralLinearGaussianStateSpaceModel:
+) -> LinearGaussianModel:
     (
         A0,
         B0,
@@ -40,7 +40,7 @@ def get_gerber_chopin_2015_model(
     def X0(params: npt.NDArray[np.float64]) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]]:
         return np.zeros(d), np.eye(d)
 
-    return GeneralLinearGaussianParticleFilterStateSpaceModel(
+    return LinearGaussianParticleFilterModel(
         1,
         A0,
         B0,

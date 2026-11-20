@@ -19,6 +19,7 @@ from typing import TYPE_CHECKING
 import numpy as np
 from numba import jit
 
+from ...util import deprecated_aliases
 from .hilbert_curve import FLOAT_ORDER, _bitset_flip, _bitset_test
 from .random import correlation_variance_decomposition, sqrtm_psd
 
@@ -554,5 +555,10 @@ hilbert_sort_inplace_func: dict[str, HilbertSortInplace] = {
     "whiten_ZCA_cor": hilbert_sort_inplace_whiten_ZCA_cor,
 }
 
-#: Deprecated misspelt alias kept for backward compatibility.
-hilber_sort_inplace_func = hilbert_sort_inplace_func
+
+__getattr__ = deprecated_aliases(
+    __name__,
+    {
+        "hilber_sort_inplace_func": "hilbert_sort_inplace_func",
+    },
+)

@@ -16,7 +16,7 @@ from ...lib.linear_gaussian.model.local_level import kalman_smoothing as _kalman
 from ...lib.linear_gaussian.model.local_level import neg2_log_likelihood as _neg2_log_likelihood
 from ...lib.linear_gaussian.model.local_level import sampling_parameters as _sampling_parameters
 from ...lib.linear_gaussian.model.local_level import smoothed_state_to_obs as _smoothed_state_to_obs
-from .. import GenericLinearGaussianStateSpaceModel
+from .. import BaseLinearGaussianModel
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -64,7 +64,7 @@ logger = getLogger(__name__)
 
 
 @dataclass
-class LocalLevelModel(GenericLinearGaussianStateSpaceModel):
+class LocalLevelModel(BaseLinearGaussianModel):
     """Local level model."""
 
     N: int = 2
