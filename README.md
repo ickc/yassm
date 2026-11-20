@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/ickc/yassm/actions/workflows/ci.yml/badge.svg)](https://github.com/ickc/yassm/actions/workflows/ci.yml)
 [![Documentation](https://github.com/ickc/yassm/actions/workflows/docs.yml/badge.svg)](https://ickc.github.io/yassm)
-[![License: BSD-3-Clause](https://img.shields.io/badge/license-BSD--3--Clause-blue.svg)](LICENSE)
+[![License: BSD-3-Clause](https://img.shields.io/badge/license-BSD--3--Clause-blue.svg)](https://github.com/ickc/yassm/blob/main/LICENSE)
 
 State space models for time series analysis, implemented from scratch in Python and [Numba](https://numba.pydata.org/).
 
@@ -65,4 +65,4 @@ pixi run lint       # ruff
 pixi run docs       # documentation into dist/docs
 ```
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for more.
+See [CONTRIBUTING.md](https://github.com/ickc/yassm/blob/main/CONTRIBUTING.md) for more.
