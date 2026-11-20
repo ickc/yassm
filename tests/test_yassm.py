@@ -327,6 +327,68 @@ def test_multivariate_observations_are_normalised() -> None:
     )
 
 
+def _exact_log_likelihood(y, A, B, Σ, R, μ_0, Γ_0) -> float:
+    """``log p(y_obs[1:] | y_obs[0])`` of a time-invariant model with ``n = 1``, from the joint distribution of ``y_obs``.
+
+    ``X_0 ~ N(μ_0, Γ_0)``, ``X_t = A X_(t-1) + U_t``, ``Y_t = B X_t + V_t``, where ``y_obs`` are the values that are not NaN.
+    """
+    from scipy import stats
+
+    T = y.size
+    means = np.empty(T)
+    cov = np.empty((T, T))
+    m, P = μ_0, Γ_0
+    for t in range(T):
+        if t > 0:
+            m = A @ m
+            P = A @ P @ A.T + Σ
+        means[t] = (B @ m)[0]
+        # Cov(X_s, X_t) = A^(s - t) Var(X_t) for s >= t
+        C = P
+        for s in range(t, T):
+            cov[s, t] = cov[t, s] = (B @ C @ B.T)[0, 0] + (R[0, 0] if s == t else 0.0)
+            C = A @ C
+    obs = np.flatnonzero(~np.isnan(y))
+    first = obs[0]
+    full = stats.multivariate_normal(means[obs], cov[np.ix_(obs, obs)]).logpdf(y[obs])
+    return full - stats.norm(means[first], np.sqrt(cov[first, first])).logpdf(y[first])
+
+
+@pytest.mark.parametrize("model_name", ["local_level_model", "local_ratio_model", "local_linear_model"])
+def test_log_likelihood_with_missing_observations(model_name: str) -> None:
+    """Missing observations have no term in the log-likelihood, which is conditional on the first one observed.
+
+    It was NaN as soon as an observation was missing, so that ``scipy_minimize`` could not estimate the MLE.
+    """
+    import yassm
+
+    rng = np.random.default_rng(0)
+    T = 60
+    y = np.cumsum(rng.normal(size=T)) + rng.normal(scale=2.0, size=T)
+    # also at the start: the first observation is y[2]
+    y[[0, 1, 20, 21, 45]] = np.nan
+    r, q, φ = 4.0, 1.0, 0.9
+    if model_name == "local_linear_model":
+        A, B, Σ, params = np.array([[2.0, -1.0], [1.0, 0.0]]), np.array([[1.0, 0.0]]), np.diag([q, 0.0]), [r, q]
+    elif model_name == "local_ratio_model":
+        A, B, Σ, params = np.array([[φ]]), np.eye(1), np.array([[q]]), [r, q, φ]
+    else:
+        A, B, Σ, params = np.eye(1), np.eye(1), np.array([[q]]), [r, q]
+    d = A.shape[0]
+    μ_0, Γ_0 = np.zeros(d), 10.0 * np.eye(d)
+
+    model = getattr(yassm, model_name)
+    fit = model.fit(y, params, μ_0, Γ_0)
+    np.testing.assert_allclose(fit.log_likelihood, _exact_log_likelihood(y, A, B, Σ, np.array([[r]]), μ_0, Γ_0))
+    # also at other parameters, in parallel as for the draws of a Gibbs chain, or by scipy_minimize
+    paramses = np.array([params, params], dtype=np.float64)
+    paramses[1, :2] *= 2.0
+    np.testing.assert_allclose(
+        fit.log_likelihoods(paramses),
+        [fit.log_likelihood, _exact_log_likelihood(y, A, B, 2.0 * Σ, np.array([[2.0 * r]]), μ_0, Γ_0)],
+    )
+
+
 def test_top_level_exports() -> None:
     import yassm
 

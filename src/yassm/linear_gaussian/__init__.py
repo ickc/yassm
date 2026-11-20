@@ -1097,6 +1097,9 @@ class LinearGaussianFit(AbstractFit):
         Conditioning on the first observation drops its term ``log p(y_1)``,
         so that a diffuse prior on the initial state gives a finite likelihood.
         Add ``log p(y_1)`` to compare it with the full likelihood of a particle filter.
+
+        Missing observations, i.e. with any NaN, have no term,
+        and the first observation is then the first one that is not missing.
         """
         return -0.5 * self.neg2_log_likelihood
 
@@ -2126,10 +2129,10 @@ class LinearGaussianModel(BaseLinearGaussianModel):
 
             This is modified from Kalman filtering but not keeping the intermediate terms.
 
-            This skip the first term that uses the prior of X0 as that is typically a defused distribution.
+            Conditional on the first observation: its term, which uses the prior of X0, typically a diffuse one, is dropped.
+            Missing observations have no term, and the first observation is the first one that is not missing.
             """
             size = y.shape[0]
-            T = size - 1
 
             A_t = A0(params)
             B_t = B0(params)
@@ -2155,8 +2158,7 @@ class LinearGaussianModel(BaseLinearGaussianModel):
                 m_t_given_tMinus1[:] = μ
                 Q_t_given_tMinus1[:] = Γ
 
-            # we don't add t=0 term to res here
-            res = T * n * LOG2Π
+            res = 0.0
 
             t = 0
             if B is not None:
@@ -2164,6 +2166,8 @@ class LinearGaussianModel(BaseLinearGaussianModel):
             if R is not None:
                 R(R_t, params, 0)
             y_t = y[t]
+            # whether the first observation, whose term is dropped, is behind
+            conditioned = not np.isnan(y_t).any()
             filter_update_inplace(
                 m_t_given_t,
                 Q_t_given_t,
@@ -2203,9 +2207,15 @@ class LinearGaussianModel(BaseLinearGaussianModel):
                     Q_t_given_tMinus1,
                 )
 
+                # an observation with a missing value is missing, as in filter_update_inplace
+                if np.isnan(y_t).any():
+                    continue
+                if not conditioned:
+                    conditioned = True
+                    continue
                 ε_t[:] = y_t - B_t @ m_t_given_tMinus1
                 H_t[:] = B_t @ Q_t_given_tMinus1 @ B_t.transpose() + R_t
-                res += logdet(H_t) + ε_t @ solve(H_t, ε_t)
+                res += n * LOG2Π + logdet(H_t) + ε_t @ solve(H_t, ε_t)
             return res
 
         return neg2_log_likelihood

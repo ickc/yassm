@@ -524,10 +524,10 @@ def neg2_log_likelihood(
 
     This is modified from `local_level.neg2_log_likelihood`.
 
-    This skip the first term that uses the prior of X0 as that is typically a defused distribution.
+    Conditional on the first observation: its term, which uses the prior of X0, typically a diffuse one, is dropped.
+    Missing observations have no term, and the first observation is the first one that is not missing.
     """
     size = y_2d.shape[0]
-    T = size - 1
     # to 1d
     y = y_2d.flatten()
     μ_0 = μ_0_1d[0]
@@ -541,11 +541,12 @@ def neg2_log_likelihood(
     m_t_given_tMinus1 = μ_0
     Q_t_given_tMinus1 = Γ_0
 
-    # we don't add t=0 term to res here
-    res = T * LOG2Π
+    res = 0.0
 
     t = 0
     y_t = y[t]
+    # whether the first observation, whose term is dropped, is behind
+    conditioned = not np.isnan(y_t)
     m_t_given_t, Q_t_given_t = filter_update(y_t, R_t, m_t_given_tMinus1, Q_t_given_tMinus1)
     for t in range(1, size):
         # s = t, t = t - 1
@@ -554,9 +555,14 @@ def neg2_log_likelihood(
         y_t = y[t]
         m_t_given_t, Q_t_given_t = filter_update(y_t, R_t, m_t_given_tMinus1, Q_t_given_tMinus1)
 
+        if np.isnan(y_t):
+            continue
+        if not conditioned:
+            conditioned = True
+            continue
         ε_t = y_t - m_t_given_tMinus1
         H_t = Q_t_given_tMinus1 + R_t
-        res += np.log(H_t) + ε_t / H_t * ε_t
+        res += LOG2Π + np.log(H_t) + ε_t / H_t * ε_t
     return res
 
 
