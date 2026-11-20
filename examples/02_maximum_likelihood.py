@@ -38,6 +38,7 @@ import statsmodels.tsa.api as tsa
 from example_data import load_ar1_plus_noise
 
 from yassm import local_ratio_model
+from yassm.util import VARIANCE_BOUNDS
 
 # %%
 df = load_ar1_plus_noise()
@@ -78,7 +79,8 @@ ax = fit_gradient.mle_params_chain_to_frame.plot(logx=True, logy=True, title="Gr
 # ## `scipy.optimize`
 #
 # `mle_kwargs` are passed to {func}`scipy.optimize.minimize`.
-# The variances must be bounded below by zero:
+# The variances must be bounded strictly above zero, e.g. by `VARIANCE_BOUNDS`, as the built-in models do by default:
+# at exactly zero, the likelihood of this model is not defined.
 
 # %%
 # %%time
@@ -90,7 +92,7 @@ fit_scipy = local_ratio_model.fit(
     mle_method="scipy_minimize",
     mle_n_iter=1,
     mle_return_chain=True,
-    mle_kwargs={"method": "L-BFGS-B", "bounds": ((0.0, None), (0.0, None), (None, None))},
+    mle_kwargs={"method": "L-BFGS-B", "bounds": (VARIANCE_BOUNDS, VARIANCE_BOUNDS, (None, None))},
 )
 
 # %% [markdown]
