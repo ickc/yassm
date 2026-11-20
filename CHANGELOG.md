@@ -51,6 +51,8 @@
 - With a variance bound of exactly 0, `scipy.optimize` could stop early at a singular point while reporting success,
   e.g. for the MA(1) model.
 - `fit(params=None, mle_method="grid_search")` of the particle filters required a `params_guess`.
+- With `mle_n_iter` but no or an unknown `mle_method`, the particle filters silently skipped the MLE: no method
+  now means `scipy_minimize`, and an unknown one raises a `ValueError`.
 - `gibbs_params_chain_with_burn_in` and `gibbs_X_chain_with_burn_in` did not exist until another Gibbs result
   was accessed.
 - `mle_n_iter` was reported as ignored by `scipy_minimize` and `grid_search` even though a positive value is required.

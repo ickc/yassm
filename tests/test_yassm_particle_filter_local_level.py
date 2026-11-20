@@ -146,3 +146,24 @@ class TestLinearGaussianParticleFilterModelBootstrap(TestCase):
         )
         with pytest.raises(NotImplementedError, match="params_grid"):
             model.fit(y, None, mle_method="grid_search", mle_n_iter=1, mle_kwargs={"bounds": None}, n_sample=500)
+
+
+def test_mle_method(monkeypatch) -> None:
+    """An empty mle_method is the default, scipy_minimize; an unknown one raises instead of skipping the MLE."""
+    calls = []
+
+    def mle_scipy_minimize(y, params0, n_iter, n_sample, return_chain, **kwargs):
+        calls.append(params0)
+        return np.array([1.0, 2.0]), np.empty((0, 2))
+
+    monkeypatch.setattr(
+        LinearGaussianParticleFilterModel, "mle_scipy_minimize", property(lambda self: mle_scipy_minimize)
+    )
+    model = LinearGaussianParticleFilterModel(2, A0, B0, Σ0, R0, X0=X0, particle_filter_method="bootstrap")
+    fit = model.fit(y, [3.0, 4.0], mle_n_iter=1, n_sample=10)
+    assert len(calls) == 1
+    np.testing.assert_array_equal(fit.params, [1.0, 2.0])
+    assert fit.mle_method == "scipy_minimize"
+
+    with pytest.raises(ValueError, match="Unknown mle_method 'grid'"):
+        model.fit(y, [3.0, 4.0], mle_method="grid", mle_n_iter=1, n_sample=10)

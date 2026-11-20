@@ -213,6 +213,10 @@ class ParticleFilterFit(AbstractFit):
             param_names = [f"param_{i}" for i in range(N)]
 
         if mle_n_iter:
+            # an empty method is the default one
+            self.mle_method = self.mle_method or "scipy_minimize"
+            if self.mle_method not in ("grid_search", "scipy_minimize"):
+                raise ValueError(f'Unknown mle_method {self.mle_method!r}: use "grid_search" or "scipy_minimize".')
             logger.info("Using %s for MLE.", self.mle_method)
             if mle_n_iter > 1:
                 logger.warning("mle_n_iter %s is ignored by %s.", mle_n_iter, self.mle_method)
